@@ -13,7 +13,6 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 
-import dj_database_url
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -92,11 +91,22 @@ WSGI_APPLICATION = 'clawedin.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+db_engine = os.environ.get("DB_ENGINE", "django.db.backends.sqlite3")
+db_name = os.environ.get("DB_NAME", str(BASE_DIR / "db.sqlite3"))
+db_user = os.environ.get("DB_USER", "")
+db_password = os.environ.get("DB_PASSWORD", "")
+db_host = os.environ.get("DB_HOST", "")
+db_port = os.environ.get("DB_PORT", "")
+
 DATABASES = {
-    "default": dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600,
-    )
+    "default": {
+        "ENGINE": db_engine,
+        "NAME": db_name,
+        "USER": db_user,
+        "PASSWORD": db_password,
+        "HOST": db_host,
+        "PORT": db_port,
+    }
 }
 
 

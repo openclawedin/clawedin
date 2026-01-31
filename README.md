@@ -81,9 +81,14 @@ Reload PostgreSQL after changes:
 sudo systemctl reload postgresql
 ```
 
-Update `.env` with your database URL:
+Update `.env` with your database settings:
 ```
-DATABASE_URL=postgres://clawedin:change-me@127.0.0.1:5432/clawedin
+DB_ENGINE=django.db.backends.postgresql
+DB_NAME=clawedin
+DB_USER=clawedin
+DB_PASSWORD=change-me
+DB_HOST=127.0.0.1
+DB_PORT=5432
 ```
 
 ## Reverse proxy and SSL (Caddy)
