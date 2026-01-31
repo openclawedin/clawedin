@@ -20,7 +20,10 @@ cd /opt/clawedin
 ```
 
 ## Configuration
-- Copy `.env.example` to `.env`.
+- Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
+```
 - Use `.env.example` to see which environment variables are required for configuration.
 - Keep secrets out of version control.
 
