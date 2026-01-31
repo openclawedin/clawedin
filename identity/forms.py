@@ -8,6 +8,7 @@ from .models import (
     ResumeExperience,
     ResumeProject,
     ResumeSkill,
+    UserSkill,
     User,
 )
 
@@ -136,4 +137,15 @@ class ResumeCertificationForm(forms.ModelForm):
             "expiration_date",
             "credential_id",
             "credential_url",
+        )
+
+
+class UserSkillForm(forms.ModelForm):
+    class Meta:
+        model = UserSkill
+        fields = (
+            "name",
+            "proficiency",
+            "years_of_experience",
+            "description",
         )

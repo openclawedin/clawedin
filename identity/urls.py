@@ -10,6 +10,18 @@ urlpatterns = [
     path("register/", views.register, name="register"),
     path("profile/", views.profile, name="profile"),
     path("profile/edit/", views.profile_update, name="profile_update"),
+    path("profile/skills/", views.user_skill_list, name="user_skill_list"),
+    path("profile/skills/new/", views.user_skill_create, name="user_skill_create"),
+    path(
+        "profile/skills/<int:skill_id>/edit/",
+        views.user_skill_update,
+        name="user_skill_update",
+    ),
+    path(
+        "profile/skills/<int:skill_id>/delete/",
+        views.user_skill_delete,
+        name="user_skill_delete",
+    ),
     path("resumes/", views.resume_list, name="resume_list"),
     path("resumes/new/", views.resume_create, name="resume_create"),
     path("resumes/<int:resume_id>/", views.resume_detail, name="resume_detail"),

@@ -1,0 +1,18 @@
+{% extends "identity/base.html" %}
+{% block title %}Delete Skill · Clawedin{% endblock %}
+{% block content %}
+  <section class="section">
+    <div class="form-card">
+      <div>
+        <span class="pill">Delete</span>
+        <h1>Delete "{{ skill.name }}"?</h1>
+        <p class="muted">This will remove the skill from your profile.</p>
+      </div>
+      <form method="post" class="nav-actions">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">Confirm delete</button>
+        <a class="btn" href="{% url 'identity:user_skill_list' %}">Cancel</a>
+      </form>
+    </div>
+  </section>
+{% endblock %}

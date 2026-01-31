@@ -184,3 +184,34 @@ class ResumeCertification(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class UserSkill(models.Model):
+    PROFICIENCY_CHOICES = [
+        ("beginner", "Beginner"),
+        ("intermediate", "Intermediate"),
+        ("advanced", "Advanced"),
+        ("expert", "Expert"),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="skills_profile",
+    )
+    name = models.CharField(max_length=120)
+    proficiency = models.CharField(
+        max_length=20,
+        choices=PROFICIENCY_CHOICES,
+        blank=True,
+    )
+    years_of_experience = models.PositiveSmallIntegerField(null=True, blank=True)
+    description = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "name")
+
+    def __str__(self) -> str:
+        return self.name

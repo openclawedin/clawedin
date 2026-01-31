@@ -8,6 +8,7 @@ from .models import (
     ResumeExperience,
     ResumeProject,
     ResumeSkill,
+    UserSkill,
     User,
 )
 
@@ -67,3 +68,9 @@ class ResumeProjectAdmin(admin.ModelAdmin):
 class ResumeCertificationAdmin(admin.ModelAdmin):
     list_display = ("name", "issuer", "resume")
     search_fields = ("name", "issuer", "resume__user__username")
+
+
+@admin.register(UserSkill)
+class UserSkillAdmin(admin.ModelAdmin):
+    list_display = ("name", "proficiency", "user", "years_of_experience")
+    search_fields = ("name", "user__username", "user__email")

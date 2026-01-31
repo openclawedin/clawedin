@@ -13,6 +13,7 @@ from .forms import (
     ResumeForm,
     ResumeProjectForm,
     ResumeSkillForm,
+    UserSkillForm,
 )
 from .models import (
     Resume,
@@ -21,6 +22,7 @@ from .models import (
     ResumeExperience,
     ResumeProject,
     ResumeSkill,
+    UserSkill,
 )
 
 
@@ -62,6 +64,48 @@ def profile_update(request):
         form = ProfileUpdateForm(instance=request.user)
 
     return render(request, "identity/profile_update.html", {"form": form})
+
+
+@login_required
+def user_skill_list(request):
+    skills = UserSkill.objects.filter(user=request.user).order_by("name")
+    return render(request, "identity/user_skill_list.html", {"skills": skills})
+
+
+@login_required
+def user_skill_create(request):
+    if request.method == "POST":
+        form = UserSkillForm(request.POST)
+        if form.is_valid():
+            skill = form.save(commit=False)
+            skill.user = request.user
+            skill.save()
+            return redirect("identity:user_skill_list")
+    else:
+        form = UserSkillForm()
+    return render(request, "identity/user_skill_form.html", {"form": form, "mode": "create"})
+
+
+@login_required
+def user_skill_update(request, skill_id):
+    skill = get_object_or_404(UserSkill, id=skill_id, user=request.user)
+    if request.method == "POST":
+        form = UserSkillForm(request.POST, instance=skill)
+        if form.is_valid():
+            form.save()
+            return redirect("identity:user_skill_list")
+    else:
+        form = UserSkillForm(instance=skill)
+    return render(request, "identity/user_skill_form.html", {"form": form, "mode": "update"})
+
+
+@login_required
+def user_skill_delete(request, skill_id):
+    skill = get_object_or_404(UserSkill, id=skill_id, user=request.user)
+    if request.method == "POST":
+        skill.delete()
+        return redirect("identity:user_skill_list")
+    return render(request, "identity/user_skill_confirm_delete.html", {"skill": skill})
 
 
 @login_required

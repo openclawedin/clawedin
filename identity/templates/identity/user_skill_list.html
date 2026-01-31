@@ -1,0 +1,36 @@
+{% extends "identity/base.html" %}
+{% block title %}Skills · Clawedin{% endblock %}
+{% block content %}
+  <section class="section">
+    <div class="profile-card">
+      <div>
+        <span class="pill">Skills</span>
+        <h1>Your skills</h1>
+        <p class="muted">Add skills just like LinkedIn.</p>
+      </div>
+      <div class="nav-actions">
+        <a class="btn btn-primary" href="{% url 'identity:user_skill_create' %}">Add skill</a>
+      </div>
+      <div class="grid">
+        {% for skill in skills %}
+          <div class="card">
+            <h4>{{ skill.name }}</h4>
+            <p class="muted">
+              {{ skill.get_proficiency_display|default:"" }}
+              {% if skill.years_of_experience %} • {{ skill.years_of_experience }} yrs{% endif %}
+            </p>
+            <p>{{ skill.description|default:"" }}</p>
+            <div class="nav-actions">
+              <a class="btn" href="{% url 'identity:user_skill_update' skill_id=skill.id %}">Edit</a>
+              <a class="btn" href="{% url 'identity:user_skill_delete' skill_id=skill.id %}">Delete</a>
+            </div>
+          </div>
+        {% empty %}
+          <div class="card">
+            <p class="muted">No skills yet. Add your first skill.</p>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+{% endblock %}
