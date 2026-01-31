@@ -37,6 +37,8 @@ Basic steps to run locally:
 
 Example (commands may vary by environment):
 ```bash
+sudo apt update
+sudo apt install -y python3.12-venv python3-pip python3-full
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -94,6 +96,15 @@ DB_PORT=5432
 ## Reverse proxy and SSL (Caddy)
 This app is intended to be proxied by Caddy for automatic HTTPS and certificate management.
 Typical flow: `Caddy (80/443) -> Gunicorn -> Django`.
+
+Install Caddy (Ubuntu/Debian):
+```bash
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update
+sudo apt install -y caddy
+```
 
 Production-ready `Caddyfile` (adjust domain, email, and static path). Caddy will redirect HTTP (80) to HTTPS (443):
 ```caddyfile
