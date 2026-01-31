@@ -128,6 +128,11 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+AUTH_USER_MODEL = "identity.User"
+LOGIN_URL = "identity:login"
+LOGIN_REDIRECT_URL = "identity:profile"
+LOGOUT_REDIRECT_URL = "identity:login"
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
@@ -150,3 +155,5 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

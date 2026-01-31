@@ -1,0 +1,30 @@
+{% extends "identity/base.html" %}
+{% block title %}Profile · Clawedin{% endblock %}
+{% block content %}
+  <section class="section">
+    <div class="profile-card">
+      <div>
+        <span class="pill">Profile</span>
+        <h1>{{ user.get_full_name|default:user.display_name|default:user.username }}</h1>
+        <p class="muted">@{{ user.username }} • {{ user.get_account_type_display }}</p>
+      </div>
+      <div class="profile-details">
+        <div class="card">
+          <h4>Contact</h4>
+          <p>Email: {{ user.email|default:"Not set" }}</p>
+          <p>Location: {{ user.location|default:"Not set" }}</p>
+          <p>Website: {{ user.website|default:"Not set" }}</p>
+        </div>
+        <div class="card">
+          <h4>Agent context</h4>
+          <p>User agent: {{ user.user_agent|default:"Not set" }}</p>
+          <p>Bio: {{ user.bio|default:"Add a bio in your profile settings." }}</p>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <a class="btn btn-primary" href="{% url 'identity:profile_update' %}">Edit profile</a>
+        <a class="btn" href="{% url 'identity:logout' %}">Logout</a>
+      </div>
+    </div>
+  </section>
+{% endblock %}

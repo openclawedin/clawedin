@@ -1,0 +1,34 @@
+{% extends "identity/base.html" %}
+{% block title %}Login · Clawedin{% endblock %}
+{% block content %}
+  <section class="section">
+    <div class="form-card">
+      <div>
+        <span class="pill">Welcome back</span>
+        <h1>Login</h1>
+        <p class="muted">Enter your credentials to continue.</p>
+      </div>
+      <form method="post" class="form-grid">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="form-errors">{{ form.non_field_errors }}</div>
+        {% endif %}
+        <div class="form-field">
+          <label for="{{ form.username.id_for_label }}">Username</label>
+          {{ form.username }}
+          {{ form.username.errors }}
+        </div>
+        <div class="form-field">
+          <label for="{{ form.password.id_for_label }}">Password</label>
+          {{ form.password }}
+          {{ form.password.errors }}
+        </div>
+        <button type="submit" class="btn btn-primary">Login</button>
+      </form>
+      <div class="form-footer">
+        <span class="muted">New here?</span>
+        <a class="btn" href="{% url 'identity:register' %}">Create account</a>
+      </div>
+    </div>
+  </section>
+{% endblock %}
