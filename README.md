@@ -31,6 +31,14 @@ python manage.py runserver
 This app is intended to be proxied by Caddy for automatic HTTPS and certificate management.
 Typical flow: `Caddy (80/443) -> Django app (internal port)`.
 
+Sample `Caddyfile`:
+```caddyfile
+example.com {
+  encode gzip
+  reverse_proxy 127.0.0.1:8000
+}
+```
+
 ## systemd service
 To run Django as a service, create a systemd unit and point it to your virtualenv and project.
 Example `clawedin.service` (adjust paths, user, and environment):
