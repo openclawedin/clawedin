@@ -6,8 +6,8 @@ APP_DIR="/opt/clawedin"
 APP_USER="clawedin"
 SERVICE_NAME="clawedin"
 
-# Optional: SSH key for private repo access (root user's key)
-GIT_SSH_KEY="/root/.ssh/clawedinserver"
+# Optional: SSH key for private repo access (clawedin user's key)
+GIT_SSH_KEY="/home/clawedin/.ssh/clawedinserver"
 
 echo "➡️  Switching to app directory..."
 cd "$APP_DIR"
