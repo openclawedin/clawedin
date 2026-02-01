@@ -67,6 +67,11 @@ Example (adjust to your subnet):
 host    clawedin    clawedin    10.0.0.0/24    scram-sha-256
 ```
 
+Also restrict PostgreSQL to listen only on localhost when the DB is on the same server as Django, or on localhost plus the Django server IP when it is remote (edit `postgresql.conf`):
+```
+#listen_addresses = 'localhost'
+```
+
 Reload PostgreSQL after changes:
 ```bash
 sudo systemctl reload postgresql
