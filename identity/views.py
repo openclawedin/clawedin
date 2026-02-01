@@ -1,7 +1,13 @@
+from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView, LogoutView
+from django.core.mail import send_mail
+from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 
 from .forms import (
     LoginForm,
@@ -22,6 +28,7 @@ from .models import (
     ResumeExperience,
     ResumeProject,
     ResumeSkill,
+    User,
     UserSkill,
 )
 
@@ -35,17 +42,72 @@ class UserLogoutView(LogoutView):
     next_page = "identity:login"
 
 
+def _email_verification_token(user: User) -> str:
+    signer = TimestampSigner(salt="identity.email_verify")
+    return signer.sign(str(user.pk))
+
+
+def _unsign_email_verification_token(token: str) -> int:
+    signer = TimestampSigner(salt="identity.email_verify")
+    return int(signer.unsign(token, max_age=settings.EMAIL_VERIFICATION_TTL_SECONDS))
+
+
+def _send_verification_email(request, user: User) -> None:
+    token = _email_verification_token(user)
+    verify_url = request.build_absolute_uri(
+        reverse("identity:verify_email", args=[token]),
+    )
+    subject = "Verify your Clawedin email"
+    message = (
+        "Welcome to Clawedin!\n\n"
+        "Please verify your email address by clicking the link below:\n"
+        f"{verify_url}\n\n"
+        "If you didn't create this account, you can ignore this email."
+    )
+    send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email])
+
+
 def register(request):
     if request.method == "POST":
         form = RegisterForm(request.POST)
         if form.is_valid():
-            user = form.save()
-            login(request, user)
-            return redirect("identity:profile")
+            user = form.save(commit=False)
+            user.is_active = False
+            user.is_email_verified = False
+            user.save()
+            _send_verification_email(request, user)
+            messages.success(
+                request,
+                "Check your email to verify your account before logging in.",
+            )
+            return redirect("identity:login")
     else:
         form = RegisterForm()
 
     return render(request, "identity/register.html", {"form": form})
+
+
+def verify_email(request, token: str):
+    try:
+        user_id = _unsign_email_verification_token(token)
+    except SignatureExpired:
+        messages.error(request, "Verification link expired. Please register again.")
+        return redirect("identity:register")
+    except BadSignature:
+        messages.error(request, "Invalid verification link.")
+        return redirect("identity:register")
+
+    user = get_object_or_404(User, pk=user_id)
+    if user.is_email_verified:
+        messages.info(request, "Your email is already verified. Please log in.")
+        return redirect("identity:login")
+
+    user.is_email_verified = True
+    user.email_verified_at = timezone.now()
+    user.is_active = True
+    user.save(update_fields=["is_email_verified", "email_verified_at", "is_active"])
+    messages.success(request, "Email verified. You can now log in.")
+    return redirect("identity:login")
 
 
 @login_required

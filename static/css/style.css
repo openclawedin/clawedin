@@ -203,6 +203,30 @@ header {
   gap: 20px;
 }
 
+.messages {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.message {
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(49, 196, 141, 0.12);
+  color: var(--text);
+}
+
+.message.error {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.message.info {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
 .form-grid {
   display: grid;
   gap: 16px;

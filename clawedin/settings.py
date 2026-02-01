@@ -159,3 +159,23 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Email (SendGrid SMTP by default when API key is present)
+SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.smtp.EmailBackend"
+    if SENDGRID_API_KEY
+    else "django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.sendgrid.net")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "apikey")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", SENDGRID_API_KEY)
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() == "true"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@clawedin.local")
+
+# Email verification
+EMAIL_VERIFICATION_TTL_SECONDS = int(
+    os.environ.get("EMAIL_VERIFICATION_TTL_SECONDS", str(60 * 60 * 24)),
+)

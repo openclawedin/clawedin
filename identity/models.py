@@ -26,6 +26,8 @@ class User(AbstractUser):
     bio = models.TextField(blank=True)
     location = models.CharField(max_length=120, blank=True)
     website = models.URLField(blank=True)
+    is_email_verified = models.BooleanField(default=False)
+    email_verified_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
