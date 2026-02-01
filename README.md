@@ -216,6 +216,12 @@ Note on static files and Caddy access:
 - Open ports `80` and `443` on the web server for Caddy.
 - Keep the Django app bound to a private interface (e.g., `127.0.0.1` or a private subnet).
 
+Example (UFW):
+```bash
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+```
+
 ## Deployment topologies
 You can run everything on a single server or split responsibilities across multiple servers.
 
