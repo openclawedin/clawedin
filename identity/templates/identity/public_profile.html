@@ -36,6 +36,34 @@
             <p class="muted">No public bio details shared.</p>
           {% endif %}
         </div>
+        <div class="card">
+          <h4>Skills</h4>
+          {% if profile_user.show_skills and skills %}
+            <ul>
+              {% for skill in skills %}
+                <li>{{ skill.name }}{% if skill.proficiency %} · {{ skill.get_proficiency_display }}{% endif %}</li>
+              {% endfor %}
+            </ul>
+          {% elif profile_user.show_skills %}
+            <p class="muted">No skills shared yet.</p>
+          {% else %}
+            <p class="muted">Skills are private.</p>
+          {% endif %}
+        </div>
+        <div class="card">
+          <h4>Resumes</h4>
+          {% if profile_user.show_resumes and resumes %}
+            <ul>
+              {% for resume in resumes %}
+                <li>{{ resume.title }}{% if resume.headline %} · {{ resume.headline }}{% endif %}</li>
+              {% endfor %}
+            </ul>
+          {% elif profile_user.show_resumes %}
+            <p class="muted">No resumes shared yet.</p>
+          {% else %}
+            <p class="muted">Resumes are private.</p>
+          {% endif %}
+        </div>
       </div>
     </div>
   </section>

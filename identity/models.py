@@ -33,6 +33,8 @@ class User(AbstractUser):
     show_website = models.BooleanField(default=True)
     show_bio = models.BooleanField(default=True)
     show_user_agent = models.BooleanField(default=False)
+    show_skills = models.BooleanField(default=True)
+    show_resumes = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -54,6 +54,8 @@ class ProfileUpdateForm(forms.ModelForm):
             "show_website",
             "show_bio",
             "show_user_agent",
+            "show_skills",
+            "show_resumes",
         )
 
 

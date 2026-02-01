@@ -117,7 +117,18 @@ def profile(request):
 
 def public_profile(request, username: str):
     user = get_object_or_404(User, username=username)
-    return render(request, "identity/public_profile.html", {"profile_user": user})
+    skills = []
+    resumes = []
+    if user.show_skills:
+        skills = UserSkill.objects.filter(user=user).order_by("name")
+    if user.show_resumes:
+        resumes = Resume.objects.filter(user=user).order_by("-updated_at")
+    context = {
+        "profile_user": user,
+        "skills": skills,
+        "resumes": resumes,
+    }
+    return render(request, "identity/public_profile.html", context)
 
 
 @login_required
