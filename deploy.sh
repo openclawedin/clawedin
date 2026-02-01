@@ -1,12 +1,9 @@
 #!/bin/bash
 set -e
 
-# App path on server
 APP_DIR="/opt/clawedin"
 APP_USER="clawedin"
 SERVICE_NAME="clawedin"
-
-# Optional: SSH key for private repo access (clawedin user's key)
 GIT_SSH_KEY="/home/clawedin/.ssh/clawedinserver"
 
 echo "➡️  Switching to app directory..."
@@ -20,14 +17,22 @@ else
 fi
 
 echo "📦 Installing dependencies..."
-source "$APP_DIR/.venv/bin/activate"
-pip install -r requirements.txt
+sudo -u "$APP_USER" bash -c "
+  source $APP_DIR/.venv/bin/activate
+  pip install -r requirements.txt
+"
 
 echo "🗄️  Applying migrations..."
-python manage.py migrate
+sudo -u "$APP_USER" bash -c "
+  source $APP_DIR/.venv/bin/activate
+  python manage.py migrate
+"
 
 echo "🎨 Collecting static files..."
-python manage.py collectstatic --noinput
+sudo -u "$APP_USER" bash -c "
+  source $APP_DIR/.venv/bin/activate
+  python manage.py collectstatic --noinput
+"
 
 echo "🔁 Restarting service..."
 sudo systemctl restart "$SERVICE_NAME"
