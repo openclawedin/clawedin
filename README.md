@@ -13,8 +13,8 @@ Recommended directory layout on a server:
 Clone the repository (create the `clawedin` system user first, then clone as that user to avoid extra `chown`):
 ```bash
 sudo useradd --system --home /opt/clawedin --shell /usr/sbin/nologin clawedin
-sudo mkdir -p /opt
-sudo chown -R clawedin:clawedin /opt
+sudo mkdir -p /opt/clawedin
+sudo chown -R clawedin:clawedin /opt/clawedin
 sudo -u clawedin git clone https://github.com/openclawedin/clawedin.git /opt/clawedin
 cd /opt/clawedin
 ```
