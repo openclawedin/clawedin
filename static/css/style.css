@@ -48,16 +48,19 @@ header {
   gap: 12px;
   font-weight: 600;
   letter-spacing: 0.5px;
+  min-width: 0;
 }
 
-.logo-badge {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #2f7adf, #31c48d);
-  display: grid;
-  place-items: center;
-  font-weight: 700;
+.logo-mark {
+  width: clamp(30px, 4vw, 38px);
+  height: auto;
+  display: block;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.logo span {
+  white-space: nowrap;
 }
 
 .nav-actions {
