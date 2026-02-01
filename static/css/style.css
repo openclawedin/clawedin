@@ -52,8 +52,9 @@ header {
 }
 
 .logo-mark {
-  width: clamp(30px, 4vw, 38px);
+  width: clamp(22px, 2.8vw, 30px);
   height: auto;
+  max-width: 100%;
   display: block;
   flex: 0 0 auto;
   object-fit: contain;
