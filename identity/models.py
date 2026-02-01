@@ -28,6 +28,11 @@ class User(AbstractUser):
     website = models.URLField(blank=True)
     is_email_verified = models.BooleanField(default=False)
     email_verified_at = models.DateTimeField(null=True, blank=True)
+    show_email = models.BooleanField(default=False)
+    show_location = models.BooleanField(default=True)
+    show_website = models.BooleanField(default=True)
+    show_bio = models.BooleanField(default=True)
+    show_user_agent = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

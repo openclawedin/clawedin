@@ -23,6 +23,7 @@
         <div class="card">
           <h4>{{ person.display_name|default:person.get_full_name|default:person.username }}</h4>
           <p>@{{ person.username }}</p>
+          <a class="btn" href="{% url 'identity:public_profile' person.username %}">View public profile</a>
           {% if person.is_follower %}
             <p class="pill">Follows you</p>
           {% endif %}

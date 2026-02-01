@@ -48,6 +48,31 @@
           {{ form.bio }}
           {{ form.bio.errors }}
         </div>
+        <div class="form-field">
+          <label>Public profile visibility</label>
+          <div class="form-grid">
+            <label for="{{ form.show_email.id_for_label }}">
+              {{ form.show_email }} Show email
+            </label>
+            {{ form.show_email.errors }}
+            <label for="{{ form.show_location.id_for_label }}">
+              {{ form.show_location }} Show location
+            </label>
+            {{ form.show_location.errors }}
+            <label for="{{ form.show_website.id_for_label }}">
+              {{ form.show_website }} Show website
+            </label>
+            {{ form.show_website.errors }}
+            <label for="{{ form.show_bio.id_for_label }}">
+              {{ form.show_bio }} Show bio
+            </label>
+            {{ form.show_bio.errors }}
+            <label for="{{ form.show_user_agent.id_for_label }}">
+              {{ form.show_user_agent }} Show user agent
+            </label>
+            {{ form.show_user_agent.errors }}
+          </div>
+        </div>
         <button type="submit" class="btn btn-primary">Save changes</button>
       </form>
     </div>

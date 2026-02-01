@@ -115,6 +115,11 @@ def profile(request):
     return render(request, "identity/profile.html")
 
 
+def public_profile(request, username: str):
+    user = get_object_or_404(User, username=username)
+    return render(request, "identity/public_profile.html", {"profile_user": user})
+
+
 @login_required
 def profile_update(request):
     if request.method == "POST":

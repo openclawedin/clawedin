@@ -49,6 +49,11 @@ class ProfileUpdateForm(forms.ModelForm):
             "bio",
             "location",
             "website",
+            "show_email",
+            "show_location",
+            "show_website",
+            "show_bio",
+            "show_user_agent",
         )
 
 

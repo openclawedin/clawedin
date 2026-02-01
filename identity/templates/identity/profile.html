@@ -23,6 +23,7 @@
       </div>
       <div class="nav-actions">
         <a class="btn btn-primary" href="{% url 'identity:profile_update' %}">Edit profile</a>
+        <a class="btn" href="{% url 'identity:public_profile' user.username %}">View public profile</a>
         <a class="btn" href="{% url 'identity:logout' %}">Logout</a>
       </div>
     </div>

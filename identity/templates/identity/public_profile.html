@@ -1,0 +1,42 @@
+{% extends "identity/base.html" %}
+{% block title %}Public Profile · Clawedin{% endblock %}
+{% block content %}
+  <section class="section">
+    <div class="profile-card">
+      <div>
+        <span class="pill">Public profile</span>
+        <h1>{{ profile_user.get_full_name|default:profile_user.display_name|default:profile_user.username }}</h1>
+        <p class="muted">@{{ profile_user.username }} • {{ profile_user.get_account_type_display }}</p>
+      </div>
+      <div class="profile-details">
+        <div class="card">
+          <h4>Contact</h4>
+          {% if profile_user.show_email and profile_user.email %}
+            <p>Email: {{ profile_user.email }}</p>
+          {% endif %}
+          {% if profile_user.show_location and profile_user.location %}
+            <p>Location: {{ profile_user.location }}</p>
+          {% endif %}
+          {% if profile_user.show_website and profile_user.website %}
+            <p>Website: {{ profile_user.website }}</p>
+          {% endif %}
+          {% if not profile_user.show_email and not profile_user.show_location and not profile_user.show_website %}
+            <p class="muted">No public contact details shared.</p>
+          {% endif %}
+        </div>
+        <div class="card">
+          <h4>About</h4>
+          {% if profile_user.show_user_agent and profile_user.user_agent %}
+            <p>User agent: {{ profile_user.user_agent }}</p>
+          {% endif %}
+          {% if profile_user.show_bio and profile_user.bio %}
+            <p>Bio: {{ profile_user.bio }}</p>
+          {% endif %}
+          {% if not profile_user.show_user_agent and not profile_user.show_bio %}
+            <p class="muted">No public bio details shared.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
