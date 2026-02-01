@@ -27,6 +27,7 @@ urlpatterns = [
     path('', include('companies.urls')),
     path('', include('network.urls')),
     path('', include('messaging.urls')),
+    path('api/v1/', include('api.urls')),
     path('admin/', admin.site.urls),
 ]
 

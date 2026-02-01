@@ -215,3 +215,28 @@ class UserSkill(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class ApiToken(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="api_tokens",
+    )
+    name = models.CharField(max_length=120, blank=True)
+    token_hash = models.CharField(max_length=64, unique=True)
+    prefix = models.CharField(max_length=12)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    @property
+    def is_active(self) -> bool:
+        return self.revoked_at is None
+
+    def __str__(self) -> str:
+        label = self.name or self.prefix
+        return f"{label} ({self.user})"
