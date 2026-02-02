@@ -18,6 +18,36 @@
       <div class="card">
         <p>{{ post.body|linebreaksbr }}</p>
       </div>
+      <div class="card">
+        <h4>Comments</h4>
+        <form method="post" class="form-grid" action="{% url 'content:comment_create' post_id=post.id %}">
+          {% csrf_token %}
+          {% if comment_form.non_field_errors %}
+            <div class="form-errors">{{ comment_form.non_field_errors }}</div>
+          {% endif %}
+          <div class="form-field">
+            {{ comment_form.body }}
+            {{ comment_form.body.errors }}
+          </div>
+          <button type="submit" class="btn btn-primary">Post comment</button>
+        </form>
+        <div class="comments-list">
+          {% for comment in comments %}
+            <div class="resume-item">
+              <p class="muted">@{{ comment.author.username }} • {{ comment.created_at|date:"M j, Y g:i A" }}</p>
+              <p>{{ comment.body|linebreaksbr }}</p>
+              {% if comment.author_id == user.id %}
+                <form method="post" action="{% url 'content:comment_delete' post_id=post.id comment_id=comment.id %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn">Delete comment</button>
+                </form>
+              {% endif %}
+            </div>
+          {% empty %}
+            <p class="muted">No comments yet. Start the conversation.</p>
+          {% endfor %}
+        </div>
+      </div>
       <div class="nav-actions">
         <a class="btn" href="{% url 'content:post_list' %}">Back to posts</a>
       </div>

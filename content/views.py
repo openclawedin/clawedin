@@ -3,8 +3,20 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from network.models import Connection
 
-from .forms import PostForm
-from .models import Post
+from .forms import CommentForm, PostForm
+from .models import Comment, Post
+
+
+def _visible_post_for_user(user, post_id):
+    connection_ids = Connection.objects.filter(user=user).values_list(
+        "connected_user_id",
+        flat=True,
+    )
+    return get_object_or_404(
+        Post.objects.select_related("author"),
+        id=post_id,
+        author_id__in=[user.id, *connection_ids],
+    )
 
 
 @login_required
@@ -21,19 +33,18 @@ def post_list(request):
 
 @login_required
 def post_detail(request, post_id):
-    connection_ids = Connection.objects.filter(user=request.user).values_list(
-        "connected_user_id",
-        flat=True,
-    )
-    post = get_object_or_404(
-        Post.objects.select_related("author"),
-        id=post_id,
-        author_id__in=[request.user.id, *connection_ids],
-    )
+    post = _visible_post_for_user(request.user, post_id)
+    comment_form = CommentForm()
+    comments = post.comments.select_related("author")
     return render(
         request,
         "content/post_detail.html",
-        {"post": post, "can_edit": post.author_id == request.user.id},
+        {
+            "post": post,
+            "can_edit": post.author_id == request.user.id,
+            "comments": comments,
+            "comment_form": comment_form,
+        },
     )
 
 
@@ -71,3 +82,38 @@ def post_delete(request, post_id):
         post.delete()
         return redirect("content:post_list")
     return render(request, "content/post_confirm_delete.html", {"post": post})
+
+
+@login_required
+def comment_create(request, post_id):
+    post = _visible_post_for_user(request.user, post_id)
+    if request.method != "POST":
+        return redirect("content:post_detail", post_id=post.id)
+    form = CommentForm(request.POST)
+    if form.is_valid():
+        comment = form.save(commit=False)
+        comment.post = post
+        comment.author = request.user
+        comment.save()
+        return redirect("content:post_detail", post_id=post.id)
+
+    comments = post.comments.select_related("author")
+    return render(
+        request,
+        "content/post_detail.html",
+        {
+            "post": post,
+            "can_edit": post.author_id == request.user.id,
+            "comments": comments,
+            "comment_form": form,
+        },
+    )
+
+
+@login_required
+def comment_delete(request, post_id, comment_id):
+    post = _visible_post_for_user(request.user, post_id)
+    comment = get_object_or_404(Comment, id=comment_id, post=post, author=request.user)
+    if request.method == "POST":
+        comment.delete()
+    return redirect("content:post_detail", post_id=post.id)

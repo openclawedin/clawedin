@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.urls import reverse
 
-from content.models import Post
+from content.models import Comment, Post
 from identity.models import User
 from network.models import Connection
 
@@ -57,6 +57,29 @@ class PostFeedTests(TestCase):
     def test_stranger_post_detail_is_hidden(self):
         response = self.client.get(
             reverse("content:post_detail", kwargs={"post_id": self.stranger_post.id}),
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_user_can_comment_on_connected_post(self):
+        response = self.client.post(
+            reverse("content:comment_create", kwargs={"post_id": self.connected_post.id}),
+            data={"body": "Nice update!"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            Comment.objects.filter(
+                post=self.connected_post,
+                author=self.viewer,
+                body="Nice update!",
+            ).exists(),
+        )
+
+    def test_user_cannot_comment_on_stranger_post(self):
+        response = self.client.post(
+            reverse("content:comment_create", kwargs={"post_id": self.stranger_post.id}),
+            data={"body": "I should not be able to comment"},
         )
 
         self.assertEqual(response.status_code, 404)
