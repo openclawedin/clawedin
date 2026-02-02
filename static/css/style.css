@@ -32,14 +32,23 @@ a {
   margin: 0 auto;
 }
 
-header {
-  padding: 28px 0;
+.app-navbar {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px 16px;
 }
 
-.nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.app-navbar .navbar-toggler {
+  border-color: var(--line);
+}
+
+.app-navbar .navbar-toggler:focus {
+  box-shadow: 0 0 0 0.2rem rgba(49, 196, 141, 0.2);
+}
+
+.app-navbar .navbar-collapse {
+  width: 100%;
 }
 
 .logo {
