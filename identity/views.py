@@ -110,11 +110,11 @@ def _price_id_for_tier(tier: str) -> str:
 
 def _tier_for_price_id(price_id: str) -> str:
     if not price_id:
-        return User.SERVICE_FREE
+        return User.SERVICE_NONE
     for tier, plan in SERVICE_PLANS.items():
         if getattr(settings, plan["settings_price_key"], "") == price_id:
             return tier
-    return User.SERVICE_FREE
+    return User.SERVICE_NONE
 
 
 def _stripe_customer_for_user(user: User) -> str:
@@ -152,7 +152,7 @@ def _sync_user_subscription(user: User, subscription: dict) -> None:
     if status in {"active", "trialing", "past_due"}:
         user.service_tier = _tier_for_price_id(price_id)
     else:
-        user.service_tier = User.SERVICE_FREE
+        user.service_tier = User.SERVICE_NONE
     user.save(
         update_fields=[
             "service_tier",
@@ -243,13 +243,15 @@ def verify_email(request, token: str):
 
 @login_required
 def profile(request):
-    current_plan = SERVICE_PLANS.get(request.user.service_tier, SERVICE_PLANS[User.SERVICE_FREE])
+    current_plan = SERVICE_PLANS.get(request.user.service_tier)
     return render(
         request,
         "identity/profile.html",
         {
             "current_plan": current_plan,
             "is_stripe_ready": _stripe_is_configured(),
+            "subscription_active": request.user.stripe_subscription_status
+            in {"active", "trialing", "past_due"},
         },
     )
 
@@ -424,7 +426,7 @@ def stripe_webhook(request):
         subscription_id = data_object.get("id")
         user = User.objects.filter(stripe_subscription_id=subscription_id).first()
         if user:
-            user.service_tier = User.SERVICE_FREE
+            user.service_tier = User.SERVICE_NONE
             user.stripe_subscription_status = data_object.get("status", "canceled")
             user.stripe_subscription_id = ""
             user.stripe_price_id = ""

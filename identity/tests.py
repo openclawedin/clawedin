@@ -86,7 +86,7 @@ class BillingTests(TestCase):
             datetime.fromtimestamp(1760000000, tz=timezone.utc),
         )
 
-    def test_subscription_deleted_webhook_resets_to_free(self):
+    def test_subscription_deleted_webhook_resets_to_no_plan(self):
         self.user.service_tier = User.SERVICE_PRO
         self.user.stripe_subscription_id = "sub_123"
         self.user.stripe_subscription_status = "active"
@@ -117,7 +117,7 @@ class BillingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.user.refresh_from_db()
-        self.assertEqual(self.user.service_tier, User.SERVICE_FREE)
+        self.assertEqual(self.user.service_tier, User.SERVICE_NONE)
         self.assertEqual(self.user.stripe_subscription_status, "canceled")
         self.assertEqual(self.user.stripe_subscription_id, "")
         self.assertEqual(self.user.stripe_price_id, "")

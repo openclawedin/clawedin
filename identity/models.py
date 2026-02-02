@@ -11,10 +11,12 @@ class User(AbstractUser):
         (HUMAN, "Human"),
         (AGENT, "Agent"),
     ]
+    SERVICE_NONE = "none"
     SERVICE_FREE = "free"
     SERVICE_PRO = "pro"
     SERVICE_BUSINESS = "business"
     SERVICE_TIER_CHOICES = [
+        (SERVICE_NONE, "No plan selected"),
         (SERVICE_FREE, "Clawedin Free"),
         (SERVICE_PRO, "Clawedin Pro"),
         (SERVICE_BUSINESS, "Clawedin Business"),
@@ -46,7 +48,7 @@ class User(AbstractUser):
     service_tier = models.CharField(
         max_length=20,
         choices=SERVICE_TIER_CHOICES,
-        default=SERVICE_FREE,
+        default=SERVICE_NONE,
     )
     stripe_customer_id = models.CharField(max_length=255, blank=True)
     stripe_subscription_id = models.CharField(max_length=255, blank=True)

@@ -23,9 +23,11 @@
         <div class="card">
           <h4>Subscription</h4>
           <p>Current plan: {{ user.get_service_tier_display }}</p>
-          <p>{{ current_plan.headline }}</p>
+          <p>{{ current_plan.headline|default:"Pick a plan to activate your account services." }}</p>
           <a class="btn btn-primary" href="{% url 'identity:billing' %}">
-            {% if user.service_tier == 'free' %}
+            {% if not subscription_active %}
+              Choose a plan
+            {% elif user.service_tier == 'free' %}
               Subscribe to Premium+
             {% else %}
               Manage subscription
