@@ -37,6 +37,12 @@
           <img class="logo-image" src="{{ company.logo_url }}" alt="{{ company.name }} logo" />
         </div>
       {% endif %}
+      <div class="nav-actions">
+        <a class="btn" href="{% url 'companies:company_list' %}">Back to companies</a>
+        {% if user.is_authenticated %}
+          <a class="btn" href="{% url 'companies:company_create' %}">Add company</a>
+        {% endif %}
+      </div>
     </div>
   </section>
 {% endblock %}

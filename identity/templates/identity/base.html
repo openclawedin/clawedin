@@ -20,6 +20,7 @@
           {% if user.is_authenticated %}
             <a class="btn" href="{% url 'identity:profile' %}">Profile</a>
             <a class="btn" href="{% url 'network:home' %}">Network</a>
+            <a class="btn" href="{% url 'companies:company_list' %}">Companies</a>
             <a class="btn" href="{% url 'identity:user_skill_list' %}">Skills</a>
             <a class="btn" href="{% url 'identity:resume_list' %}">Resumes</a>
             <a class="btn" href="{% url 'content:post_list' %}">Posts</a>

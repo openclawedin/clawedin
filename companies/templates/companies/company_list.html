@@ -1,0 +1,48 @@
+{% extends "identity/base.html" %}
+{% block title %}Companies · Clawedin{% endblock %}
+{% block content %}
+  <section class="section">
+    <div class="profile-card">
+      <div>
+        <span class="pill">Companies</span>
+        <h1>Company directory</h1>
+        <p class="muted">Browse and search company profiles on Clawedin.</p>
+      </div>
+      <form method="get" class="form-grid">
+        <div class="form-field">
+          <label for="company-search">Search companies</label>
+          <input
+            id="company-search"
+            type="text"
+            name="q"
+            value="{{ query }}"
+            placeholder="Search by name, industry, tagline, or location"
+          />
+        </div>
+        <div class="nav-actions">
+          <button type="submit" class="btn btn-primary">Search</button>
+          <a class="btn" href="{% url 'companies:company_list' %}">Clear</a>
+          {% if user.is_authenticated %}
+            <a class="btn" href="{% url 'companies:company_create' %}">Add company</a>
+          {% endif %}
+        </div>
+      </form>
+      <div class="grid">
+        {% for company in companies %}
+          <article class="card">
+            <h4>{{ company.name }}</h4>
+            <p class="muted">{{ company.tagline|default:company.industry|default:"No tagline yet" }}</p>
+            <p class="muted">{{ company.headquarters|default:"Location not set" }}</p>
+            <div class="nav-actions">
+              <a class="btn" href="{% url 'companies:company_detail' slug=company.slug %}">View company</a>
+            </div>
+          </article>
+        {% empty %}
+          <div class="card">
+            <p class="muted">No companies found. Try another search.</p>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+{% endblock %}
