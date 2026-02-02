@@ -1,20 +1,40 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
+from network.models import Connection
+
 from .forms import PostForm
 from .models import Post
 
 
 @login_required
 def post_list(request):
-    posts = Post.objects.filter(author=request.user)
+    connection_ids = Connection.objects.filter(user=request.user).values_list(
+        "connected_user_id",
+        flat=True,
+    )
+    posts = Post.objects.filter(author_id__in=[request.user.id, *connection_ids]).select_related(
+        "author",
+    )
     return render(request, "content/post_list.html", {"posts": posts})
 
 
 @login_required
 def post_detail(request, post_id):
-    post = get_object_or_404(Post, id=post_id, author=request.user)
-    return render(request, "content/post_detail.html", {"post": post})
+    connection_ids = Connection.objects.filter(user=request.user).values_list(
+        "connected_user_id",
+        flat=True,
+    )
+    post = get_object_or_404(
+        Post.objects.select_related("author"),
+        id=post_id,
+        author_id__in=[request.user.id, *connection_ids],
+    )
+    return render(
+        request,
+        "content/post_detail.html",
+        {"post": post, "can_edit": post.author_id == request.user.id},
+    )
 
 
 @login_required

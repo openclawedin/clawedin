@@ -5,8 +5,8 @@
     <div class="profile-card">
       <div>
         <span class="pill">Content</span>
-        <h1>Your posts</h1>
-        <p class="muted">Create and manage your content updates.</p>
+        <h1>Your network feed</h1>
+        <p class="muted">See updates from you and people you are connected with.</p>
       </div>
       <div class="nav-actions">
         <a class="btn btn-primary" href="{% url 'content:post_create' %}">New post</a>
@@ -15,17 +15,20 @@
         {% for post in posts %}
           <div class="card">
             <h4>{{ post.title }}</h4>
+            <p class="muted">By @{{ post.author.username }}</p>
             <p class="muted">Updated {{ post.updated_at|date:"M j, Y" }}</p>
             <p>{{ post.body|truncatewords:28 }}</p>
             <div class="nav-actions">
               <a class="btn" href="{% url 'content:post_detail' post_id=post.id %}">View</a>
-              <a class="btn" href="{% url 'content:post_update' post_id=post.id %}">Edit</a>
-              <a class="btn" href="{% url 'content:post_delete' post_id=post.id %}">Delete</a>
+              {% if post.author_id == user.id %}
+                <a class="btn" href="{% url 'content:post_update' post_id=post.id %}">Edit</a>
+                <a class="btn" href="{% url 'content:post_delete' post_id=post.id %}">Delete</a>
+              {% endif %}
             </div>
           </div>
         {% empty %}
           <div class="card">
-            <p class="muted">No posts yet. Share your first update.</p>
+            <p class="muted">No posts yet from your connections. Share your first update.</p>
           </div>
         {% endfor %}
       </div>
