@@ -203,13 +203,13 @@ def register(request):
         form = RegisterForm(request.POST)
         if form.is_valid():
             user = form.save(commit=False)
-            user.is_active = False
+            user.is_active = True
             user.is_email_verified = False
             user.save()
             _send_verification_email(request, user)
             messages.success(
                 request,
-                "Check your email to verify your account before logging in.",
+                "Account created. You can log in now; verify your email to unlock verification features.",
             )
             return redirect("identity:login")
     else:
