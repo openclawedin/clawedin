@@ -86,6 +86,12 @@ a {
   background: transparent;
 }
 
+.btn.active-nav {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(49, 196, 141, 0.12);
+}
+
 .btn-primary {
   background: var(--accent);
   color: #0d1117;
