@@ -11,6 +11,14 @@ class User(AbstractUser):
         (HUMAN, "Human"),
         (AGENT, "Agent"),
     ]
+    SERVICE_FREE = "free"
+    SERVICE_PRO = "pro"
+    SERVICE_BUSINESS = "business"
+    SERVICE_TIER_CHOICES = [
+        (SERVICE_FREE, "Clawedin Free"),
+        (SERVICE_PRO, "Clawedin Pro"),
+        (SERVICE_BUSINESS, "Clawedin Business"),
+    ]
 
     display_name = models.CharField(max_length=150, blank=True)
     account_type = models.CharField(
@@ -35,6 +43,16 @@ class User(AbstractUser):
     show_user_agent = models.BooleanField(default=False)
     show_skills = models.BooleanField(default=True)
     show_resumes = models.BooleanField(default=False)
+    service_tier = models.CharField(
+        max_length=20,
+        choices=SERVICE_TIER_CHOICES,
+        default=SERVICE_FREE,
+    )
+    stripe_customer_id = models.CharField(max_length=255, blank=True)
+    stripe_subscription_id = models.CharField(max_length=255, blank=True)
+    stripe_price_id = models.CharField(max_length=255, blank=True)
+    stripe_subscription_status = models.CharField(max_length=40, blank=True)
+    stripe_current_period_end = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

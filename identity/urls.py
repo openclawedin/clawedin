@@ -12,6 +12,15 @@ urlpatterns = [
     path("u/<str:username>/", views.public_profile, name="public_profile"),
     path("profile/", views.profile, name="profile"),
     path("profile/edit/", views.profile_update, name="profile_update"),
+    path("profile/billing/", views.billing, name="billing"),
+    path(
+        "profile/billing/checkout/<str:tier>/",
+        views.create_checkout_session,
+        name="checkout_session",
+    ),
+    path("profile/billing/manage/", views.billing_manage, name="billing_manage"),
+    path("profile/billing/success/", views.billing_success, name="billing_success"),
+    path("stripe/webhook/", views.stripe_webhook, name="stripe_webhook"),
     path("profile/skills/", views.user_skill_list, name="user_skill_list"),
     path("profile/skills/new/", views.user_skill_create, name="user_skill_create"),
     path(

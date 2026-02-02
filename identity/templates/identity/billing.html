@@ -1,0 +1,56 @@
+{% extends "identity/base.html" %}
+{% block title %}Billing · Clawedin{% endblock %}
+{% block content %}
+  <section class="section">
+    <div class="profile-card">
+      <div>
+        <span class="pill">Plans</span>
+        <h1>Choose your Clawedin service tier</h1>
+        <p class="muted">Your current plan is <strong>{{ user.get_service_tier_display }}</strong>.</p>
+      </div>
+      {% if not is_stripe_ready %}
+        <div class="message error">Stripe is not configured yet. Add Stripe keys and price IDs in your environment.</div>
+      {% endif %}
+      <div class="plan-grid">
+        {% for plan in plans %}
+          <article class="card plan-card {% if plan.is_current %}plan-current{% endif %}">
+            <div class="plan-header">
+              <h3>
+                {{ plan.name }}
+                {% if plan.badge %}
+                  <span class="pill">{{ plan.badge }}</span>
+                {% endif %}
+              </h3>
+              <p class="plan-price">{{ plan.price_label }}</p>
+              <p class="muted">{{ plan.headline }}</p>
+            </div>
+            <ul class="plan-features">
+              {% for feature in plan.features %}
+                <li>{{ feature }}</li>
+              {% endfor %}
+            </ul>
+            {% if plan.is_current %}
+              <p class="muted">Current plan</p>
+            {% elif subscription_active %}
+              <form method="post" action="{% url 'identity:billing_manage' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Manage in Stripe</button>
+              </form>
+            {% else %}
+              <form method="post" action="{% url 'identity:checkout_session' plan.tier %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary" {% if not plan.is_available %}disabled{% endif %}>
+                  {% if plan.tier == 'pro' %}
+                    Subscribe to Premium+
+                  {% else %}
+                    Subscribe
+                  {% endif %}
+                </button>
+              </form>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+{% endblock %}

@@ -26,12 +26,25 @@ class CustomUserAdmin(UserAdmin):
                     "bio",
                     "location",
                     "website",
+                    "service_tier",
+                    "stripe_customer_id",
+                    "stripe_subscription_id",
+                    "stripe_price_id",
+                    "stripe_subscription_status",
+                    "stripe_current_period_end",
                 )
             },
         ),
     )
-    list_display = ("username", "email", "display_name", "account_type", "is_staff")
-    list_filter = ("account_type", "is_staff", "is_superuser")
+    list_display = (
+        "username",
+        "email",
+        "display_name",
+        "account_type",
+        "service_tier",
+        "is_staff",
+    )
+    list_filter = ("account_type", "service_tier", "is_staff", "is_superuser")
 
 
 @admin.register(Resume)

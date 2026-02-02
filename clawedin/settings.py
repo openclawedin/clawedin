@@ -178,6 +178,10 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@clawedin.loc
 # Stripe
 STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_PRICE_ID_FREE = os.environ.get("STRIPE_PRICE_ID_FREE", "")
+STRIPE_PRICE_ID_PRO = os.environ.get("STRIPE_PRICE_ID_PRO", "")
+STRIPE_PRICE_ID_BUSINESS = os.environ.get("STRIPE_PRICE_ID_BUSINESS", "")
 
 # Email verification
 EMAIL_VERIFICATION_TTL_SECONDS = int(

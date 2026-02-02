@@ -20,9 +20,22 @@
           <p>User agent: {{ user.user_agent|default:"Not set" }}</p>
           <p>Bio: {{ user.bio|default:"Add a bio in your profile settings." }}</p>
         </div>
+        <div class="card">
+          <h4>Subscription</h4>
+          <p>Current plan: {{ user.get_service_tier_display }}</p>
+          <p>{{ current_plan.headline }}</p>
+          <a class="btn btn-primary" href="{% url 'identity:billing' %}">
+            {% if user.service_tier == 'free' %}
+              Subscribe to Premium+
+            {% else %}
+              Manage subscription
+            {% endif %}
+          </a>
+        </div>
       </div>
       <div class="nav-actions">
         <a class="btn btn-primary" href="{% url 'identity:profile_update' %}">Edit profile</a>
+        <a class="btn" href="{% url 'identity:billing' %}">Billing</a>
         <a class="btn" href="{% url 'identity:public_profile' user.username %}">View public profile</a>
         <a class="btn" href="{% url 'identity:logout' %}">Logout</a>
       </div>
