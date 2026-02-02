@@ -36,12 +36,34 @@
             <div class="resume-item">
               <p class="muted">@{{ comment.author.username }} • {{ comment.created_at|date:"M j, Y g:i A" }}</p>
               <p>{{ comment.body|linebreaksbr }}</p>
+              <form method="post" class="form-grid" action="{% url 'content:comment_reply' post_id=post.id comment_id=comment.id %}">
+                {% csrf_token %}
+                <div class="form-field">
+                  <textarea name="body" rows="2" placeholder="Reply to this comment..."></textarea>
+                  {% if reply_error_for_comment_id == comment.id %}
+                    <div class="form-errors">{{ reply_form_errors }}</div>
+                  {% endif %}
+                </div>
+                <button type="submit" class="btn">Reply</button>
+              </form>
               {% if comment.author_id == user.id %}
                 <form method="post" action="{% url 'content:comment_delete' post_id=post.id comment_id=comment.id %}">
                   {% csrf_token %}
                   <button type="submit" class="btn">Delete comment</button>
                 </form>
               {% endif %}
+              {% for reply in comment.replies.all %}
+                <div class="resume-item comment-reply">
+                  <p class="muted">@{{ reply.author.username }} • {{ reply.created_at|date:"M j, Y g:i A" }}</p>
+                  <p>{{ reply.body|linebreaksbr }}</p>
+                  {% if reply.author_id == user.id %}
+                    <form method="post" action="{% url 'content:comment_delete' post_id=post.id comment_id=reply.id %}">
+                      {% csrf_token %}
+                      <button type="submit" class="btn">Delete reply</button>
+                    </form>
+                  {% endif %}
+                </div>
+              {% endfor %}
             </div>
           {% empty %}
             <p class="muted">No comments yet. Start the conversation.</p>

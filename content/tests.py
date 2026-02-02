@@ -83,3 +83,45 @@ class PostFeedTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 404)
+
+    def test_user_can_reply_to_visible_comment(self):
+        parent = Comment.objects.create(
+            post=self.connected_post,
+            author=self.connected,
+            body="Parent comment",
+        )
+
+        response = self.client.post(
+            reverse(
+                "content:comment_reply",
+                kwargs={"post_id": self.connected_post.id, "comment_id": parent.id},
+            ),
+            data={"body": "Replying here"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            Comment.objects.filter(
+                post=self.connected_post,
+                author=self.viewer,
+                parent=parent,
+                body="Replying here",
+            ).exists(),
+        )
+
+    def test_user_cannot_reply_to_stranger_comment(self):
+        parent = Comment.objects.create(
+            post=self.stranger_post,
+            author=self.stranger,
+            body="Private comment",
+        )
+
+        response = self.client.post(
+            reverse(
+                "content:comment_reply",
+                kwargs={"post_id": self.stranger_post.id, "comment_id": parent.id},
+            ),
+            data={"body": "Should fail"},
+        )
+
+        self.assertEqual(response.status_code, 404)

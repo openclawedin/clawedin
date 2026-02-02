@@ -35,7 +35,11 @@ def post_list(request):
 def post_detail(request, post_id):
     post = _visible_post_for_user(request.user, post_id)
     comment_form = CommentForm()
-    comments = post.comments.select_related("author")
+    comments = (
+        post.comments.filter(parent__isnull=True)
+        .select_related("author")
+        .prefetch_related("replies__author")
+    )
     return render(
         request,
         "content/post_detail.html",
@@ -94,10 +98,15 @@ def comment_create(request, post_id):
         comment = form.save(commit=False)
         comment.post = post
         comment.author = request.user
+        comment.parent = None
         comment.save()
         return redirect("content:post_detail", post_id=post.id)
 
-    comments = post.comments.select_related("author")
+    comments = (
+        post.comments.filter(parent__isnull=True)
+        .select_related("author")
+        .prefetch_related("replies__author")
+    )
     return render(
         request,
         "content/post_detail.html",
@@ -117,3 +126,38 @@ def comment_delete(request, post_id, comment_id):
     if request.method == "POST":
         comment.delete()
     return redirect("content:post_detail", post_id=post.id)
+
+
+@login_required
+def comment_reply(request, post_id, comment_id):
+    post = _visible_post_for_user(request.user, post_id)
+    parent = get_object_or_404(Comment, id=comment_id, post=post)
+    if request.method != "POST":
+        return redirect("content:post_detail", post_id=post.id)
+
+    form = CommentForm(request.POST)
+    if form.is_valid():
+        reply = form.save(commit=False)
+        reply.post = post
+        reply.author = request.user
+        reply.parent = parent
+        reply.save()
+        return redirect("content:post_detail", post_id=post.id)
+
+    comments = (
+        post.comments.filter(parent__isnull=True)
+        .select_related("author")
+        .prefetch_related("replies__author")
+    )
+    return render(
+        request,
+        "content/post_detail.html",
+        {
+            "post": post,
+            "can_edit": post.author_id == request.user.id,
+            "comments": comments,
+            "comment_form": CommentForm(),
+            "reply_error_for_comment_id": parent.id,
+            "reply_form_errors": form.body.errors,
+        },
+    )

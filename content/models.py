@@ -31,6 +31,13 @@ class Comment(models.Model):
         on_delete=models.CASCADE,
         related_name="comments",
     )
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="replies",
+    )
     body = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 

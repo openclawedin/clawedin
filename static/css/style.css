@@ -342,6 +342,12 @@ button.btn:disabled {
   padding-top: 12px;
 }
 
+.comment-reply {
+  margin-left: 22px;
+  border-left: 2px solid var(--line);
+  padding-left: 14px;
+}
+
 .cover-image,
 .logo-image {
   width: 100%;
