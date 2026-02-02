@@ -322,6 +322,11 @@ textarea {
   box-shadow: 0 0 0 1px rgba(49, 196, 141, 0.2) inset;
 }
 
+.subscription-cta {
+  margin-top: 10px;
+  display: inline-flex;
+}
+
 button.btn {
   cursor: pointer;
 }
