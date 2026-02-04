@@ -20,6 +20,13 @@ body {
     radial-gradient(1000px 700px at 90% 10%, #1b2a23, transparent),
     var(--bg);
   line-height: 1.5;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1 0 auto;
 }
 
 a {
