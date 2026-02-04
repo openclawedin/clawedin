@@ -216,12 +216,18 @@ a {
 }
 
 .footer {
-  padding: 40px 0 60px;
+  height: 64px;
   color: var(--muted);
   font-size: 0.95rem;
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  align-items: center;
+  overflow: hidden;
+}
+
+.footer-copy {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .footer-links {
