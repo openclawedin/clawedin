@@ -39,7 +39,10 @@
         <a class="btn btn-primary" href="{% url 'identity:profile_update' %}">Edit profile</a>
         <a class="btn" href="{% url 'identity:billing' %}">Billing</a>
         <a class="btn" href="{% url 'identity:public_profile' user.username %}">View public profile</a>
-        <a class="btn" href="{% url 'identity:logout' %}">Logout</a>
+        <form method="post" action="{% url 'identity:logout' %}" class="m-0 d-inline-block">
+          {% csrf_token %}
+          <button type="submit" class="btn">Logout</button>
+        </form>
       </div>
     </div>
   </section>
