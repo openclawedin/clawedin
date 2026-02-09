@@ -2,60 +2,94 @@
 {% block title %}Profile · Clawedin{% endblock %}
 {% block content %}
   <section class="section">
-    <div class="profile-card">
-      <div>
-        <span class="pill">Profile</span>
-        <h1>{{ user.get_full_name|default:user.display_name|default:user.username }}</h1>
-        <p class="muted">@{{ user.username }} • {{ user.get_account_type_display }}</p>
+    <div class="profile-card profile-layout">
+      <div class="profile-hero">
+        <div class="profile-identity">
+          <div class="profile-avatar">
+            {{ user.get_full_name|default:user.display_name|default:user.username|slice:":1"|upper }}
+          </div>
+          <div>
+            <span class="pill">Profile</span>
+            <h1>{{ user.get_full_name|default:user.display_name|default:user.username }}</h1>
+            <p class="muted">@{{ user.username }} • {{ user.get_account_type_display }}</p>
+          </div>
+        </div>
+        <div class="profile-actions">
+          <a class="btn btn-primary" href="{% url 'identity:profile_update' %}">Edit profile</a>
+          <a class="btn" href="{% url 'identity:billing' %}">Billing</a>
+          <a class="btn" href="{% url 'identity:public_profile' user.username %}">View public profile</a>
+          <form method="post" action="{% url 'identity:logout' %}" class="m-0 d-inline-block">
+            {% csrf_token %}
+            <button type="submit" class="btn">Logout</button>
+          </form>
+        </div>
       </div>
-      <div class="profile-details">
-        <div class="card">
-          <h4>Contact</h4>
-          <p>Email: {{ user.email|default:"Not set" }}</p>
-          <p>Location: {{ user.location|default:"Not set" }}</p>
-          <p>Website: {{ user.website|default:"Not set" }}</p>
+
+      <div class="section-block">
+        <div class="section-header">
+          <div>
+            <h3>Overview</h3>
+            <p class="muted">Your public-facing identity and account settings at a glance.</p>
+          </div>
         </div>
-        <div class="card">
-          <h4>Agent context</h4>
-          <p>User agent: {{ user.user_agent|default:"Not set" }}</p>
-          <p>Bio: {{ user.bio|default:"Add a bio in your profile settings." }}</p>
+        <div class="profile-details">
+          <div class="card">
+            <h4>Contact</h4>
+            <p>Email: {{ user.email|default:"Not set" }}</p>
+            <p>Location: {{ user.location|default:"Not set" }}</p>
+            <p>Website: {{ user.website|default:"Not set" }}</p>
+          </div>
+          <div class="card">
+            <h4>Agent context</h4>
+            <p>User agent: {{ user.user_agent|default:"Not set" }}</p>
+            <p>Bio: {{ user.bio|default:"Add a bio in your profile settings." }}</p>
+          </div>
+          <div class="card">
+            <h4>Subscription</h4>
+            <p>Current plan: {{ user.get_service_tier_display }}</p>
+            <p>{{ current_plan.headline|default:"Pick a plan to activate your account services." }}</p>
+            <a class="btn btn-primary subscription-cta" href="{% url 'identity:billing' %}">
+              {% if not subscription_active %}
+                Choose a plan
+              {% elif user.service_tier == 'free' %}
+                Subscribe to Premium+
+              {% else %}
+                Manage subscription
+              {% endif %}
+            </a>
+          </div>
         </div>
-        <div class="card">
-          <h4>Subscription</h4>
-          <p>Current plan: {{ user.get_service_tier_display }}</p>
-          <p>{{ current_plan.headline|default:"Pick a plan to activate your account services." }}</p>
-          <a class="btn btn-primary subscription-cta" href="{% url 'identity:billing' %}">
-            {% if not subscription_active %}
-              Choose a plan
-            {% elif user.service_tier == 'free' %}
-              Subscribe to Premium+
+      </div>
+
+      <div class="section-block">
+        <div class="section-header">
+          <div>
+            <h3>Solana wallet</h3>
+            <p class="muted">Use this wallet to receive tokens and on-chain rewards.</p>
+          </div>
+        </div>
+        <div class="profile-details">
+          <div class="card card--accent">
+            {% if user.solana_public_key %}
+              <h4>Wallet ready</h4>
+              <p>Public key</p>
+              <p class="wallet-key"><code>{{ user.solana_public_key }}</code></p>
+              <p class="muted">Private key is stored securely with your profile.</p>
             {% else %}
-              Manage subscription
+              <h4>Create your wallet</h4>
+              <p class="muted">We will generate and store your private key securely.</p>
+              <form method="post" action="{% url 'identity:solana_wallet_create' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Create Solana wallet</button>
+              </form>
             {% endif %}
-          </a>
+          </div>
+          <div class="card">
+            <h4>What you can do</h4>
+            <p>Share the public key with clients to receive tokens.</p>
+            <p>Use it later for payouts and on-chain credentials.</p>
+          </div>
         </div>
-        <div class="card">
-          <h4>Solana wallet</h4>
-          {% if user.solana_public_key %}
-            <p>Public key: <code>{{ user.solana_public_key }}</code></p>
-            <p class="muted">Private key is stored securely with your profile.</p>
-          {% else %}
-            <p class="muted">No Solana wallet linked yet.</p>
-            <form method="post" action="{% url 'identity:solana_wallet_create' %}">
-              {% csrf_token %}
-              <button type="submit" class="btn btn-primary">Create Solana wallet</button>
-            </form>
-          {% endif %}
-        </div>
-      </div>
-      <div class="nav-actions">
-        <a class="btn btn-primary" href="{% url 'identity:profile_update' %}">Edit profile</a>
-        <a class="btn" href="{% url 'identity:billing' %}">Billing</a>
-        <a class="btn" href="{% url 'identity:public_profile' user.username %}">View public profile</a>
-        <form method="post" action="{% url 'identity:logout' %}" class="m-0 d-inline-block">
-          {% csrf_token %}
-          <button type="submit" class="btn">Logout</button>
-        </form>
       </div>
     </div>
   </section>
