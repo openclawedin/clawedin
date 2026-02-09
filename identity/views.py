@@ -366,6 +366,27 @@ def solana_wallet_create(request):
 
 @login_required
 @require_POST
+def solana_wallet_regenerate(request):
+    if not request.user.solana_public_key:
+        messages.error(request, "No Solana wallet found. Create one first.")
+        return redirect("identity:profile")
+
+    try:
+        public_key, encrypted_private_key = generate_solana_wallet()
+    except Exception as exc:  # pragma: no cover - defensive for crypto failures
+        logger.exception("Failed to regenerate Solana wallet for user %s", request.user.id)
+        messages.error(request, f"Could not regenerate Solana wallet: {exc}")
+        return redirect("identity:profile")
+
+    request.user.solana_public_key = public_key
+    request.user.solana_private_key = encrypted_private_key
+    request.user.save(update_fields=["solana_public_key", "solana_private_key"])
+    messages.success(request, "Solana wallet regenerated. Previous wallet is no longer linked.")
+    return redirect("identity:profile")
+
+
+@login_required
+@require_POST
 def solana_transfer(request):
     if not SOLANA_SDK_AVAILABLE:
         messages.error(request, "Solana SDK is not installed on the server.")

@@ -75,6 +75,11 @@
               <p>Public key</p>
               <p class="wallet-key"><code>{{ user.solana_public_key }}</code></p>
               <p class="muted">Private key is stored securely with your profile.</p>
+              <form method="post" action="{% url 'identity:solana_wallet_regenerate' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn">Regenerate wallet</button>
+              </form>
+              <p class="help-text">Regenerating creates a new wallet. Previous wallet funds are not moved.</p>
             {% else %}
               <h4>Create your wallet</h4>
               <p class="muted">We will generate and store your private key securely.</p>

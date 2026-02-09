@@ -18,6 +18,11 @@ urlpatterns = [
         name="solana_wallet_create",
     ),
     path(
+        "profile/solana-wallet/regenerate/",
+        views.solana_wallet_regenerate,
+        name="solana_wallet_regenerate",
+    ),
+    path(
         "profile/solana-wallet/transfer/",
         views.solana_transfer,
         name="solana_transfer",
