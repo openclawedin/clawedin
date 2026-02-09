@@ -12,6 +12,11 @@ urlpatterns = [
     path("u/<str:username>/", views.public_profile, name="public_profile"),
     path("profile/", views.profile, name="profile"),
     path("profile/edit/", views.profile_update, name="profile_update"),
+    path(
+        "profile/solana-wallet/create/",
+        views.solana_wallet_create,
+        name="solana_wallet_create",
+    ),
     path("profile/billing/", views.billing, name="billing"),
     path(
         "profile/billing/checkout/<str:tier>/",

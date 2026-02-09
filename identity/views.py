@@ -34,6 +34,7 @@ from .forms import (
     ResumeSkillForm,
     UserSkillForm,
 )
+from .solana_wallet import generate_solana_wallet
 from .models import (
     Resume,
     ResumeCertification,
@@ -283,6 +284,27 @@ def profile_update(request):
         form = ProfileUpdateForm(instance=request.user)
 
     return render(request, "identity/profile_update.html", {"form": form})
+
+
+@login_required
+@require_POST
+def solana_wallet_create(request):
+    if request.user.solana_public_key:
+        messages.info(request, "A Solana wallet already exists for your profile.")
+        return redirect("identity:profile")
+
+    try:
+        public_key, encrypted_private_key = generate_solana_wallet()
+    except Exception as exc:  # pragma: no cover - defensive for crypto failures
+        logger.exception("Failed to create Solana wallet for user %s", request.user.id)
+        messages.error(request, f"Could not create Solana wallet: {exc}")
+        return redirect("identity:profile")
+
+    request.user.solana_public_key = public_key
+    request.user.solana_private_key = encrypted_private_key
+    request.user.save(update_fields=["solana_public_key", "solana_private_key"])
+    messages.success(request, "Solana wallet created and saved to your profile.")
+    return redirect("identity:profile")
 
 
 @login_required

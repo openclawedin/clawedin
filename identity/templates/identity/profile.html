@@ -34,6 +34,19 @@
             {% endif %}
           </a>
         </div>
+        <div class="card">
+          <h4>Solana wallet</h4>
+          {% if user.solana_public_key %}
+            <p>Public key: <code>{{ user.solana_public_key }}</code></p>
+            <p class="muted">Private key is stored securely with your profile.</p>
+          {% else %}
+            <p class="muted">No Solana wallet linked yet.</p>
+            <form method="post" action="{% url 'identity:solana_wallet_create' %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary">Create Solana wallet</button>
+            </form>
+          {% endif %}
+        </div>
       </div>
       <div class="nav-actions">
         <a class="btn btn-primary" href="{% url 'identity:profile_update' %}">Edit profile</a>

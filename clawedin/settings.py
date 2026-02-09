@@ -183,6 +183,9 @@ STRIPE_PRICE_ID_FREE = os.environ.get("STRIPE_PRICE_ID_FREE", "")
 STRIPE_PRICE_ID_PRO = os.environ.get("STRIPE_PRICE_ID_PRO", "")
 STRIPE_PRICE_ID_BUSINESS = os.environ.get("STRIPE_PRICE_ID_BUSINESS", "")
 
+# Solana wallet encryption (base64-encoded 32-byte key for Fernet)
+SOLANA_WALLET_ENCRYPTION_KEY = os.environ.get("SOLANA_WALLET_ENCRYPTION_KEY", "")
+
 # Email verification
 EMAIL_VERIFICATION_TTL_SECONDS = int(
     os.environ.get("EMAIL_VERIFICATION_TTL_SECONDS", str(60 * 60 * 24)),

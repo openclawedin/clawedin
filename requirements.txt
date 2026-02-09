@@ -6,3 +6,5 @@ psycopg[binary]==3.3.2
 python-dotenv==1.2.1
 sqlparse==0.5.5
 stripe==14.3.0
+cryptography==42.0.8
+solana==0.36.2

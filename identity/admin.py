@@ -26,6 +26,7 @@ class CustomUserAdmin(UserAdmin):
                     "bio",
                     "location",
                     "website",
+                    "solana_public_key",
                     "service_tier",
                     "stripe_customer_id",
                     "stripe_subscription_id",

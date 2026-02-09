@@ -55,6 +55,8 @@ class User(AbstractUser):
     stripe_price_id = models.CharField(max_length=255, blank=True)
     stripe_subscription_status = models.CharField(max_length=40, blank=True)
     stripe_current_period_end = models.DateTimeField(null=True, blank=True)
+    solana_public_key = models.CharField(max_length=64, blank=True)
+    solana_private_key = models.TextField(blank=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
