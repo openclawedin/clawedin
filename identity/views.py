@@ -1,4 +1,6 @@
+import base64
 import logging
+from decimal import Decimal, ROUND_DOWN
 from datetime import datetime, timezone as dt_timezone
 
 from django.conf import settings
@@ -32,8 +34,10 @@ from .forms import (
     ResumeForm,
     ResumeProjectForm,
     ResumeSkillForm,
+    SolanaTransferForm,
     UserSkillForm,
 )
+from .solana_wallet import generate_solana_wallet, load_keypair
 from .solana_wallet import generate_solana_wallet
 from .models import (
     Resume,
@@ -47,6 +51,58 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
+
+try:
+    from solana.rpc.api import Client
+    from solana.rpc.types import TxOpts
+    from solana.transaction import Transaction
+    from solders.pubkey import Pubkey
+    from spl.token._layouts import MINT_LAYOUT
+    from spl.token.constants import TOKEN_PROGRAM_ID
+    from spl.token.instructions import (
+        CreateAssociatedTokenAccountParams,
+        TransferCheckedParams,
+        create_associated_token_account,
+        get_associated_token_address,
+        transfer_checked,
+    )
+
+    SOLANA_SDK_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional in environments without solana installed
+    SOLANA_SDK_AVAILABLE = False
+
+SOLANA_TOKEN_MINT = "9Dki6G2hiTqxBCi89czJsx8C5vHyLMaujan7q1dmpump"
+
+
+def _get_rpc_value(response):
+    if hasattr(response, "value"):
+        return response.value
+    return response.get("result", {}).get("value")
+
+
+def _get_account_data_bytes(account_value):
+    if account_value is None:
+        return None
+    data = getattr(account_value, "data", account_value.get("data") if isinstance(account_value, dict) else None)
+    if hasattr(data, "data"):
+        data = data.data
+    if isinstance(data, (list, tuple)):
+        data = data[0]
+    if isinstance(data, bytes):
+        return data
+    if isinstance(data, str):
+        return base64.b64decode(data)
+    return None
+
+
+def _solana_mint_decimals(client, mint_pubkey):
+    mint_resp = client.get_account_info(mint_pubkey)
+    mint_value = _get_rpc_value(mint_resp)
+    mint_data = _get_account_data_bytes(mint_value)
+    if not mint_data:
+        raise ValueError("Mint account not found.")
+    mint_info = MINT_LAYOUT.parse(mint_data)
+    return mint_info.decimals
 
 SERVICE_PLANS = {
     User.SERVICE_FREE: {
@@ -253,6 +309,7 @@ def profile(request):
             "is_stripe_ready": _stripe_is_configured(),
             "subscription_active": request.user.stripe_subscription_status
             in {"active", "trialing", "past_due"},
+            "solana_transfer_form": SolanaTransferForm(),
         },
     )
 
@@ -304,6 +361,110 @@ def solana_wallet_create(request):
     request.user.solana_private_key = encrypted_private_key
     request.user.save(update_fields=["solana_public_key", "solana_private_key"])
     messages.success(request, "Solana wallet created and saved to your profile.")
+    return redirect("identity:profile")
+
+
+@login_required
+@require_POST
+def solana_transfer(request):
+    if not SOLANA_SDK_AVAILABLE:
+        messages.error(request, "Solana SDK is not installed on the server.")
+        return redirect("identity:profile")
+    if not settings.SOLANA_RPC_URL:
+        messages.error(request, "Solana RPC is not configured.")
+        return redirect("identity:profile")
+    if not request.user.solana_private_key:
+        messages.error(request, "Create a Solana wallet before sending tokens.")
+        return redirect("identity:profile")
+
+    form = SolanaTransferForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Enter a valid recipient address and amount.")
+        return redirect("identity:profile")
+
+    recipient_address = form.cleaned_data["recipient"].strip()
+    amount = form.cleaned_data["amount"]
+    if amount <= 0:
+        messages.error(request, "Amount must be greater than zero.")
+        return redirect("identity:profile")
+
+    try:
+        recipient_pubkey = Pubkey.from_string(recipient_address)
+    except Exception:
+        messages.error(request, "Recipient address is invalid.")
+        return redirect("identity:profile")
+
+    client = Client(settings.SOLANA_RPC_URL)
+    mint_pubkey = Pubkey.from_string(SOLANA_TOKEN_MINT)
+    try:
+        decimals = _solana_mint_decimals(client, mint_pubkey)
+    except Exception as exc:
+        messages.error(request, f"Could not load token decimals: {exc}")
+        return redirect("identity:profile")
+
+    if amount.as_tuple().exponent < -decimals:
+        messages.error(request, f"Amount supports up to {decimals} decimal places.")
+        return redirect("identity:profile")
+
+    amount_base = (amount * (Decimal(10) ** decimals)).quantize(
+        Decimal("1"),
+        rounding=ROUND_DOWN,
+    )
+    if amount_base <= 0:
+        messages.error(request, "Amount is too small.")
+        return redirect("identity:profile")
+
+    sender_keypair = load_keypair(request.user.solana_private_key)
+    sender_pubkey = sender_keypair.pubkey()
+    sender_ata = get_associated_token_address(owner=sender_pubkey, mint=mint_pubkey)
+    recipient_ata = get_associated_token_address(owner=recipient_pubkey, mint=mint_pubkey)
+
+    sender_ata_value = _get_rpc_value(client.get_account_info(sender_ata))
+    if sender_ata_value is None:
+        messages.error(request, "Sender token account not found.")
+        return redirect("identity:profile")
+
+    recipient_ata_value = _get_rpc_value(client.get_account_info(recipient_ata))
+    tx = Transaction()
+    if recipient_ata_value is None:
+        tx.add(
+            create_associated_token_account(
+                CreateAssociatedTokenAccountParams(
+                    payer=sender_pubkey,
+                    owner=recipient_pubkey,
+                    mint=mint_pubkey,
+                )
+            )
+        )
+
+    tx.add(
+        transfer_checked(
+            TransferCheckedParams(
+                program_id=TOKEN_PROGRAM_ID,
+                source=sender_ata,
+                mint=mint_pubkey,
+                dest=recipient_ata,
+                owner=sender_pubkey,
+                amount=int(amount_base),
+                decimals=decimals,
+                signers=[],
+            )
+        )
+    )
+
+    try:
+        send_resp = client.send_transaction(
+            tx,
+            sender_keypair,
+            opts=TxOpts(skip_preflight=False, preflight_commitment="confirmed"),
+        )
+    except Exception as exc:
+        logger.exception("Failed to send Solana transaction for user %s", request.user.id)
+        messages.error(request, f"Transfer failed: {exc}")
+        return redirect("identity:profile")
+
+    signature = send_resp.value if hasattr(send_resp, "value") else send_resp.get("result")
+    messages.success(request, f"Transfer submitted. Signature: {signature}")
     return redirect("identity:profile")
 
 

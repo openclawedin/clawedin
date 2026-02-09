@@ -59,6 +59,11 @@ class ProfileUpdateForm(forms.ModelForm):
         )
 
 
+class SolanaTransferForm(forms.Form):
+    recipient = forms.CharField(max_length=64)
+    amount = forms.DecimalField(max_digits=20, decimal_places=9, min_value=0)
+
+
 class ResumeForm(forms.ModelForm):
     class Meta:
         model = Resume

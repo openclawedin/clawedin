@@ -85,6 +85,26 @@
             {% endif %}
           </div>
           <div class="card">
+            <h4>Send tokens</h4>
+            {% if user.solana_public_key %}
+              <form method="post" action="{% url 'identity:solana_transfer' %}" class="form-grid">
+                {% csrf_token %}
+                <div class="form-field">
+                  <label for="{{ solana_transfer_form.recipient.id_for_label }}">Recipient address</label>
+                  {{ solana_transfer_form.recipient }}
+                </div>
+                <div class="form-field">
+                  <label for="{{ solana_transfer_form.amount.id_for_label }}">Amount</label>
+                  {{ solana_transfer_form.amount }}
+                </div>
+                <button type="submit" class="btn btn-primary">Send SPL tokens</button>
+              </form>
+              <p class="help-text">Token mint: 9Dki6G2hiTqxBCi89czJsx8C5vHyLMaujan7q1dmpump</p>
+            {% else %}
+              <p class="muted">Create a wallet first to send tokens.</p>
+            {% endif %}
+          </div>
+          <div class="card">
             <h4>What you can do</h4>
             <p>Share the public key with clients to receive tokens.</p>
             <p>Use it later for payouts and on-chain credentials.</p>
