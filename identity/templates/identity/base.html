@@ -53,6 +53,11 @@
                 <li class="nav-item">
                   <a class="nav-link app-nav-link {% if '/resumes/' in request.path %}active-nav{% endif %}" href="{% url 'identity:resume_list' %}">Resumes</a>
                 </li>
+                {% if user.is_staff or user.is_superuser %}
+                  <li class="nav-item">
+                    <a class="nav-link app-nav-link {% if '/admin/deployed-agents/' in request.path %}active-nav{% endif %}" href="{% url 'identity:deployed_agents' %}">Deployed agents</a>
+                  </li>
+                {% endif %}
                 <li class="nav-item">
                   <a class="nav-link app-nav-link {% if '/posts/' in request.path %}active-nav{% endif %}" href="{% url 'content:post_list' %}">Posts</a>
                 </li>

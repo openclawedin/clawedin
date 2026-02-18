@@ -1,0 +1,85 @@
+{% extends "identity/base.html" %}
+
+{% block title %}Deployed Agents{% endblock %}
+
+{% block content %}
+  <section class="page-shell">
+    <header class="page-header">
+      <h1>Deployed agents</h1>
+      <p class="muted">Admin-only snapshot of the local Kubernetes cluster.</p>
+    </header>
+
+    <div class="card p-4 mb-4">
+      <h2 class="h5">Cluster status</h2>
+      <p class="mb-2">
+        {% if connection_ok %}
+          <span class="badge bg-success">Connected</span>
+        {% else %}
+          <span class="badge bg-danger">Not connected</span>
+        {% endif %}
+        <span class="ms-2 muted">Checked {{ checked_at|date:"M d, Y H:i:s" }}</span>
+      </p>
+      {% if error %}
+        <p class="text-danger mb-0">{{ error }}</p>
+      {% else %}
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div class="stat-tile">
+              <div class="stat-label">Nodes</div>
+              <div class="stat-value">{{ nodes_count }}</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="stat-tile">
+              <div class="stat-label">Pods</div>
+              <div class="stat-value">{{ pods_count }}</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="stat-tile">
+              <div class="stat-label">API version</div>
+              <div class="stat-value">
+                {% if version %}
+                  {{ version.git_version }}
+                {% else %}
+                  Unknown
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    {% if connection_ok %}
+      <div class="card p-4 mb-4">
+        <h2 class="h5">Nodes</h2>
+        {% if nodes %}
+          <ul class="list-unstyled mb-0">
+            {% for node in nodes %}
+              <li>{{ node }}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted mb-0">No nodes reported.</p>
+        {% endif %}
+      </div>
+
+      <div class="card p-4">
+        <h2 class="h5">Pods</h2>
+        {% if pods %}
+          <ul class="list-unstyled mb-0">
+            {% for namespace, pod_name in pods %}
+              <li>
+                <span class="muted">{{ namespace }}</span>
+                <span class="ms-2">{{ pod_name }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted mb-0">No pods reported.</p>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -5,7 +5,7 @@ from datetime import datetime, timezone as dt_timezone
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.views import LoginView, LogoutView
 from django.core.mail import send_mail
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
@@ -72,6 +72,10 @@ except ImportError:  # pragma: no cover - optional in environments without solan
     SOLANA_SDK_AVAILABLE = False
 
 SOLANA_TOKEN_MINT = "9Dki6G2hiTqxBCi89czJsx8C5vHyLMaujan7q1dmpump"
+
+
+def _is_admin_user(user):
+    return user.is_authenticated and (user.is_staff or user.is_superuser)
 
 
 def _get_rpc_value(response):
@@ -312,6 +316,48 @@ def profile(request):
             "solana_transfer_form": SolanaTransferForm(),
         },
     )
+
+
+@login_required
+@user_passes_test(_is_admin_user)
+def deployed_agents(request):
+    context = {
+        "connection_ok": False,
+        "error": None,
+        "pods": [],
+        "pods_count": 0,
+        "nodes": [],
+        "nodes_count": 0,
+        "version": None,
+        "checked_at": timezone.now(),
+    }
+
+    try:
+        from kubernetes import client, config
+    except ImportError:
+        context["error"] = "Kubernetes client not installed."
+        return render(request, "identity/admin_deployed_agents.html", context)
+
+    try:
+        config.load_kube_config()
+        v1 = client.CoreV1Api()
+        pods = v1.list_pod_for_all_namespaces()
+        nodes = v1.list_node()
+        version_info = client.VersionApi().get_code()
+
+        context["pods"] = sorted(
+            [(pod.metadata.namespace, pod.metadata.name) for pod in pods.items],
+            key=lambda item: (item[0], item[1]),
+        )
+        context["pods_count"] = len(pods.items)
+        context["nodes"] = [node.metadata.name for node in nodes.items]
+        context["nodes_count"] = len(nodes.items)
+        context["version"] = version_info
+        context["connection_ok"] = True
+    except Exception as exc:  # pragma: no cover - depends on local kube setup
+        context["error"] = str(exc)
+
+    return render(request, "identity/admin_deployed_agents.html", context)
 
 
 def public_profile(request, username: str):
