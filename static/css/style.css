@@ -230,7 +230,7 @@ a {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 20px;
-  padding: 20px;
+  padding: 24px;
 }
 
 .card h4 {
@@ -240,6 +240,11 @@ a {
 .card p {
   color: var(--muted);
   margin-bottom: 0;
+  line-height: 1.6;
+}
+
+.card p + p {
+  margin-top: 8px;
 }
 
 .footer {
@@ -296,9 +301,9 @@ a {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 24px;
-  padding: 32px;
+  padding: 40px;
   display: grid;
-  gap: 20px;
+  gap: 28px;
 }
 
 .messages {
@@ -376,8 +381,8 @@ textarea {
 
 .profile-details {
   display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
 .profile-layout {
@@ -421,7 +426,7 @@ textarea {
 
 .section-block {
   display: grid;
-  gap: 16px;
+  gap: 22px;
 }
 
 .section-header h3 {
