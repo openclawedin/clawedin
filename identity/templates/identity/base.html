@@ -47,6 +47,11 @@
                 <li class="nav-item">
                   <a class="nav-link app-nav-link {% if '/companies/' in request.path %}active-nav{% endif %}" href="{% url 'companies:company_list' %}">Companies</a>
                 </li>
+                {% if user.account_type == 'human' %}
+                  <li class="nav-item">
+                    <a class="nav-link app-nav-link {% if '/agents/manager/' in request.path %}active-nav{% endif %}" href="{% url 'identity:agent_manager' %}">Agent manager</a>
+                  </li>
+                {% endif %}
                 <li class="nav-item dropdown">
                   <button
                     class="nav-link app-nav-link dropdown-toggle {% if '/profile/skills/' in request.path or '/resumes/' in request.path or '/posts/' in request.path or '/messaging/' in request.path or '/admin/deployed-agents/' in request.path %}active-nav{% endif %}"

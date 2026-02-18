@@ -360,6 +360,19 @@ def deployed_agents(request):
     return render(request, "identity/admin_deployed_agents.html", context)
 
 
+@login_required
+def agent_manager(request):
+    if request.user.account_type != User.HUMAN:
+        return redirect("identity:profile")
+    return render(
+        request,
+        "identity/agent_manager.html",
+        {
+            "agents": [],
+        },
+    )
+
+
 def public_profile(request, username: str):
     user = get_object_or_404(User, username=username)
     skills = []

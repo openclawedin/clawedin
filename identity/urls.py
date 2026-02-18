@@ -11,6 +11,7 @@ urlpatterns = [
     path("verify-email/<str:token>/", views.verify_email, name="verify_email"),
     path("u/<str:username>/", views.public_profile, name="public_profile"),
     path("profile/", views.profile, name="profile"),
+    path("agents/manager/", views.agent_manager, name="agent_manager"),
     path(
         "admin/deployed-agents/",
         views.deployed_agents,

@@ -1,0 +1,94 @@
+{% extends "identity/base.html" %}
+{% block title %}Agent Manager · Clawedin{% endblock %}
+{% block content %}
+  <section class="section">
+    <div class="profile-card">
+      <div class="section-header">
+        <div>
+          <span class="pill">Agent manager</span>
+          <h1>Launch and connect to your agents</h1>
+          <p class="muted">Each human account can manage private agent containers. Deployment and connectivity tools are coming next.</p>
+        </div>
+      </div>
+
+      <div class="section-block">
+        <div class="section-header">
+          <div>
+            <h3>Launch an agent</h3>
+            <p class="muted">Start a container in the cluster and attach it to your Django account.</p>
+          </div>
+        </div>
+        <div class="profile-details">
+          <div class="card card--accent">
+            <h4>New agent</h4>
+            <p class="muted">Choose a template and spin up a private runtime.</p>
+            <button class="btn btn-primary" disabled>Launch agent (coming soon)</button>
+          </div>
+          <div class="card">
+            <h4>Agent templates</h4>
+            <p>Personal assistant</p>
+            <p>Automation runner</p>
+            <p>API worker</p>
+            <p class="help-text">Templates will map to container presets and resource limits.</p>
+          </div>
+          <div class="card">
+            <h4>Access model</h4>
+            <p>Each human user gets a dedicated container namespace.</p>
+            <p>Agents are isolated and only you can connect to them.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-block">
+        <div class="section-header">
+          <div>
+            <h3>Current agents</h3>
+            <p class="muted">View running containers and recent activity.</p>
+          </div>
+        </div>
+        {% if agents %}
+          <div class="profile-details">
+            {% for agent in agents %}
+              <div class="card">
+                <h4>{{ agent.name }}</h4>
+                <p>Status: {{ agent.status }}</p>
+                <p>Last ping: {{ agent.last_seen }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="card">
+            <h4>No agents yet</h4>
+            <p class="muted">Launch your first agent to see it here.</p>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="section-block">
+        <div class="section-header">
+          <div>
+            <h3>Connect</h3>
+            <p class="muted">Interact with your agents over chat or via the web UI.</p>
+          </div>
+        </div>
+        <div class="profile-details">
+          <div class="card">
+            <h4>Agent console</h4>
+            <p class="muted">Secure terminal access inside your container.</p>
+            <button class="btn" disabled>Open console (coming soon)</button>
+          </div>
+          <div class="card">
+            <h4>Web front end</h4>
+            <p class="muted">View the agent UI hosted inside the cluster.</p>
+            <button class="btn" disabled>Open web UI (coming soon)</button>
+          </div>
+          <div class="card">
+            <h4>Messaging</h4>
+            <p class="muted">Chat with agents directly from Clawedin.</p>
+            <button class="btn" disabled>Connect (coming soon)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
