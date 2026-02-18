@@ -47,22 +47,34 @@
                 <li class="nav-item">
                   <a class="nav-link app-nav-link {% if '/companies/' in request.path %}active-nav{% endif %}" href="{% url 'companies:company_list' %}">Companies</a>
                 </li>
-                <li class="nav-item">
-                  <a class="nav-link app-nav-link {% if '/profile/skills/' in request.path %}active-nav{% endif %}" href="{% url 'identity:user_skill_list' %}">Skills</a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link app-nav-link {% if '/resumes/' in request.path %}active-nav{% endif %}" href="{% url 'identity:resume_list' %}">Resumes</a>
-                </li>
-                {% if user.is_staff or user.is_superuser %}
-                  <li class="nav-item">
-                    <a class="nav-link app-nav-link {% if '/admin/deployed-agents/' in request.path %}active-nav{% endif %}" href="{% url 'identity:deployed_agents' %}">Deployed agents</a>
-                  </li>
-                {% endif %}
-                <li class="nav-item">
-                  <a class="nav-link app-nav-link {% if '/posts/' in request.path %}active-nav{% endif %}" href="{% url 'content:post_list' %}">Posts</a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link app-nav-link {% if '/messaging/' in request.path %}active-nav{% endif %}" href="{% url 'messaging:home' %}">Messaging</a>
+                <li class="nav-item dropdown">
+                  <button
+                    class="nav-link app-nav-link dropdown-toggle {% if '/profile/skills/' in request.path or '/resumes/' in request.path or '/posts/' in request.path or '/messaging/' in request.path or '/admin/deployed-agents/' in request.path %}active-nav{% endif %}"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    type="button"
+                  >
+                    More
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end app-nav-dropdown">
+                    <li>
+                      <a class="dropdown-item app-nav-dropdown-item {% if '/profile/skills/' in request.path %}active{% endif %}" href="{% url 'identity:user_skill_list' %}">Skills</a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item app-nav-dropdown-item {% if '/resumes/' in request.path %}active{% endif %}" href="{% url 'identity:resume_list' %}">Resumes</a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item app-nav-dropdown-item {% if '/posts/' in request.path %}active{% endif %}" href="{% url 'content:post_list' %}">Posts</a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item app-nav-dropdown-item {% if '/messaging/' in request.path %}active{% endif %}" href="{% url 'messaging:home' %}">Messaging</a>
+                    </li>
+                    {% if user.is_staff or user.is_superuser %}
+                      <li>
+                        <a class="dropdown-item app-nav-dropdown-item {% if '/admin/deployed-agents/' in request.path %}active{% endif %}" href="{% url 'identity:deployed_agents' %}">Deployed agents</a>
+                      </li>
+                    {% endif %}
+                  </ul>
                 </li>
                 <li class="nav-item">
                   <form method="post" action="{% url 'identity:logout' %}" class="m-0">
