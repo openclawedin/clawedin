@@ -1,10 +1,16 @@
-from django.urls import path
+from django.urls import path, re_path
 
 from . import views
 
 app_name = "identity"
 
 urlpatterns = [
+    re_path(r"^(openclaw-agent-[a-z0-9-]+)/$", views.agent_gui_root_redirect, name="agent_gui_root_redirect"),
+    re_path(
+        r"^(openclaw-agent-[a-z0-9-]+)/(?P<subpath>.+)$",
+        views.agent_gui_root_redirect,
+        name="agent_gui_root_redirect_subpath",
+    ),
     path("login/", views.UserLoginView.as_view(), name="login"),
     path("logout/", views.UserLogoutView.as_view(), name="logout"),
     path("register/", views.register, name="register"),

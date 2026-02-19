@@ -1292,6 +1292,13 @@ def agent_gui_proxy(request, pod_name: str, subpath: str = ""):
     return response
 
 
+def agent_gui_root_redirect(request, pod_name: str, subpath: str = ""):
+    target = f"/agents/gui/{pod_name}/"
+    if subpath:
+        target = f"{target}{subpath}"
+    return redirect(target)
+
+
 @login_required
 def profile_update(request):
     if request.method == "POST":
