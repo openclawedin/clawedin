@@ -220,6 +220,10 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
         "nginx.ingress.kubernetes.io/rewrite-target": "/$2",
         "nginx.ingress.kubernetes.io/proxy-read-timeout": "3600",
         "nginx.ingress.kubernetes.io/proxy-send-timeout": "3600",
+        "nginx.ingress.kubernetes.io/configuration-snippet": (
+            "more_set_headers \"X-Frame-Options: SAMEORIGIN\";\n"
+            "more_set_headers \"Content-Security-Policy: frame-ancestors 'self'\";\n"
+        ),
     }
     ingress_body = client_module.V1Ingress(
         metadata=client_module.V1ObjectMeta(
