@@ -228,6 +228,32 @@ def _resolve_pod(v1, pod_name: str, namespace: str, allow_cross_namespace: bool 
     raise
 
 
+def _format_pod_line(pod) -> str:
+    name = getattr(pod.metadata, "name", "unknown")
+    phase = getattr(pod.status, "phase", None) or "unknown"
+    pod_ip = getattr(pod.status, "pod_ip", None) or "none"
+    node = getattr(pod.spec, "node_name", None) or "unknown"
+    start_time = getattr(pod.status, "start_time", None)
+    start_str = start_time.isoformat() if start_time else "unknown"
+    return f"- {name} | phase={phase} | ip={pod_ip} | node={node} | start={start_str}"
+
+
+def _pod_debug_snapshot(v1, namespace: str, label_selector: str, limit: int = 5) -> str:
+    try:
+        pods = v1.list_namespaced_pod(namespace=namespace, label_selector=label_selector).items
+    except Exception as exc:
+        return f"Failed to list pods in namespace {namespace} with selector {label_selector}: {exc}"
+    if not pods:
+        return f"No pods matched selector {label_selector} in namespace {namespace}."
+    pods_sorted = sorted(
+        pods,
+        key=lambda item: item.status.start_time or datetime.min.replace(tzinfo=dt_timezone.utc),
+        reverse=True,
+    )
+    lines = [_format_pod_line(pod) for pod in pods_sorted[:limit]]
+    return "Recent pods:\n" + "\n".join(lines)
+
+
 def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, pod, owner_username: str):
     port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
     service_name = gui_service_name(pod.metadata.name)
@@ -1001,13 +1027,35 @@ def agent_gui(request, pod_name: str):
             except client.exceptions.ApiException as exc:
                 if exc.status != 404:
                     raise
+                label_selector = f"app=openclaw-agent,owner={request.user.username}"
                 pods = v1.list_namespaced_pod(
                     namespace=namespace,
-                    label_selector=f"app=openclaw-agent,owner={request.user.username}",
+                    label_selector=label_selector,
                 )
                 if not pods.items:
-                    messages.error(request, "Pod not found. It may have been replaced.")
-                    return redirect("identity:agent_manager")
+                    error_message = (
+                        "Pod not found.\n"
+                        f"Requested pod: {pod_name}\n"
+                        f"Namespace: {namespace}\n"
+                        f"Selector: {label_selector}\n"
+                        f"{_pod_debug_snapshot(v1, namespace, label_selector)}"
+                    )
+                    logger.warning(
+                        "Agent GUI pod not found: pod=%s namespace=%s selector=%s",
+                        pod_name,
+                        namespace,
+                        label_selector,
+                    )
+                    return render(
+                        request,
+                        "identity/agent_gui.html",
+                        {
+                            "namespace": namespace,
+                            "pod": pod,
+                            "gui_path": gui_path,
+                            "error_message": error_message,
+                        },
+                    )
                 pods_sorted = sorted(
                     pods.items,
                     key=lambda item: item.status.start_time or datetime.min.replace(tzinfo=dt_timezone.utc),
@@ -1021,11 +1069,38 @@ def agent_gui(request, pod_name: str):
             gui_path = _gui_path_for_pod(pod_name)
         except client.exceptions.ApiException as exc:
             if exc.status == 404:
-                messages.error(request, "Pod not found.")
-                return redirect("identity:agent_manager")
+                label_selector = f"app=openclaw-agent,owner={request.user.username}"
+                error_message = (
+                    "Pod not found.\n"
+                    f"Requested pod: {pod_name}\n"
+                    f"Namespace: {namespace}\n"
+                    f"Selector: {label_selector}\n"
+                    f"{_pod_debug_snapshot(v1, namespace, label_selector)}"
+                )
+                logger.warning(
+                    "Agent GUI pod not found (404): pod=%s namespace=%s selector=%s",
+                    pod_name,
+                    namespace,
+                    label_selector,
+                )
+                return render(
+                    request,
+                    "identity/agent_gui.html",
+                    {
+                        "namespace": namespace,
+                        "pod": pod,
+                        "gui_path": gui_path,
+                        "error_message": error_message,
+                    },
+                )
             error_message = str(exc)
         except Exception as exc:  # pragma: no cover - depends on kube setup
             error_message = str(exc)
+            logger.exception(
+                "Agent GUI error: pod=%s namespace=%s",
+                pod_name,
+                namespace,
+            )
 
     if gui_path and not error_message:
         return redirect(gui_path)
@@ -1067,12 +1142,26 @@ def agent_gui_proxy(request, pod_name: str, subpath: str = ""):
         except client.exceptions.ApiException as exc:
             if exc.status != 404:
                 raise
+            label_selector = f"app=openclaw-agent,owner={request.user.username}"
             pods = v1.list_namespaced_pod(
                 namespace=namespace,
-                label_selector=f"app=openclaw-agent,owner={request.user.username}",
+                label_selector=label_selector,
             )
             if not pods.items:
-                return HttpResponse("Pod not found.", status=404)
+                error_message = (
+                    "Pod not found.\n"
+                    f"Requested pod: {pod_name}\n"
+                    f"Namespace: {namespace}\n"
+                    f"Selector: {label_selector}\n"
+                    f"{_pod_debug_snapshot(v1, namespace, label_selector)}"
+                )
+                logger.warning(
+                    "Agent GUI proxy pod not found: pod=%s namespace=%s selector=%s",
+                    pod_name,
+                    namespace,
+                    label_selector,
+                )
+                return HttpResponse(error_message, status=404)
             pods_sorted = sorted(
                 pods.items,
                 key=lambda item: item.status.start_time or datetime.min.replace(tzinfo=dt_timezone.utc),
@@ -1088,6 +1177,11 @@ def agent_gui_proxy(request, pod_name: str, subpath: str = ""):
     except client.exceptions.ApiException as exc:
         return HttpResponse(f"Cluster error: {exc}", status=502)
     except Exception as exc:  # pragma: no cover - depends on kube setup
+        logger.exception(
+            "Agent GUI proxy error: pod=%s namespace=%s",
+            pod_name,
+            namespace,
+        )
         return HttpResponse(f"Cluster error: {exc}", status=502)
 
     proxy_base = proxy_base.rstrip("/")
