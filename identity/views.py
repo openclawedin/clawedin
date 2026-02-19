@@ -254,6 +254,39 @@ def _pod_debug_snapshot(v1, namespace: str, label_selector: str, limit: int = 5)
     return "Recent pods:\n" + "\n".join(lines)
 
 
+def _kube_context_snapshot() -> str:
+    try:
+        from kubernetes import client as k8s_client
+    except Exception as exc:  # pragma: no cover - import guarded elsewhere
+        return f"Kube client unavailable: {exc}"
+    try:
+        config = k8s_client.Configuration.get_default_copy()
+    except Exception as exc:
+        return f"Kube config unavailable: {exc}"
+    kubeconfig = os.environ.get("KUBECONFIG", "").strip() or "not set"
+    host = getattr(config, "host", "") or "unknown"
+    verify_ssl = getattr(config, "verify_ssl", None)
+    ssl_ca = getattr(config, "ssl_ca_cert", None) or "none"
+    proxy = getattr(config, "proxy", None) or "none"
+    return (
+        "Kube context:\n"
+        f"- KUBECONFIG: {kubeconfig}\n"
+        f"- Host: {host}\n"
+        f"- Verify SSL: {verify_ssl}\n"
+        f"- CA cert: {ssl_ca}\n"
+        f"- Proxy: {proxy}"
+    )
+
+
+def _format_api_exception(exc) -> str:
+    status = getattr(exc, "status", "unknown")
+    reason = getattr(exc, "reason", "unknown")
+    body = getattr(exc, "body", "")
+    if body:
+        body = str(body).strip()
+    return f"status={status} reason={reason} body={body}"
+
+
 def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, pod, owner_username: str):
     port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
     service_name = gui_service_name(pod.metadata.name)
@@ -278,7 +311,10 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
             ],
         ),
     )
-    _upsert_service(v1, namespace, service_body)
+    try:
+        _upsert_service(v1, namespace, service_body)
+    except Exception as exc:
+        raise RuntimeError(f"Failed to upsert service {service_name}: {exc}") from exc
 
     pod_ip = pod.status.pod_ip
     if not pod_ip:
@@ -311,7 +347,10 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
             )
         ],
     )
-    _upsert_endpoints(v1, namespace, endpoints_body)
+    try:
+        _upsert_endpoints(v1, namespace, endpoints_body)
+    except Exception as exc:
+        raise RuntimeError(f"Failed to upsert endpoints for {service_name}: {exc}") from exc
 
     host = getattr(settings, "AGENT_GUI_INGRESS_HOST", "").strip() or None
     path_prefix = _gui_path_prefix()
@@ -335,14 +374,17 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
             },
         }
         custom_api = client_module.CustomObjectsApi()
-        _upsert_custom_object(
-            custom_api,
-            "traefik.containo.us",
-            "v1alpha1",
-            "middlewares",
-            namespace,
-            middleware_body,
-        )
+        try:
+            _upsert_custom_object(
+                custom_api,
+                "traefik.containo.us",
+                "v1alpha1",
+                "middlewares",
+                namespace,
+                middleware_body,
+            )
+        except Exception as exc:
+            raise RuntimeError(f"Failed to upsert traefik middleware {middleware_name}: {exc}") from exc
         annotations["traefik.ingress.kubernetes.io/router.middlewares"] = f"{namespace}-{middleware_name}@kubernetescrd"
         path = f"{path_prefix}/{pod.metadata.name}"
         path_type = "Prefix"
@@ -388,7 +430,10 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
             ],
         ),
     )
-    _upsert_ingress(networking, namespace, ingress_body)
+    try:
+        _upsert_ingress(networking, namespace, ingress_body)
+    except Exception as exc:
+        raise RuntimeError(f"Failed to upsert ingress {ingress_name}: {exc}") from exc
 
 
 def _delete_agent_gui_resources(client_module, v1, networking, namespace: str, pod_name: str):
@@ -1038,7 +1083,8 @@ def agent_gui(request, pod_name: str):
                         f"Requested pod: {pod_name}\n"
                         f"Namespace: {namespace}\n"
                         f"Selector: {label_selector}\n"
-                        f"{_pod_debug_snapshot(v1, namespace, label_selector)}"
+                        f"{_pod_debug_snapshot(v1, namespace, label_selector)}\n"
+                        f"{_kube_context_snapshot()}"
                     )
                     logger.warning(
                         "Agent GUI pod not found: pod=%s namespace=%s selector=%s",
@@ -1075,7 +1121,8 @@ def agent_gui(request, pod_name: str):
                     f"Requested pod: {pod_name}\n"
                     f"Namespace: {namespace}\n"
                     f"Selector: {label_selector}\n"
-                    f"{_pod_debug_snapshot(v1, namespace, label_selector)}"
+                    f"{_pod_debug_snapshot(v1, namespace, label_selector)}\n"
+                    f"{_kube_context_snapshot()}"
                 )
                 logger.warning(
                     "Agent GUI pod not found (404): pod=%s namespace=%s selector=%s",
@@ -1093,9 +1140,21 @@ def agent_gui(request, pod_name: str):
                         "error_message": error_message,
                     },
                 )
-            error_message = str(exc)
+            error_message = (
+                "Cluster API error while preparing agent GUI.\n"
+                f"Requested pod: {pod_name}\n"
+                f"Namespace: {namespace}\n"
+                f"Details: {_format_api_exception(exc)}\n"
+                f"{_kube_context_snapshot()}"
+            )
         except Exception as exc:  # pragma: no cover - depends on kube setup
-            error_message = str(exc)
+            error_message = (
+                "Cluster error while preparing agent GUI.\n"
+                f"Requested pod: {pod_name}\n"
+                f"Namespace: {namespace}\n"
+                f"Details: {exc}\n"
+                f"{_kube_context_snapshot()}"
+            )
             logger.exception(
                 "Agent GUI error: pod=%s namespace=%s",
                 pod_name,
@@ -1175,14 +1234,34 @@ def agent_gui_proxy(request, pod_name: str, subpath: str = ""):
                 return redirect(target_path)
         _ensure_agent_gui_resources(client, v1, networking, namespace, pod, request.user.username)
     except client.exceptions.ApiException as exc:
-        return HttpResponse(f"Cluster error: {exc}", status=502)
+        error_message = (
+            "Cluster API error while preparing agent GUI proxy.\n"
+            f"Requested pod: {pod_name}\n"
+            f"Namespace: {namespace}\n"
+            f"Details: {_format_api_exception(exc)}\n"
+            f"{_kube_context_snapshot()}"
+        )
+        logger.warning(
+            "Agent GUI proxy API error: pod=%s namespace=%s details=%s",
+            pod_name,
+            namespace,
+            _format_api_exception(exc),
+        )
+        return HttpResponse(error_message, status=502)
     except Exception as exc:  # pragma: no cover - depends on kube setup
+        error_message = (
+            "Cluster error while preparing agent GUI proxy.\n"
+            f"Requested pod: {pod_name}\n"
+            f"Namespace: {namespace}\n"
+            f"Details: {exc}\n"
+            f"{_kube_context_snapshot()}"
+        )
         logger.exception(
             "Agent GUI proxy error: pod=%s namespace=%s",
             pod_name,
             namespace,
         )
-        return HttpResponse(f"Cluster error: {exc}", status=502)
+        return HttpResponse(error_message, status=502)
 
     proxy_base = proxy_base.rstrip("/")
     target_url = f"{proxy_base}{request.get_full_path()}"
