@@ -1268,6 +1268,8 @@ def agent_gui_proxy(request, pod_name: str, subpath: str = ""):
     target_url = f"{proxy_base}{request.get_full_path()}"
     data = request.body if request.method not in {"GET", "HEAD"} else None
     headers = _proxy_request_headers(request)
+    prefix = _gui_path_for_pod(pod_name)
+    headers.setdefault("X-Forwarded-Prefix", prefix)
 
     try:
         upstream_req = Request(target_url, data=data, headers=headers, method=request.method)
@@ -1282,6 +1284,9 @@ def agent_gui_proxy(request, pod_name: str, subpath: str = ""):
     for key, value in upstream_resp.headers.items():
         lower = key.lower()
         if lower in {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade"}:
+            continue
+        if lower == "location" and value and value.startswith("/") and not value.startswith(prefix):
+            response[key] = f"{prefix.rstrip('/')}{value}"
             continue
         response[key] = value
     return response
