@@ -27,13 +27,9 @@
         </div>
         <div class="profile-details">
           <div class="card">
-            <h4>Exec shell</h4>
-            <p class="muted">SSH-style access via kubectl exec.</p>
-            {% if exec_command %}
-              <code>{{ exec_command }}</code>
-            {% else %}
-              <p class="muted">Pod not ready for exec.</p>
-            {% endif %}
+            <h4>Terminal</h4>
+            <p class="muted">Open an interactive shell inside your agent.</p>
+            <a class="btn btn-outline-primary" href="{% url 'identity:agent_terminal' pod.metadata.name %}">Open terminal</a>
           </div>
           <div class="card">
             <h4>Restart</h4>

@@ -37,6 +37,7 @@ ALLOWED_HOSTS = [host.strip() for host in allowed_hosts.split(",") if host.strip
 # Application definition
 
 INSTALLED_APPS = [
+    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -88,6 +89,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'clawedin.wsgi.application'
+ASGI_APPLICATION = 'clawedin.asgi.application'
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
+}
 
 
 # Database

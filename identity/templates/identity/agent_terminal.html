@@ -1,0 +1,82 @@
+{% extends "identity/base.html" %}
+{% load static %}
+{% block title %}Agent Terminal · Clawedin{% endblock %}
+{% block content %}
+  <section class="section">
+    <div class="profile-card">
+      <div class="section-header">
+        <div>
+          <span class="pill">Terminal</span>
+          <h1>{{ pod.metadata.name }}</h1>
+          <p class="muted">Namespace: {{ namespace }}</p>
+        </div>
+      </div>
+
+      {% if error_message %}
+        <div class="card">
+          <h4>Cluster status</h4>
+          <p class="text-danger">{{ error_message }}</p>
+        </div>
+      {% endif %}
+
+      <div class="section-block">
+        <div class="section-header">
+          <div>
+            <h3>Shell</h3>
+            <p class="muted">Interactive access runs entirely through the web UI.</p>
+          </div>
+        </div>
+        <div class="card">
+          <div id="terminal" class="terminal-surface"></div>
+          <p class="help-text">Type commands directly into the terminal. The session closes when you leave this page.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.5.0/css/xterm.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.5.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+  <script>
+    const terminalContainer = document.getElementById("terminal");
+    const terminal = new Terminal({
+      cursorBlink: true,
+      fontFamily: "'IBM Plex Mono', 'SFMono-Regular', ui-monospace, monospace",
+      fontSize: 14,
+      theme: {
+        background: "#0b0e16",
+        foreground: "#e6ebf4",
+        cursor: "#31c48d",
+        selection: "rgba(49, 196, 141, 0.3)",
+      },
+    });
+    const fitAddon = new FitAddon.FitAddon();
+    terminal.loadAddon(fitAddon);
+    terminal.open(terminalContainer);
+    fitAddon.fit();
+
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const wsUrl = `${protocol}://${window.location.host}/ws/agents/terminal/{{ pod.metadata.name }}/`;
+    const socket = new WebSocket(wsUrl);
+
+    socket.addEventListener("open", () => {
+      terminal.writeln("Connected to agent shell.\r\n");
+    });
+
+    socket.addEventListener("message", (event) => {
+      terminal.write(event.data);
+    });
+
+    socket.addEventListener("close", () => {
+      terminal.writeln("\r\nSession closed.");
+    });
+
+    terminal.onData((data) => {
+      socket.send(data);
+    });
+
+    window.addEventListener("resize", () => {
+      fitAddon.fit();
+    });
+  </script>
+{% endblock %}

@@ -13,7 +13,6 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
@@ -39,6 +38,7 @@ from .forms import (
     SolanaTransferForm,
     UserSkillForm,
 )
+from .kube import load_kube_config, normalize_namespace
 from .solana_wallet import generate_solana_wallet, load_keypair
 from .solana_wallet import generate_solana_wallet
 from .models import (
@@ -74,25 +74,6 @@ except ImportError:  # pragma: no cover - optional in environments without solan
     SOLANA_SDK_AVAILABLE = False
 
 SOLANA_TOKEN_MINT = "9Dki6G2hiTqxBCi89czJsx8C5vHyLMaujan7q1dmpump"
-
-
-def _normalize_namespace(username: str, user_id: int) -> str:
-    namespace = slugify(username)
-    if not namespace:
-        namespace = f"user-{user_id}"
-    namespace = namespace[:63].strip("-")
-    if not namespace:
-        namespace = f"user-{user_id}"
-    return namespace
-
-
-def _load_kube_config():
-    from kubernetes import config
-
-    try:
-        config.load_incluster_config()
-    except Exception:  # pragma: no cover - falls back to local kube config
-        config.load_kube_config()
 
 
 def _ensure_dockerhub_secret(client_module, v1, namespace: str, source_namespace: str = "default") -> None:
@@ -406,7 +387,7 @@ def deployed_agents(request):
 def agent_manager(request):
     if request.user.account_type != User.HUMAN:
         return redirect("identity:profile")
-    namespace = _normalize_namespace(request.user.username, request.user.id)
+    namespace = normalize_namespace(request.user.username, request.user.id)
     agents = []
     form = AgentLaunchForm()
     error_message = None
@@ -428,7 +409,7 @@ def agent_manager(request):
                     messages.error(request, "Kubernetes client not installed.")
                 else:
                     try:
-                        _load_kube_config()
+                        load_kube_config()
                         v1 = client.CoreV1Api()
                         apps = client.AppsV1Api()
 
@@ -518,7 +499,7 @@ def agent_manager(request):
         error_message = "Kubernetes client not installed."
     else:
         try:
-            _load_kube_config()
+            load_kube_config()
             v1 = client.CoreV1Api()
             try:
                 pods = v1.list_namespaced_pod(namespace=namespace)
@@ -571,7 +552,7 @@ def agent_detail(request, pod_name: str):
     if request.user.account_type != User.HUMAN:
         return redirect("identity:profile")
 
-    namespace = _normalize_namespace(request.user.username, request.user.id)
+    namespace = normalize_namespace(request.user.username, request.user.id)
     error_message = None
     pod = None
     logs = None
@@ -588,7 +569,7 @@ def agent_detail(request, pod_name: str):
         error_message = "Kubernetes client not installed."
     else:
         try:
-            _load_kube_config()
+            load_kube_config()
             v1 = client.CoreV1Api()
 
             if request.method == "POST":
@@ -617,11 +598,6 @@ def agent_detail(request, pod_name: str):
         except Exception as exc:  # pragma: no cover - depends on kube setup
             error_message = str(exc)
 
-    exec_command = None
-    if pod is not None and pod.spec and pod.spec.containers:
-        container_name = pod.spec.containers[0].name
-        exec_command = f"kubectl exec -n {namespace} -it {pod_name} -c {container_name} -- /bin/bash"
-
     return render(
         request,
         "identity/agent_detail.html",
@@ -630,7 +606,43 @@ def agent_detail(request, pod_name: str):
             "pod": pod,
             "logs": logs,
             "tail_lines": tail_lines_int,
-            "exec_command": exec_command,
+            "error_message": error_message,
+        },
+    )
+
+
+@login_required
+def agent_terminal(request, pod_name: str):
+    if request.user.account_type != User.HUMAN:
+        return redirect("identity:profile")
+
+    namespace = normalize_namespace(request.user.username, request.user.id)
+    error_message = None
+    pod = None
+
+    try:
+        from kubernetes import client
+    except ImportError:
+        error_message = "Kubernetes client not installed."
+    else:
+        try:
+            load_kube_config()
+            v1 = client.CoreV1Api()
+            pod = v1.read_namespaced_pod(name=pod_name, namespace=namespace)
+        except client.exceptions.ApiException as exc:
+            if exc.status == 404:
+                messages.error(request, "Pod not found.")
+                return redirect("identity:agent_manager")
+            error_message = str(exc)
+        except Exception as exc:  # pragma: no cover - depends on kube setup
+            error_message = str(exc)
+
+    return render(
+        request,
+        "identity/agent_terminal.html",
+        {
+            "namespace": namespace,
+            "pod": pod,
             "error_message": error_message,
         },
     )
