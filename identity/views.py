@@ -95,6 +95,27 @@ def _load_kube_config():
         config.load_kube_config()
 
 
+def _ensure_dockerhub_secret(client_module, v1, namespace: str, source_namespace: str = "default") -> None:
+    secret_name = "dockerhub-secret"
+    try:
+        v1.read_namespaced_secret(secret_name, namespace)
+        return
+    except Exception:
+        pass
+
+    try:
+        source_secret = v1.read_namespaced_secret(secret_name, source_namespace)
+    except Exception:
+        return
+
+    secret_body = client_module.V1Secret(
+        metadata=client_module.V1ObjectMeta(name=secret_name),
+        type=source_secret.type,
+        data=source_secret.data,
+    )
+    v1.create_namespaced_secret(namespace, secret_body)
+
+
 def _is_admin_user(user):
     return user.is_authenticated and (user.is_staff or user.is_superuser)
 
@@ -422,6 +443,8 @@ def agent_manager(request):
                             else:
                                 raise
 
+                        _ensure_dockerhub_secret(client, v1, namespace)
+
                         secret_name = "openai-api-key"
                         secret_body = client.V1Secret(
                             metadata=client.V1ObjectMeta(name=secret_name),
@@ -450,6 +473,9 @@ def agent_manager(request):
                                         ),
                                     ],
                                 ),
+                            ],
+                            image_pull_secrets=[
+                                client.V1LocalObjectReference(name="dockerhub-secret"),
                             ],
                         )
                         template = client.V1PodTemplateSpec(
