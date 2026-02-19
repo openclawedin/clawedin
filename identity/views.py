@@ -40,6 +40,7 @@ from .forms import (
 )
 from .kube import (
     gui_ingress_name,
+    gui_middleware_name,
     gui_service_name,
     load_kube_config,
     normalize_namespace,
@@ -146,6 +147,26 @@ def _upsert_ingress(networking, namespace: str, ingress_body):
             raise
 
 
+def _upsert_custom_object(api, group: str, version: str, plural: str, namespace: str, body):
+    name = body["metadata"]["name"]
+    try:
+        api.get_namespaced_custom_object(group, version, namespace, plural, name)
+        api.patch_namespaced_custom_object(group, version, namespace, plural, name, body)
+    except Exception as exc:
+        if getattr(exc, "status", None) == 404:
+            api.create_namespaced_custom_object(group, version, namespace, plural, body)
+        else:
+            raise
+
+
+def _delete_custom_object(api, group: str, version: str, plural: str, namespace: str, name: str):
+    try:
+        api.delete_namespaced_custom_object(group, version, namespace, plural, name)
+    except Exception as exc:
+        if getattr(exc, "status", None) != 404:
+            raise
+
+
 def _model_class(client_module, name: str):
     if hasattr(client_module, name):
         return getattr(client_module, name)
@@ -159,6 +180,7 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
     port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
     service_name = gui_service_name(pod.metadata.name)
     ingress_name = gui_ingress_name(pod.metadata.name)
+    ingress_class = getattr(settings, "AGENT_GUI_INGRESS_CLASS", "") or None
     labels = {
         "app": "openclaw-agent",
         "owner": owner_username,
@@ -215,16 +237,50 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
 
     host = getattr(settings, "AGENT_GUI_INGRESS_HOST", "").strip() or None
     path_prefix = _gui_path_prefix()
-    annotations = {
-        "nginx.ingress.kubernetes.io/use-regex": "true",
-        "nginx.ingress.kubernetes.io/rewrite-target": "/$2",
-        "nginx.ingress.kubernetes.io/proxy-read-timeout": "3600",
-        "nginx.ingress.kubernetes.io/proxy-send-timeout": "3600",
-        "nginx.ingress.kubernetes.io/configuration-snippet": (
-            "more_set_headers \"X-Frame-Options: SAMEORIGIN\";\n"
-            "more_set_headers \"Content-Security-Policy: frame-ancestors 'self'\";\n"
-        ),
-    }
+    annotations = {}
+    path = f"{path_prefix}/{pod.metadata.name}(/|$)(.*)"
+    path_type = "ImplementationSpecific"
+    if ingress_class == "traefik":
+        middleware_name = gui_middleware_name(pod.metadata.name)
+        middleware_body = {
+            "apiVersion": "traefik.containo.us/v1alpha1",
+            "kind": "Middleware",
+            "metadata": {
+                "name": middleware_name,
+                "namespace": namespace,
+                "labels": labels,
+            },
+            "spec": {
+                "stripPrefix": {
+                    "prefixes": [f"{path_prefix}/{pod.metadata.name}"],
+                }
+            },
+        }
+        custom_api = client_module.CustomObjectsApi()
+        _upsert_custom_object(
+            custom_api,
+            "traefik.containo.us",
+            "v1alpha1",
+            "middlewares",
+            namespace,
+            middleware_body,
+        )
+        annotations["traefik.ingress.kubernetes.io/router.middlewares"] = f"{namespace}-{middleware_name}@kubernetescrd"
+        path = f"{path_prefix}/{pod.metadata.name}"
+        path_type = "Prefix"
+    else:
+        annotations.update(
+            {
+                "nginx.ingress.kubernetes.io/use-regex": "true",
+                "nginx.ingress.kubernetes.io/rewrite-target": "/$2",
+                "nginx.ingress.kubernetes.io/proxy-read-timeout": "3600",
+                "nginx.ingress.kubernetes.io/proxy-send-timeout": "3600",
+                "nginx.ingress.kubernetes.io/configuration-snippet": (
+                    "more_set_headers \"X-Frame-Options: SAMEORIGIN\";\n"
+                    "more_set_headers \"Content-Security-Policy: frame-ancestors 'self'\";\n"
+                ),
+            }
+        )
     ingress_body = client_module.V1Ingress(
         metadata=client_module.V1ObjectMeta(
             name=ingress_name,
@@ -232,15 +288,15 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
             annotations=annotations,
         ),
         spec=client_module.V1IngressSpec(
-            ingress_class_name=getattr(settings, "AGENT_GUI_INGRESS_CLASS", "") or None,
+            ingress_class_name=ingress_class,
             rules=[
                 client_module.V1IngressRule(
                     host=host,
                     http=client_module.V1HTTPIngressRuleValue(
                         paths=[
                             client_module.V1HTTPIngressPath(
-                                path=f"{path_prefix}/{pod.metadata.name}(/|$)(.*)",
-                                path_type="ImplementationSpecific",
+                                path=path,
+                                path_type=path_type,
                                 backend=client_module.V1IngressBackend(
                                     service=client_module.V1IngressServiceBackend(
                                         name=service_name,
@@ -260,6 +316,8 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
 def _delete_agent_gui_resources(client_module, v1, networking, namespace: str, pod_name: str):
     service_name = gui_service_name(pod_name)
     ingress_name = gui_ingress_name(pod_name)
+    ingress_class = getattr(settings, "AGENT_GUI_INGRESS_CLASS", "") or None
+    middleware_name = gui_middleware_name(pod_name)
 
     for delete_fn, name in (
         (networking.delete_namespaced_ingress, ingress_name),
@@ -271,6 +329,17 @@ def _delete_agent_gui_resources(client_module, v1, networking, namespace: str, p
         except Exception as exc:
             if getattr(exc, "status", None) != 404:
                 raise
+
+    if ingress_class == "traefik":
+        custom_api = client_module.CustomObjectsApi()
+        _delete_custom_object(
+            custom_api,
+            "traefik.containo.us",
+            "v1alpha1",
+            "middlewares",
+            namespace,
+            middleware_name,
+        )
 
 
 def _is_admin_user(user):

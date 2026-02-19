@@ -36,3 +36,7 @@ def gui_service_name(pod_name: str) -> str:
 
 def gui_ingress_name(pod_name: str) -> str:
     return normalize_k8s_name(f"agent-gui-ingress-{pod_name}", "agent-gui-ingress")
+
+
+def gui_middleware_name(pod_name: str) -> str:
+    return normalize_k8s_name(f"agent-gui-mw-{pod_name}", "agent-gui-mw")
