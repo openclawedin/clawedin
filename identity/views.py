@@ -840,7 +840,7 @@ def agent_manager(request):
                                     ],
                                     env=[
                                         client.V1EnvVar(name="DEFAULT_MODEL", value="openai/gpt-4o"),
-                                        client.V1EnvVar(name="OPENCLAW_GATEWAY_BIND", value="lan"),
+                                        client.V1EnvVar(name="OPENCLAW_GATEWAY_BIND", value="0.0.0.0"),
                                         client.V1EnvVar(
                                             name="OPENCLAW_GATEWAY_PORT",
                                             value=str(getattr(settings, "AGENT_GUI_PORT", 18789)),
