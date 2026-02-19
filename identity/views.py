@@ -875,6 +875,9 @@ def agent_gui(request, pod_name: str):
         except Exception as exc:  # pragma: no cover - depends on kube setup
             error_message = str(exc)
 
+    if gui_url and not error_message:
+        return redirect(gui_url)
+
     return render(
         request,
         "identity/agent_gui.html",
