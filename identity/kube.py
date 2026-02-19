@@ -1,3 +1,5 @@
+import os
+
 from django.utils.text import slugify
 
 
@@ -17,7 +19,11 @@ def load_kube_config() -> None:
     try:
         config.load_incluster_config()
     except Exception:  # pragma: no cover - falls back to local kube config
-        config.load_kube_config()
+        kubeconfig = os.environ.get("KUBECONFIG", "")
+        if kubeconfig:
+            config.load_kube_config(config_file=kubeconfig)
+        else:
+            config.load_kube_config()
 
 
 def normalize_k8s_name(value: str, fallback: str) -> str:
