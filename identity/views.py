@@ -176,6 +176,20 @@ def _model_class(client_module, name: str):
     return None
 
 
+def _resolve_pod(v1, pod_name: str, namespace: str, allow_cross_namespace: bool = False):
+    try:
+        return v1.read_namespaced_pod(name=pod_name, namespace=namespace), namespace
+    except Exception as exc:
+        if getattr(exc, "status", None) != 404 or not allow_cross_namespace:
+            raise
+
+    pods = v1.list_pod_for_all_namespaces(field_selector=f"metadata.name={pod_name}")
+    if pods.items:
+        pod = pods.items[0]
+        return pod, pod.metadata.namespace
+    raise
+
+
 def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, pod, owner_username: str):
     port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
     service_name = gui_service_name(pod.metadata.name)
@@ -838,12 +852,15 @@ def agent_detail(request, pod_name: str):
                     messages.success(request, "Restart initiated. The pod will be recreated.")
                     return redirect("identity:agent_detail", pod_name=pod_name)
                 if action == "delete":
-                    _delete_agent_gui_resources(client, v1, networking, namespace, pod_name)
-                    v1.delete_namespaced_pod(name=pod_name, namespace=namespace)
+                    allow_cross_namespace = request.user.is_staff or request.user.is_superuser
+                    _, resolved_namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+                    _delete_agent_gui_resources(client, v1, networking, resolved_namespace, pod_name)
+                    v1.delete_namespaced_pod(name=pod_name, namespace=resolved_namespace)
                     messages.success(request, "Pod deleted.")
                     return redirect("identity:agent_manager")
 
-            pod = v1.read_namespaced_pod(name=pod_name, namespace=namespace)
+            allow_cross_namespace = request.user.is_staff or request.user.is_superuser
+            pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
             logs = v1.read_namespaced_pod_log(
                 name=pod_name,
                 namespace=namespace,
@@ -888,7 +905,8 @@ def agent_terminal(request, pod_name: str):
         try:
             load_kube_config()
             v1 = client.CoreV1Api()
-            pod = v1.read_namespaced_pod(name=pod_name, namespace=namespace)
+            allow_cross_namespace = request.user.is_staff or request.user.is_superuser
+            pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
         except client.exceptions.ApiException as exc:
             if exc.status == 404:
                 messages.error(request, "Pod not found.")
@@ -928,7 +946,8 @@ def agent_gui(request, pod_name: str):
             load_kube_config()
             v1 = client.CoreV1Api()
             networking = client.NetworkingV1Api()
-            pod = v1.read_namespaced_pod(name=pod_name, namespace=namespace)
+            allow_cross_namespace = request.user.is_staff or request.user.is_superuser
+            pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
 
             _ensure_agent_gui_resources(client, v1, networking, namespace, pod, request.user.username)
 
