@@ -3,6 +3,7 @@ import logging
 import os
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from urllib.parse import urlsplit, urlunsplit
 from decimal import Decimal, ROUND_DOWN
 from datetime import datetime, timezone as dt_timezone
 
@@ -1285,11 +1286,32 @@ def agent_gui_proxy(request, pod_name: str, subpath: str = ""):
         lower = key.lower()
         if lower in {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade"}:
             continue
-        if lower == "location" and value and value.startswith("/") and not value.startswith(prefix):
-            response[key] = f"{prefix.rstrip('/')}{value}"
+        if lower == "location":
+            response[key] = _rewrite_location_header(value, prefix, pod_name)
             continue
         response[key] = value
     return response
+
+
+def _rewrite_location_header(location: str, prefix: str, pod_name: str) -> str:
+    if not location:
+        return location
+    pod_root = f"/openclaw-agent-{pod_name}"
+    if location.startswith(pod_root):
+        return location.replace(pod_root, prefix.rstrip("/"), 1)
+    if location.startswith("/") and not location.startswith(prefix):
+        return f"{prefix.rstrip('/')}{location}"
+
+    parsed = urlsplit(location)
+    if parsed.scheme and parsed.netloc:
+        path = parsed.path or "/"
+        if path.startswith(pod_root):
+            new_path = path.replace(pod_root, prefix.rstrip("/"), 1)
+            return urlunsplit((parsed.scheme, parsed.netloc, new_path, parsed.query, parsed.fragment))
+        if path.startswith("/") and not path.startswith(prefix):
+            new_path = f"{prefix.rstrip('/')}{path}"
+            return urlunsplit((parsed.scheme, parsed.netloc, new_path, parsed.query, parsed.fragment))
+    return location
 
 
 def agent_gui_root_redirect(request, pod_name: str, subpath: str = ""):
