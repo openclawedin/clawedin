@@ -13,6 +13,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
@@ -26,6 +27,7 @@ except ImportError:  # pragma: no cover - exercised in environments without stri
 
 from .forms import (
     LoginForm,
+    AgentLaunchForm,
     ProfileUpdateForm,
     RegisterForm,
     ResumeCertificationForm,
@@ -72,6 +74,25 @@ except ImportError:  # pragma: no cover - optional in environments without solan
     SOLANA_SDK_AVAILABLE = False
 
 SOLANA_TOKEN_MINT = "9Dki6G2hiTqxBCi89czJsx8C5vHyLMaujan7q1dmpump"
+
+
+def _normalize_namespace(username: str, user_id: int) -> str:
+    namespace = slugify(username)
+    if not namespace:
+        namespace = f"user-{user_id}"
+    namespace = namespace[:63].strip("-")
+    if not namespace:
+        namespace = f"user-{user_id}"
+    return namespace
+
+
+def _load_kube_config():
+    from kubernetes import config
+
+    try:
+        config.load_incluster_config()
+    except Exception:  # pragma: no cover - falls back to local kube config
+        config.load_kube_config()
 
 
 def _is_admin_user(user):
@@ -364,11 +385,140 @@ def deployed_agents(request):
 def agent_manager(request):
     if request.user.account_type != User.HUMAN:
         return redirect("identity:profile")
+    namespace = _normalize_namespace(request.user.username, request.user.id)
+    agents = []
+    form = AgentLaunchForm()
+    error_message = None
+
+    if request.method == "POST":
+        form = AgentLaunchForm(request.POST)
+        if form.is_valid():
+            openai_key = form.cleaned_data["openai_api_key"].strip()
+            if not openai_key and request.user.openai_api_key:
+                openai_key = request.user.openai_api_key
+            if not openai_key:
+                form.add_error("openai_api_key", "Enter an OpenAI API key to launch an agent.")
+            else:
+                request.user.openai_api_key = openai_key
+                request.user.save(update_fields=["openai_api_key", "updated_at"])
+                try:
+                    from kubernetes import client
+                except ImportError:
+                    messages.error(request, "Kubernetes client not installed.")
+                else:
+                    try:
+                        _load_kube_config()
+                        v1 = client.CoreV1Api()
+                        apps = client.AppsV1Api()
+
+                        try:
+                            v1.read_namespace(name=namespace)
+                        except client.exceptions.ApiException as exc:
+                            if exc.status == 404:
+                                namespace_body = client.V1Namespace(
+                                    metadata=client.V1ObjectMeta(name=namespace),
+                                )
+                                v1.create_namespace(namespace_body)
+                            else:
+                                raise
+
+                        secret_name = "openai-api-key"
+                        secret_body = client.V1Secret(
+                            metadata=client.V1ObjectMeta(name=secret_name),
+                            type="Opaque",
+                            string_data={"OPENAI_API_KEY": openai_key},
+                        )
+                        try:
+                            v1.read_namespaced_secret(secret_name, namespace)
+                            v1.patch_namespaced_secret(secret_name, namespace, secret_body)
+                        except client.exceptions.ApiException as exc:
+                            if exc.status == 404:
+                                v1.create_namespaced_secret(namespace, secret_body)
+                            else:
+                                raise
+
+                        deployment_name = "openclaw-agent"
+                        labels = {"app": "openclaw-agent", "owner": request.user.username}
+                        pod_spec = client.V1PodSpec(
+                            containers=[
+                                client.V1Container(
+                                    name="openclaw-agent",
+                                    image="athenalive/openclaw:v1",
+                                    env_from=[
+                                        client.V1EnvFromSource(
+                                            secret_ref=client.V1SecretEnvSource(name=secret_name),
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        )
+                        template = client.V1PodTemplateSpec(
+                            metadata=client.V1ObjectMeta(
+                                labels=labels,
+                                annotations={
+                                    "clawedin.ai/restarted-at": timezone.now().isoformat(),
+                                },
+                            ),
+                            spec=pod_spec,
+                        )
+                        deployment = client.V1Deployment(
+                            metadata=client.V1ObjectMeta(name=deployment_name, labels=labels),
+                            spec=client.V1DeploymentSpec(
+                                replicas=1,
+                                selector=client.V1LabelSelector(match_labels=labels),
+                                template=template,
+                            ),
+                        )
+
+                        try:
+                            apps.read_namespaced_deployment(deployment_name, namespace)
+                            apps.patch_namespaced_deployment(deployment_name, namespace, deployment)
+                        except client.exceptions.ApiException as exc:
+                            if exc.status == 404:
+                                apps.create_namespaced_deployment(namespace, deployment)
+                            else:
+                                raise
+
+                        messages.success(request, "Agent launch started. Your container is spinning up.")
+                        return redirect("identity:agent_manager")
+                    except Exception as exc:  # pragma: no cover - depends on kube setup
+                        logger.exception("Failed to launch agent for user %s", request.user.id)
+                        error_message = str(exc)
+                        messages.error(request, f"Could not launch agent: {error_message}")
+
+    try:
+        from kubernetes import client
+    except ImportError:
+        error_message = "Kubernetes client not installed."
+    else:
+        try:
+            _load_kube_config()
+            v1 = client.CoreV1Api()
+            try:
+                pods = v1.list_namespaced_pod(namespace=namespace)
+                agents = [
+                    {
+                        "name": pod.metadata.name,
+                        "status": pod.status.phase,
+                        "last_seen": pod.status.start_time,
+                    }
+                    for pod in pods.items
+                ]
+            except client.exceptions.ApiException as exc:
+                if exc.status != 404:
+                    raise
+        except Exception as exc:  # pragma: no cover - depends on kube setup
+            error_message = str(exc)
+
     return render(
         request,
         "identity/agent_manager.html",
         {
-            "agents": [],
+            "agents": agents,
+            "form": form,
+            "namespace": namespace,
+            "openai_key_saved": bool(request.user.openai_api_key),
+            "error_message": error_message,
         },
     )
 

@@ -22,7 +22,25 @@
           <div class="card card--accent">
             <h4>New agent</h4>
             <p class="muted">Choose a template and spin up a private runtime.</p>
-            <button class="btn btn-primary" disabled>Launch agent (coming soon)</button>
+            <form method="post" class="form">
+              {% csrf_token %}
+              <div class="form-group mb-3">
+                <label class="form-label" for="openai_api_key">OpenAI API key</label>
+                <input
+                  type="password"
+                  name="openai_api_key"
+                  id="openai_api_key"
+                  class="form-control"
+                  placeholder="{% if openai_key_saved %}Saved key on file{% else %}sk-...{% endif %}"
+                  autocomplete="off"
+                />
+                <p class="help-text">We store this on your profile and inject it into your container as `OPENAI_API_KEY`.</p>
+                {% if form.openai_api_key.errors %}
+                  <p class="text-danger">{{ form.openai_api_key.errors|striptags }}</p>
+                {% endif %}
+              </div>
+              <button class="btn btn-primary" type="submit">Launch agent</button>
+            </form>
           </div>
           <div class="card">
             <h4>Agent templates</h4>
@@ -34,9 +52,16 @@
           <div class="card">
             <h4>Access model</h4>
             <p>Each human user gets a dedicated container namespace.</p>
+            <p class="muted">Namespace: <strong>{{ namespace }}</strong></p>
             <p>Agents are isolated and only you can connect to them.</p>
           </div>
         </div>
+        {% if error_message %}
+          <div class="card mt-3">
+            <h4>Cluster status</h4>
+            <p class="text-danger">{{ error_message }}</p>
+          </div>
+        {% endif %}
       </div>
 
       <div class="section-block">

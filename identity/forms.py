@@ -64,6 +64,15 @@ class SolanaTransferForm(forms.Form):
     amount = forms.DecimalField(max_digits=20, decimal_places=9, min_value=0)
 
 
+class AgentLaunchForm(forms.Form):
+    openai_api_key = forms.CharField(
+        label="OpenAI API key",
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        help_text="Stored on your profile and injected into the agent container.",
+    )
+
+
 class ResumeForm(forms.ModelForm):
     class Meta:
         model = Resume

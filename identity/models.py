@@ -57,6 +57,10 @@ class User(AbstractUser):
     stripe_current_period_end = models.DateTimeField(null=True, blank=True)
     solana_public_key = models.CharField(max_length=64, blank=True)
     solana_private_key = models.TextField(blank=True)
+    openai_api_key = models.TextField(
+        blank=True,
+        help_text="User-provided OpenAI API key for agent deployments.",
+    )
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
