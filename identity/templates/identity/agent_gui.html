@@ -24,12 +24,12 @@
             <h3>Interface</h3>
             <p class="muted">Some browsers block embedded views. Use the new-tab link below.</p>
           </div>
-          {% if gui_url %}
-            <a class="btn btn-primary" href="{{ gui_url }}" target="_blank" rel="noopener">Open web GUI</a>
+          {% if gui_path %}
+            <a class="btn btn-primary" href="{{ gui_path }}" target="_blank" rel="noopener">Open web GUI</a>
           {% endif %}
         </div>
         <div class="card">
-          {% if gui_url %}
+          {% if gui_path %}
             <p class="muted">If the GUI supports embedding, you can enable it later. Right now it opens in a new tab.</p>
             <p class="help-text">Proxy path: <code>{{ gui_path }}</code></p>
           {% else %}

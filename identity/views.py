@@ -1,5 +1,7 @@
 import base64
 import logging
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 from decimal import Decimal, ROUND_DOWN
 from datetime import datetime, timezone as dt_timezone
 
@@ -9,7 +11,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.views import LoginView, LogoutView
 from django.core.mail import send_mail
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
-from django.http import HttpResponse
+from django.http import HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -174,6 +176,42 @@ def _model_class(client_module, name: str):
     if models and hasattr(models, name):
         return getattr(models, name)
     return None
+
+
+def _proxy_request_headers(request):
+    hop_by_hop = {
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailers",
+        "transfer-encoding",
+        "upgrade",
+    }
+    headers = {}
+    for key, value in request.headers.items():
+        lower = key.lower()
+        if lower in hop_by_hop or lower == "host":
+            continue
+        headers[key] = value
+    ingress_host = getattr(settings, "AGENT_GUI_INGRESS_HOST", "").strip()
+    if ingress_host:
+        headers["Host"] = ingress_host
+    headers.setdefault("X-Forwarded-Proto", "https" if request.is_secure() else "http")
+    headers.setdefault("X-Forwarded-Host", request.get_host())
+    remote_addr = request.META.get("REMOTE_ADDR")
+    if remote_addr:
+        headers.setdefault("X-Forwarded-For", remote_addr)
+    return headers
+
+
+def _stream_response(response):
+    while True:
+        chunk = response.read(64 * 1024)
+        if not chunk:
+            break
+        yield chunk
 
 
 def _resolve_pod(v1, pod_name: str, namespace: str, allow_cross_namespace: bool = False):
@@ -946,7 +984,6 @@ def agent_gui(request, pod_name: str):
     namespace = normalize_namespace(request.user.username, request.user.id)
     error_message = None
     pod = None
-    gui_url = None
     gui_path = None
 
     try:
@@ -982,9 +1019,6 @@ def agent_gui(request, pod_name: str):
             _ensure_agent_gui_resources(client, v1, networking, namespace, pod, request.user.username)
 
             gui_path = _gui_path_for_pod(pod_name)
-            gui_host = getattr(settings, "AGENT_GUI_INGRESS_HOST", "").strip() or request.get_host()
-            scheme = "https" if request.is_secure() else "http"
-            gui_url = f"{scheme}://{gui_host}{gui_path}"
         except client.exceptions.ApiException as exc:
             if exc.status == 404:
                 messages.error(request, "Pod not found.")
@@ -993,8 +1027,8 @@ def agent_gui(request, pod_name: str):
         except Exception as exc:  # pragma: no cover - depends on kube setup
             error_message = str(exc)
 
-    if gui_url and not error_message:
-        return redirect(gui_url)
+    if gui_path and not error_message:
+        return redirect(gui_path)
 
     return render(
         request,
@@ -1002,11 +1036,60 @@ def agent_gui(request, pod_name: str):
         {
             "namespace": namespace,
             "pod": pod,
-            "gui_url": gui_url,
             "gui_path": gui_path,
             "error_message": error_message,
         },
     )
+
+
+@login_required
+def agent_gui_proxy(request, pod_name: str, subpath: str = ""):
+    if request.user.account_type != User.HUMAN:
+        return redirect("identity:profile")
+
+    proxy_base = getattr(settings, "AGENT_GUI_PROXY_BASE", "").strip()
+    if not proxy_base:
+        return HttpResponse("Agent GUI proxy is not configured.", status=503)
+
+    namespace = normalize_namespace(request.user.username, request.user.id)
+    try:
+        from kubernetes import client
+    except ImportError:
+        return HttpResponse("Kubernetes client not installed.", status=503)
+
+    try:
+        load_kube_config()
+        v1 = client.CoreV1Api()
+        allow_cross_namespace = request.user.is_staff or request.user.is_superuser
+        _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+    except client.exceptions.ApiException as exc:
+        if exc.status == 404:
+            return HttpResponse("Pod not found.", status=404)
+        return HttpResponse(f"Cluster error: {exc}", status=502)
+    except Exception as exc:  # pragma: no cover - depends on kube setup
+        return HttpResponse(f"Cluster error: {exc}", status=502)
+
+    proxy_base = proxy_base.rstrip("/")
+    target_url = f"{proxy_base}{request.get_full_path()}"
+    data = request.body if request.method not in {"GET", "HEAD"} else None
+    headers = _proxy_request_headers(request)
+
+    try:
+        upstream_req = Request(target_url, data=data, headers=headers, method=request.method)
+        timeout = int(getattr(settings, "AGENT_GUI_PROXY_TIMEOUT", 30))
+        upstream_resp = urlopen(upstream_req, timeout=timeout)
+    except HTTPError as exc:
+        return HttpResponse(exc.read() or exc.reason, status=exc.code)
+    except URLError as exc:
+        return HttpResponse(f"Proxy error: {exc.reason}", status=502)
+
+    response = StreamingHttpResponse(_stream_response(upstream_resp), status=upstream_resp.status)
+    for key, value in upstream_resp.headers.items():
+        lower = key.lower()
+        if lower in {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade"}:
+            continue
+        response[key] = value
+    return response
 
 
 @login_required
