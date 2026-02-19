@@ -1060,8 +1060,10 @@ def agent_gui_proxy(request, pod_name: str, subpath: str = ""):
     try:
         load_kube_config()
         v1 = client.CoreV1Api()
+        networking = client.NetworkingV1Api()
         allow_cross_namespace = request.user.is_staff or request.user.is_superuser
-        _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+        pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+        _ensure_agent_gui_resources(client, v1, networking, namespace, pod, request.user.username)
     except client.exceptions.ApiException as exc:
         if exc.status == 404:
             return HttpResponse("Pod not found.", status=404)
