@@ -1,1 +1,1 @@
-Couldn't find the requested release version 5.5.0.
+Package version not found: xterm@5.5.0
