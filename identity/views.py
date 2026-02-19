@@ -362,7 +362,7 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
     if ingress_class == "traefik":
         middleware_name = gui_middleware_name(pod.metadata.name)
         middleware_body = {
-            "apiVersion": "traefik.containo.us/v1alpha1",
+            "apiVersion": "traefik.io/v1alpha1",
             "kind": "Middleware",
             "metadata": {
                 "name": middleware_name,
@@ -376,17 +376,28 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
             },
         }
         custom_api = client_module.CustomObjectsApi()
-        try:
-            _upsert_custom_object(
-                custom_api,
-                "traefik.containo.us",
-                "v1alpha1",
-                "middlewares",
-                namespace,
-                middleware_body,
-            )
-        except Exception as exc:
-            raise RuntimeError(f"Failed to upsert traefik middleware {middleware_name}: {exc}") from exc
+        middleware_groups = (
+            ("traefik.io", "v1alpha1"),
+            ("traefik.containo.us", "v1alpha1"),
+        )
+        last_error = None
+        for group, version in middleware_groups:
+            middleware_body["apiVersion"] = f"{group}/{version}"
+            try:
+                _upsert_custom_object(
+                    custom_api,
+                    group,
+                    version,
+                    "middlewares",
+                    namespace,
+                    middleware_body,
+                )
+                last_error = None
+                break
+            except Exception as exc:
+                last_error = exc
+        if last_error:
+            raise RuntimeError(f"Failed to upsert traefik middleware {middleware_name}: {last_error}") from last_error
         annotations["traefik.ingress.kubernetes.io/router.middlewares"] = f"{namespace}-{middleware_name}@kubernetescrd"
         path = f"{path_prefix}/{pod.metadata.name}"
         path_type = "Prefix"
@@ -457,14 +468,15 @@ def _delete_agent_gui_resources(client_module, v1, networking, namespace: str, p
 
     if ingress_class == "traefik":
         custom_api = client_module.CustomObjectsApi()
-        _delete_custom_object(
-            custom_api,
-            "traefik.containo.us",
-            "v1alpha1",
-            "middlewares",
-            namespace,
-            middleware_name,
-        )
+        for group in ("traefik.io", "traefik.containo.us"):
+            _delete_custom_object(
+                custom_api,
+                group,
+                "v1alpha1",
+                "middlewares",
+                namespace,
+                middleware_name,
+            )
 
 
 def _is_admin_user(user):
