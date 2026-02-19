@@ -38,7 +38,12 @@ from .forms import (
     SolanaTransferForm,
     UserSkillForm,
 )
-from .kube import load_kube_config, normalize_namespace
+from .kube import (
+    gui_ingress_name,
+    gui_service_name,
+    load_kube_config,
+    normalize_namespace,
+)
 from .solana_wallet import generate_solana_wallet, load_keypair
 from .solana_wallet import generate_solana_wallet
 from .models import (
@@ -95,6 +100,161 @@ def _ensure_dockerhub_secret(client_module, v1, namespace: str, source_namespace
         data=source_secret.data,
     )
     v1.create_namespaced_secret(namespace, secret_body)
+
+
+def _gui_path_prefix() -> str:
+    prefix = getattr(settings, "AGENT_GUI_PATH_PREFIX", "/agents/gui") or "/agents/gui"
+    if not prefix.startswith("/"):
+        prefix = f"/{prefix}"
+    return prefix.rstrip("/")
+
+
+def _gui_path_for_pod(pod_name: str) -> str:
+    return f"{_gui_path_prefix()}/{pod_name}/"
+
+
+def _upsert_service(v1, namespace: str, service_body):
+    try:
+        v1.read_namespaced_service(service_body.metadata.name, namespace)
+        v1.patch_namespaced_service(service_body.metadata.name, namespace, service_body)
+    except Exception as exc:
+        if getattr(exc, "status", None) == 404:
+            v1.create_namespaced_service(namespace, service_body)
+        else:
+            raise
+
+
+def _upsert_endpoints(v1, namespace: str, endpoints_body):
+    try:
+        v1.read_namespaced_endpoints(endpoints_body.metadata.name, namespace)
+        v1.patch_namespaced_endpoints(endpoints_body.metadata.name, namespace, endpoints_body)
+    except Exception as exc:
+        if getattr(exc, "status", None) == 404:
+            v1.create_namespaced_endpoints(namespace, endpoints_body)
+        else:
+            raise
+
+
+def _upsert_ingress(networking, namespace: str, ingress_body):
+    try:
+        networking.read_namespaced_ingress(ingress_body.metadata.name, namespace)
+        networking.patch_namespaced_ingress(ingress_body.metadata.name, namespace, ingress_body)
+    except Exception as exc:
+        if getattr(exc, "status", None) == 404:
+            networking.create_namespaced_ingress(namespace, ingress_body)
+        else:
+            raise
+
+
+def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, pod, owner_username: str):
+    port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
+    service_name = gui_service_name(pod.metadata.name)
+    ingress_name = gui_ingress_name(pod.metadata.name)
+    labels = {
+        "app": "openclaw-agent",
+        "owner": owner_username,
+        "pod": pod.metadata.name,
+    }
+
+    service_body = client_module.V1Service(
+        metadata=client_module.V1ObjectMeta(name=service_name, labels=labels),
+        spec=client_module.V1ServiceSpec(
+            ports=[
+                client_module.V1ServicePort(
+                    name="gui",
+                    port=port,
+                    target_port=port,
+                    protocol="TCP",
+                )
+            ],
+        ),
+    )
+    _upsert_service(v1, namespace, service_body)
+
+    pod_ip = pod.status.pod_ip
+    if not pod_ip:
+        raise ValueError("Pod has no IP yet.")
+
+    endpoints_body = client_module.V1Endpoints(
+        metadata=client_module.V1ObjectMeta(name=service_name, labels=labels),
+        subsets=[
+            client_module.V1EndpointSubset(
+                addresses=[
+                    client_module.V1EndpointAddress(
+                        ip=pod_ip,
+                        target_ref=client_module.V1ObjectReference(
+                            kind="Pod",
+                            name=pod.metadata.name,
+                            namespace=namespace,
+                        ),
+                    )
+                ],
+                ports=[
+                    client_module.V1EndpointPort(
+                        name="gui",
+                        port=port,
+                        protocol="TCP",
+                    )
+                ],
+            )
+        ],
+    )
+    _upsert_endpoints(v1, namespace, endpoints_body)
+
+    host = getattr(settings, "AGENT_GUI_INGRESS_HOST", "").strip() or None
+    path_prefix = _gui_path_prefix()
+    annotations = {
+        "nginx.ingress.kubernetes.io/use-regex": "true",
+        "nginx.ingress.kubernetes.io/rewrite-target": "/$2",
+        "nginx.ingress.kubernetes.io/proxy-read-timeout": "3600",
+        "nginx.ingress.kubernetes.io/proxy-send-timeout": "3600",
+    }
+    ingress_body = client_module.V1Ingress(
+        metadata=client_module.V1ObjectMeta(
+            name=ingress_name,
+            labels=labels,
+            annotations=annotations,
+        ),
+        spec=client_module.V1IngressSpec(
+            ingress_class_name=getattr(settings, "AGENT_GUI_INGRESS_CLASS", "") or None,
+            rules=[
+                client_module.V1IngressRule(
+                    host=host,
+                    http=client_module.V1HTTPIngressRuleValue(
+                        paths=[
+                            client_module.V1HTTPIngressPath(
+                                path=f"{path_prefix}/{pod.metadata.name}(/|$)(.*)",
+                                path_type="ImplementationSpecific",
+                                backend=client_module.V1IngressBackend(
+                                    service=client_module.V1IngressServiceBackend(
+                                        name=service_name,
+                                        port=client_module.V1ServiceBackendPort(number=port),
+                                    )
+                                ),
+                            )
+                        ]
+                    ),
+                )
+            ],
+        ),
+    )
+    _upsert_ingress(networking, namespace, ingress_body)
+
+
+def _delete_agent_gui_resources(client_module, v1, networking, namespace: str, pod_name: str):
+    service_name = gui_service_name(pod_name)
+    ingress_name = gui_ingress_name(pod_name)
+
+    for delete_fn, name in (
+        (networking.delete_namespaced_ingress, ingress_name),
+        (v1.delete_namespaced_endpoints, service_name),
+        (v1.delete_namespaced_service, service_name),
+    ):
+        try:
+            delete_fn(name, namespace)
+        except Exception as exc:
+            if getattr(exc, "status", None) != 404:
+                raise
 
 
 def _is_admin_user(user):
@@ -448,6 +608,12 @@ def agent_manager(request):
                                 client.V1Container(
                                     name="openclaw-agent",
                                     image="athenalive/openclaw:latest",
+                                    ports=[
+                                        client.V1ContainerPort(
+                                            container_port=int(getattr(settings, "AGENT_GUI_PORT", 18789)),
+                                            name="gui",
+                                        )
+                                    ],
                                     env=[
                                         client.V1EnvVar(name="DEFAULT_MODEL", value="openai/gpt-4o"),
                                         client.V1EnvVar(
@@ -578,6 +744,7 @@ def agent_detail(request, pod_name: str):
         try:
             load_kube_config()
             v1 = client.CoreV1Api()
+            networking = client.NetworkingV1Api()
 
             if request.method == "POST":
                 action = request.POST.get("action")
@@ -586,6 +753,7 @@ def agent_detail(request, pod_name: str):
                     messages.success(request, "Restart initiated. The pod will be recreated.")
                     return redirect("identity:agent_detail", pod_name=pod_name)
                 if action == "delete":
+                    _delete_agent_gui_resources(client, v1, networking, namespace, pod_name)
                     v1.delete_namespaced_pod(name=pod_name, namespace=namespace)
                     messages.success(request, "Pod deleted.")
                     return redirect("identity:agent_manager")
@@ -650,6 +818,55 @@ def agent_terminal(request, pod_name: str):
         {
             "namespace": namespace,
             "pod": pod,
+            "error_message": error_message,
+        },
+    )
+
+
+@login_required
+def agent_gui(request, pod_name: str):
+    if request.user.account_type != User.HUMAN:
+        return redirect("identity:profile")
+
+    namespace = normalize_namespace(request.user.username, request.user.id)
+    error_message = None
+    pod = None
+    gui_url = None
+    gui_path = None
+
+    try:
+        from kubernetes import client
+    except ImportError:
+        error_message = "Kubernetes client not installed."
+    else:
+        try:
+            load_kube_config()
+            v1 = client.CoreV1Api()
+            networking = client.NetworkingV1Api()
+            pod = v1.read_namespaced_pod(name=pod_name, namespace=namespace)
+
+            _ensure_agent_gui_resources(client, v1, networking, namespace, pod, request.user.username)
+
+            gui_path = _gui_path_for_pod(pod_name)
+            gui_host = getattr(settings, "AGENT_GUI_INGRESS_HOST", "").strip() or request.get_host()
+            scheme = "https" if request.is_secure() else "http"
+            gui_url = f"{scheme}://{gui_host}{gui_path}"
+        except client.exceptions.ApiException as exc:
+            if exc.status == 404:
+                messages.error(request, "Pod not found.")
+                return redirect("identity:agent_manager")
+            error_message = str(exc)
+        except Exception as exc:  # pragma: no cover - depends on kube setup
+            error_message = str(exc)
+
+    return render(
+        request,
+        "identity/agent_gui.html",
+        {
+            "namespace": namespace,
+            "pod": pod,
+            "gui_url": gui_url,
+            "gui_path": gui_path,
             "error_message": error_message,
         },
     )

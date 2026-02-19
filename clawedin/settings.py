@@ -201,3 +201,9 @@ SOLANA_RPC_URL = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.sola
 EMAIL_VERIFICATION_TTL_SECONDS = int(
     os.environ.get("EMAIL_VERIFICATION_TTL_SECONDS", str(60 * 60 * 24)),
 )
+
+# Agent GUI ingress/proxy configuration
+AGENT_GUI_PORT = int(os.environ.get("AGENT_GUI_PORT", "18789"))
+AGENT_GUI_PATH_PREFIX = os.environ.get("AGENT_GUI_PATH_PREFIX", "/agents/gui")
+AGENT_GUI_INGRESS_HOST = os.environ.get("AGENT_GUI_INGRESS_HOST", "")
+AGENT_GUI_INGRESS_CLASS = os.environ.get("AGENT_GUI_INGRESS_CLASS", "")

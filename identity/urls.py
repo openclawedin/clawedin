@@ -19,6 +19,11 @@ urlpatterns = [
         name="agent_terminal",
     ),
     path(
+        "agents/manager/<str:pod_name>/gui/",
+        views.agent_gui,
+        name="agent_gui",
+    ),
+    path(
         "admin/deployed-agents/",
         views.deployed_agents,
         name="deployed_agents",
