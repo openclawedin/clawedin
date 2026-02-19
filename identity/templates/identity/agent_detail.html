@@ -1,0 +1,96 @@
+{% extends "identity/base.html" %}
+{% block title %}Agent Details · Clawedin{% endblock %}
+{% block content %}
+  <section class="section">
+    <div class="profile-card">
+      <div class="section-header">
+        <div>
+          <span class="pill">Agent details</span>
+          <h1>{{ pod.metadata.name }}</h1>
+          <p class="muted">Namespace: {{ namespace }}</p>
+        </div>
+      </div>
+
+      {% if error_message %}
+        <div class="card">
+          <h4>Cluster status</h4>
+          <p class="text-danger">{{ error_message }}</p>
+        </div>
+      {% endif %}
+
+      <div class="section-block">
+        <div class="section-header">
+          <div>
+            <h3>Actions</h3>
+            <p class="muted">Manage the agent container in your namespace.</p>
+          </div>
+        </div>
+        <div class="profile-details">
+          <div class="card">
+            <h4>Exec shell</h4>
+            <p class="muted">SSH-style access via kubectl exec.</p>
+            {% if exec_command %}
+              <code>{{ exec_command }}</code>
+            {% else %}
+              <p class="muted">Pod not ready for exec.</p>
+            {% endif %}
+          </div>
+          <div class="card">
+            <h4>Restart</h4>
+            <p class="muted">Deletes the pod so the deployment can recreate it.</p>
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="restart" />
+              <button class="btn btn-outline-primary" type="submit">Restart pod</button>
+            </form>
+          </div>
+          <div class="card">
+            <h4>Delete</h4>
+            <p class="muted">Deletes the pod. If a deployment exists, it may recreate.</p>
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="delete" />
+              <button class="btn btn-outline-danger" type="submit">Delete pod</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-block">
+        <div class="section-header">
+          <div>
+            <h3>Logs</h3>
+            <p class="muted">Tail recent output for this pod.</p>
+          </div>
+        </div>
+        <div class="card">
+          <form method="get" class="form">
+            <div class="form-group mb-3">
+              <label class="form-label" for="tail_lines">Last lines</label>
+              <input
+                type="number"
+                id="tail_lines"
+                name="tail_lines"
+                class="form-control"
+                min="10"
+                max="2000"
+                value="{{ tail_lines }}"
+              />
+              <p class="help-text">Limit between 10 and 2000 lines for faster load.</p>
+            </div>
+            <button class="btn btn-primary" type="submit">Refresh logs</button>
+          </form>
+        </div>
+        {% if logs %}
+          <div class="card">
+            <pre class="mb-0"><code>{{ logs }}</code></pre>
+          </div>
+        {% else %}
+          <div class="card">
+            <p class="muted">No logs available yet.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+{% endblock %}

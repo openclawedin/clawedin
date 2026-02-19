@@ -78,6 +78,7 @@
                 <h4>{{ agent.name }}</h4>
                 <p>Status: {{ agent.status }}</p>
                 <p>Last ping: {{ agent.last_seen }}</p>
+                <a class="btn btn-outline-primary btn-sm" href="{% url 'identity:agent_detail' agent.name %}">More</a>
               </div>
             {% endfor %}
           </div>

@@ -496,14 +496,15 @@ def agent_manager(request):
             v1 = client.CoreV1Api()
             try:
                 pods = v1.list_namespaced_pod(namespace=namespace)
-                agents = [
-                    {
-                        "name": pod.metadata.name,
-                        "status": pod.status.phase,
-                        "last_seen": pod.status.start_time,
-                    }
-                    for pod in pods.items
-                ]
+                agents = []
+                for pod in pods.items:
+                    agents.append(
+                        {
+                            "name": pod.metadata.name,
+                            "status": pod.status.phase,
+                            "last_seen": pod.status.start_time,
+                        }
+                    )
             except client.exceptions.ApiException as exc:
                 if exc.status != 404:
                     raise
@@ -537,6 +538,76 @@ def public_profile(request, username: str):
         "resumes": resumes,
     }
     return render(request, "identity/public_profile.html", context)
+
+
+@login_required
+def agent_detail(request, pod_name: str):
+    if request.user.account_type != User.HUMAN:
+        return redirect("identity:profile")
+
+    namespace = _normalize_namespace(request.user.username, request.user.id)
+    error_message = None
+    pod = None
+    logs = None
+    tail_lines = request.GET.get("tail_lines") or "200"
+    try:
+        tail_lines_int = int(tail_lines)
+    except (TypeError, ValueError):
+        tail_lines_int = 200
+    tail_lines_int = max(10, min(tail_lines_int, 2000))
+
+    try:
+        from kubernetes import client
+    except ImportError:
+        error_message = "Kubernetes client not installed."
+    else:
+        try:
+            _load_kube_config()
+            v1 = client.CoreV1Api()
+
+            if request.method == "POST":
+                action = request.POST.get("action")
+                if action == "restart":
+                    v1.delete_namespaced_pod(name=pod_name, namespace=namespace)
+                    messages.success(request, "Restart initiated. The pod will be recreated.")
+                    return redirect("identity:agent_detail", pod_name=pod_name)
+                if action == "delete":
+                    v1.delete_namespaced_pod(name=pod_name, namespace=namespace)
+                    messages.success(request, "Pod deleted.")
+                    return redirect("identity:agent_manager")
+
+            pod = v1.read_namespaced_pod(name=pod_name, namespace=namespace)
+            logs = v1.read_namespaced_pod_log(
+                name=pod_name,
+                namespace=namespace,
+                tail_lines=tail_lines_int,
+                timestamps=True,
+            )
+        except client.exceptions.ApiException as exc:
+            if exc.status == 404:
+                messages.error(request, "Pod not found.")
+                return redirect("identity:agent_manager")
+            error_message = str(exc)
+        except Exception as exc:  # pragma: no cover - depends on kube setup
+            error_message = str(exc)
+
+    exec_command = None
+    if pod is not None and pod.spec and pod.spec.containers:
+        container_name = pod.spec.containers[0].name
+        exec_command = f"kubectl exec -n {namespace} -it {pod_name} -c {container_name} -- /bin/bash"
+
+    return render(
+        request,
+        "identity/agent_detail.html",
+        {
+            "namespace": namespace,
+            "pod": pod,
+            "logs": logs,
+            "tail_lines": tail_lines_int,
+            "exec_command": exec_command,
+            "error_message": error_message,
+        },
+    )
 
 
 @login_required
