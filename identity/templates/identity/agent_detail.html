@@ -34,7 +34,7 @@
           <div class="card">
             <h4>Web GUI</h4>
             <p class="muted">Launch the agent's web interface in your browser.</p>
-            <a class="btn btn-outline-primary" href="{% url 'identity:agent_gui' pod.metadata.name %}">Open web GUI</a>
+            <a class="btn btn-outline-primary" href="{% url 'identity:agent_gui_proxy' pod.metadata.name %}" target="_blank" rel="noopener">Open web GUI</a>
           </div>
           <div class="card">
             <h4>Restart</h4>
