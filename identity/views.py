@@ -856,6 +856,21 @@ def agent_manager(request):
                                         ),
                                     ],
                                 ),
+                                client.V1Container(
+                                    name="openclaw-gui-proxy",
+                                    image="alpine/socat:1.7.4.4-r0",
+                                    args=[
+                                        "-dd",
+                                        f"TCP-LISTEN:{int(getattr(settings, 'AGENT_GUI_PORT', 18789))},fork,reuseaddr",
+                                        f"TCP:127.0.0.1:{int(getattr(settings, 'AGENT_GUI_PORT', 18789))}",
+                                    ],
+                                    ports=[
+                                        client.V1ContainerPort(
+                                            container_port=int(getattr(settings, "AGENT_GUI_PORT", 18789)),
+                                            name="gui-proxy",
+                                        )
+                                    ],
+                                ),
                             ],
                             image_pull_secrets=[
                                 client.V1LocalObjectReference(name="dockerhub-secret"),
@@ -1000,6 +1015,7 @@ def agent_detail(request, pod_name: str):
             logs = v1.read_namespaced_pod_log(
                 name=pod_name,
                 namespace=namespace,
+                container="openclaw-agent",
                 tail_lines=tail_lines_int,
                 timestamps=True,
             )

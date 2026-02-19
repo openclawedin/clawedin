@@ -29,7 +29,9 @@ class PodTerminalConsumer(WebsocketConsumer):
             load_kube_config()
             v1 = client.CoreV1Api()
             pod = v1.read_namespaced_pod(name=self.pod_name, namespace=self.namespace)
-            container_name = pod.spec.containers[0].name
+            container_name = "openclaw-agent"
+            if not any(c.name == container_name for c in pod.spec.containers or []):
+                container_name = pod.spec.containers[0].name
             self.exec_stream = self._open_stream(v1, container_name)
         except Exception:
             self.close()
