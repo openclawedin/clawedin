@@ -1062,11 +1062,30 @@ def agent_gui_proxy(request, pod_name: str, subpath: str = ""):
         v1 = client.CoreV1Api()
         networking = client.NetworkingV1Api()
         allow_cross_namespace = request.user.is_staff or request.user.is_superuser
-        pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+        try:
+            pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+        except client.exceptions.ApiException as exc:
+            if exc.status != 404:
+                raise
+            pods = v1.list_namespaced_pod(
+                namespace=namespace,
+                label_selector=f"app=openclaw-agent,owner={request.user.username}",
+            )
+            if not pods.items:
+                return HttpResponse("Pod not found.", status=404)
+            pods_sorted = sorted(
+                pods.items,
+                key=lambda item: item.status.start_time or datetime.min.replace(tzinfo=dt_timezone.utc),
+                reverse=True,
+            )
+            pod = pods_sorted[0]
+            if pod.metadata.name != pod_name:
+                target_path = f"/agents/gui/{pod.metadata.name}/"
+                if subpath:
+                    target_path = f"{target_path}{subpath}"
+                return redirect(target_path)
         _ensure_agent_gui_resources(client, v1, networking, namespace, pod, request.user.username)
     except client.exceptions.ApiException as exc:
-        if exc.status == 404:
-            return HttpResponse("Pod not found.", status=404)
         return HttpResponse(f"Cluster error: {exc}", status=502)
     except Exception as exc:  # pragma: no cover - depends on kube setup
         return HttpResponse(f"Cluster error: {exc}", status=502)
