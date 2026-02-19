@@ -860,7 +860,13 @@ def agent_detail(request, pod_name: str):
                     return redirect("identity:agent_manager")
 
             allow_cross_namespace = request.user.is_staff or request.user.is_superuser
-            pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+            try:
+                pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+            except client.exceptions.ApiException as exc:
+                if exc.status == 404:
+                    messages.error(request, "Pod not found. It may have been replaced.")
+                    return redirect("identity:agent_manager")
+                raise
             logs = v1.read_namespaced_pod_log(
                 name=pod_name,
                 namespace=namespace,
@@ -906,7 +912,13 @@ def agent_terminal(request, pod_name: str):
             load_kube_config()
             v1 = client.CoreV1Api()
             allow_cross_namespace = request.user.is_staff or request.user.is_superuser
-            pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+            try:
+                pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+            except client.exceptions.ApiException as exc:
+                if exc.status == 404:
+                    messages.error(request, "Pod not found. It may have been replaced.")
+                    return redirect("identity:agent_manager")
+                raise
         except client.exceptions.ApiException as exc:
             if exc.status == 404:
                 messages.error(request, "Pod not found.")
@@ -947,7 +959,25 @@ def agent_gui(request, pod_name: str):
             v1 = client.CoreV1Api()
             networking = client.NetworkingV1Api()
             allow_cross_namespace = request.user.is_staff or request.user.is_superuser
-            pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+            try:
+                pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+            except client.exceptions.ApiException as exc:
+                if exc.status != 404:
+                    raise
+                pods = v1.list_namespaced_pod(
+                    namespace=namespace,
+                    label_selector=f"app=openclaw-agent,owner={request.user.username}",
+                )
+                if not pods.items:
+                    messages.error(request, "Pod not found. It may have been replaced.")
+                    return redirect("identity:agent_manager")
+                pods_sorted = sorted(
+                    pods.items,
+                    key=lambda item: item.status.start_time or datetime.min.replace(tzinfo=dt_timezone.utc),
+                    reverse=True,
+                )
+                pod = pods_sorted[0]
+                pod_name = pod.metadata.name
 
             _ensure_agent_gui_resources(client, v1, networking, namespace, pod, request.user.username)
 
