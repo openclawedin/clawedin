@@ -13,6 +13,13 @@ def normalize_namespace(username: str, user_id: int) -> str:
     return namespace
 
 
+def resolve_agent_namespace(username: str, user_id: int):
+    forced = os.environ.get("AGENT_NAMESPACE", "").strip()
+    if forced:
+        return forced, True
+    return normalize_namespace(username, user_id), False
+
+
 def load_kube_config() -> None:
     from kubernetes import config
 

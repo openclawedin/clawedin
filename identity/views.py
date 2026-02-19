@@ -48,6 +48,7 @@ from .kube import (
     gui_service_name,
     load_kube_config,
     normalize_namespace,
+    resolve_agent_namespace,
 )
 from .solana_wallet import generate_solana_wallet, load_keypair
 from .solana_wallet import generate_solana_wallet
@@ -744,7 +745,7 @@ def deployed_agents(request):
         return render(request, "identity/admin_deployed_agents.html", context)
 
     try:
-        config.load_kube_config()
+        load_kube_config()
         v1 = client.CoreV1Api()
         pods = v1.list_pod_for_all_namespaces()
         nodes = v1.list_node()
@@ -769,7 +770,7 @@ def deployed_agents(request):
 def agent_manager(request):
     if request.user.account_type != User.HUMAN:
         return redirect("identity:profile")
-    namespace = normalize_namespace(request.user.username, request.user.id)
+    namespace, namespace_forced = resolve_agent_namespace(request.user.username, request.user.id)
     agents = []
     form = AgentLaunchForm()
     error_message = None
@@ -795,16 +796,17 @@ def agent_manager(request):
                         v1 = client.CoreV1Api()
                         apps = client.AppsV1Api()
 
-                        try:
-                            v1.read_namespace(name=namespace)
-                        except client.exceptions.ApiException as exc:
-                            if exc.status == 404:
-                                namespace_body = client.V1Namespace(
-                                    metadata=client.V1ObjectMeta(name=namespace),
-                                )
-                                v1.create_namespace(namespace_body)
-                            else:
-                                raise
+                        if not namespace_forced:
+                            try:
+                                v1.read_namespace(name=namespace)
+                            except client.exceptions.ApiException as exc:
+                                if exc.status == 404:
+                                    namespace_body = client.V1Namespace(
+                                        metadata=client.V1ObjectMeta(name=namespace),
+                                    )
+                                    v1.create_namespace(namespace_body)
+                                else:
+                                    raise
 
                         _ensure_dockerhub_secret(client, v1, namespace)
 
@@ -952,7 +954,7 @@ def agent_detail(request, pod_name: str):
     if request.user.account_type != User.HUMAN:
         return redirect("identity:profile")
 
-    namespace = normalize_namespace(request.user.username, request.user.id)
+    namespace, _ = resolve_agent_namespace(request.user.username, request.user.id)
     error_message = None
     pod = None
     logs = None
@@ -1027,7 +1029,7 @@ def agent_terminal(request, pod_name: str):
     if request.user.account_type != User.HUMAN:
         return redirect("identity:profile")
 
-    namespace = normalize_namespace(request.user.username, request.user.id)
+    namespace, _ = resolve_agent_namespace(request.user.username, request.user.id)
     error_message = None
     pod = None
 
@@ -1071,7 +1073,7 @@ def agent_gui(request, pod_name: str):
     if request.user.account_type != User.HUMAN:
         return redirect("identity:profile")
 
-    namespace = normalize_namespace(request.user.username, request.user.id)
+    namespace, _ = resolve_agent_namespace(request.user.username, request.user.id)
     error_message = None
     pod = None
     gui_path = None
@@ -1204,7 +1206,7 @@ def agent_gui_proxy(request, pod_name: str, subpath: str = ""):
     if not proxy_base:
         return HttpResponse("Agent GUI proxy is not configured.", status=503)
 
-    namespace = normalize_namespace(request.user.username, request.user.id)
+    namespace, _ = resolve_agent_namespace(request.user.username, request.user.id)
     try:
         from kubernetes import client
     except ImportError:

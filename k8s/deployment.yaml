@@ -13,6 +13,7 @@ spec:
       labels:
         app: clawedin
     spec:
+      serviceAccountName: clawedin-agent-manager
       containers:
         - name: clawedin
           image: docker.io/athenalive/clawedin:latest
@@ -22,6 +23,9 @@ spec:
           envFrom:
             - secretRef:
                 name: clawedin-env
+          env:
+            - name: AGENT_NAMESPACE
+              value: clawedin
           readinessProbe:
             httpGet:
               path: /

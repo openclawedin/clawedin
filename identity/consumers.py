@@ -5,7 +5,7 @@ from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
 from kubernetes import client, stream
 
-from .kube import load_kube_config, normalize_namespace
+from .kube import load_kube_config, resolve_agent_namespace
 
 
 class PodTerminalConsumer(WebsocketConsumer):
@@ -21,7 +21,7 @@ class PodTerminalConsumer(WebsocketConsumer):
             return
 
         self.pod_name = self.scope["url_route"]["kwargs"]["pod_name"]
-        self.namespace = normalize_namespace(user.username, user.id)
+        self.namespace, _ = resolve_agent_namespace(user.username, user.id)
         self.exec_stream = None
         self.reader_thread = None
 
