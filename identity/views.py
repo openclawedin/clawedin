@@ -146,6 +146,15 @@ def _upsert_ingress(networking, namespace: str, ingress_body):
             raise
 
 
+def _model_class(client_module, name: str):
+    if hasattr(client_module, name):
+        return getattr(client_module, name)
+    models = getattr(client_module, "models", None)
+    if models and hasattr(models, name):
+        return getattr(models, name)
+    return None
+
+
 def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, pod, owner_username: str):
     port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
     service_name = gui_service_name(pod.metadata.name)
@@ -175,6 +184,13 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
     if not pod_ip:
         raise ValueError("Pod has no IP yet.")
 
+    endpoint_port_cls = _model_class(client_module, "V1EndpointPort")
+    endpoint_port = (
+        endpoint_port_cls(name="gui", port=port, protocol="TCP")
+        if endpoint_port_cls
+        else {"name": "gui", "port": port, "protocol": "TCP"}
+    )
+
     endpoints_body = client_module.V1Endpoints(
         metadata=client_module.V1ObjectMeta(name=service_name, labels=labels),
         subsets=[
@@ -190,11 +206,7 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
                     )
                 ],
                 ports=[
-                    client_module.V1EndpointPort(
-                        name="gui",
-                        port=port,
-                        protocol="TCP",
-                    )
+                    endpoint_port
                 ],
             )
         ],
