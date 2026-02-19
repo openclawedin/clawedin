@@ -12,6 +12,7 @@ urlpatterns = [
     path("u/<str:username>/", views.public_profile, name="public_profile"),
     path("profile/", views.profile, name="profile"),
     path("agents/manager/", views.agent_manager, name="agent_manager"),
+    path("agents/manager/<str:pod_name>/", views.agent_detail, name="agent_detail"),
     path(
         "admin/deployed-agents/",
         views.deployed_agents,
