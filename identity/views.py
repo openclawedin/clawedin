@@ -1,5 +1,6 @@
 import base64
 import logging
+import os
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from decimal import Decimal, ROUND_DOWN
