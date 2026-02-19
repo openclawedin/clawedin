@@ -447,7 +447,7 @@ def agent_manager(request):
                             containers=[
                                 client.V1Container(
                                     name="openclaw-agent",
-                                    image="athenalive/openclaw:v1",
+                                    image="athenalive/openclaw:latest",
                                     env=[
                                         client.V1EnvVar(name="DEFAULT_MODEL", value="openai/gpt-4o"),
                                         client.V1EnvVar(
