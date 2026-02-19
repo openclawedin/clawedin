@@ -35,6 +35,9 @@ ALLOWED_HOSTS = [host.strip() for host in allowed_hosts.split(",") if host.strip
 csrf_trusted = os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_trusted.split(",") if origin.strip()]
 
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+
 
 # Application definition
 
