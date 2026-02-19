@@ -426,7 +426,7 @@ def agent_manager(request):
 
                         _ensure_dockerhub_secret(client, v1, namespace)
 
-                        secret_name = "openai-api-key"
+                        secret_name = "openai-secret"
                         secret_body = client.V1Secret(
                             metadata=client.V1ObjectMeta(name=secret_name),
                             type="Opaque",
@@ -448,9 +448,16 @@ def agent_manager(request):
                                 client.V1Container(
                                     name="openclaw-agent",
                                     image="athenalive/openclaw:v1",
-                                    env_from=[
-                                        client.V1EnvFromSource(
-                                            secret_ref=client.V1SecretEnvSource(name=secret_name),
+                                    env=[
+                                        client.V1EnvVar(name="DEFAULT_MODEL", value="openai/gpt-4o"),
+                                        client.V1EnvVar(
+                                            name="OPENAI_API_KEY",
+                                            value_from=client.V1EnvVarSource(
+                                                secret_key_ref=client.V1SecretKeySelector(
+                                                    name=secret_name,
+                                                    key="OPENAI_API_KEY",
+                                                ),
+                                            ),
                                         ),
                                     ],
                                 ),
