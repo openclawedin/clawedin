@@ -22,29 +22,20 @@
         <div class="section-header">
           <div>
             <h3>Interface</h3>
-            <p class="muted">The GUI opens inside this page. Use the full-screen link if needed.</p>
+            <p class="muted">Some browsers block embedded views. Use the new-tab link below.</p>
           </div>
           {% if gui_url %}
-            <a class="btn btn-outline-primary" href="{{ gui_url }}" target="_blank" rel="noopener">Open in new tab</a>
+            <a class="btn btn-primary" href="{{ gui_url }}" target="_blank" rel="noopener">Open web GUI</a>
           {% endif %}
         </div>
-        <div class="card" style="padding: 0; overflow: hidden;">
+        <div class="card">
           {% if gui_url %}
-            <iframe
-              title="Agent GUI"
-              src="{{ gui_url }}"
-              style="width: 100%; height: 70vh; border: 0;"
-              allow="fullscreen"
-            ></iframe>
+            <p class="muted">If the GUI supports embedding, you can enable it later. Right now it opens in a new tab.</p>
+            <p class="help-text">Proxy path: <code>{{ gui_path }}</code></p>
           {% else %}
-            <div style="padding: 1.5rem;">
-              <p class="muted">GUI is not available yet. Please try again in a few seconds.</p>
-            </div>
+            <p class="muted">GUI is not available yet. Please try again in a few seconds.</p>
           {% endif %}
         </div>
-        {% if gui_path %}
-          <p class="help-text" style="margin-top: 0.75rem;">Proxy path: <code>{{ gui_path }}</code></p>
-        {% endif %}
       </div>
     </div>
   </section>
