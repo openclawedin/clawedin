@@ -452,6 +452,24 @@ textarea {
   border-radius: 12px;
 }
 
+.log-output {
+  color: #e6ebf4;
+  background: rgba(8, 10, 16, 0.92);
+  border: 1px solid #1f2635;
+  border-radius: 12px;
+  padding: 16px;
+  max-height: 420px;
+  overflow: auto;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-output code {
+  color: inherit;
+}
+
 @media (min-width: 900px) {
   .profile-hero {
     grid-template-columns: minmax(0, 1fr) auto;
