@@ -6,13 +6,17 @@ from channels.generic.websocket import WebsocketConsumer
 from kubernetes import client, stream
 
 from .kube import load_kube_config, normalize_namespace
-from .models import User
 
 
 class PodTerminalConsumer(WebsocketConsumer):
     def connect(self):
         user = self.scope.get("user")
-        if not user or not user.is_authenticated or user.account_type != User.HUMAN:
+        if not user or not user.is_authenticated:
+            self.close()
+            return
+        from .models import User
+
+        if user.account_type != User.HUMAN:
             self.close()
             return
 
