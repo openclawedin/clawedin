@@ -1,4 +1,5 @@
 import base64
+import json
 import logging
 import os
 import secrets
@@ -910,11 +911,20 @@ def agent_manager(request):
 
                         deployment_name = f"openclaw-agent-{request.user.id}-{secrets.token_hex(4)}"
                         gateway_token = secrets.token_urlsafe(32)
+                        gateway_config = {
+                            "gateway": {
+                                "auth": {"token": gateway_token},
+                                "controlUi": {"dangerouslyDisableDeviceAuth": True},
+                            }
+                        }
                         gateway_secret = gateway_secret_name_for_deployment(deployment_name, request.user.id)
                         gateway_secret_body = client.V1Secret(
                             metadata=client.V1ObjectMeta(name=gateway_secret),
                             type="Opaque",
-                            string_data={"OPENCLAW_GATEWAY_TOKEN": gateway_token},
+                            string_data={
+                                "OPENCLAW_GATEWAY_TOKEN": gateway_token,
+                                "openclaw.json": json.dumps(gateway_config),
+                            },
                         )
                         try:
                             v1.read_namespaced_secret(gateway_secret, namespace)
@@ -968,6 +978,17 @@ def agent_manager(request):
                                                 ),
                                             ),
                                         ),
+                                        client.V1EnvVar(
+                                            name="OPENCLAW_CONFIG_PATH",
+                                            value="/etc/openclaw/openclaw.json",
+                                        ),
+                                    ],
+                                    volume_mounts=[
+                                        client.V1VolumeMount(
+                                            name="openclaw-config",
+                                            mount_path="/etc/openclaw",
+                                            read_only=True,
+                                        )
                                     ],
                                 ),
                                 client.V1Container(
@@ -988,6 +1009,20 @@ def agent_manager(request):
                             ],
                             image_pull_secrets=[
                                 client.V1LocalObjectReference(name="dockerhub-secret"),
+                            ],
+                            volumes=[
+                                client.V1Volume(
+                                    name="openclaw-config",
+                                    secret=client.V1SecretVolumeSource(
+                                        secret_name=gateway_secret,
+                                        items=[
+                                            client.V1KeyToPath(
+                                                key="openclaw.json",
+                                                path="openclaw.json",
+                                            )
+                                        ],
+                                    ),
+                                )
                             ],
                         )
                         template = client.V1PodTemplateSpec(
