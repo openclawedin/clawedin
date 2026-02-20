@@ -291,7 +291,8 @@ def _format_api_exception(exc) -> str:
 
 
 def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, pod, owner_username: str):
-    port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
+    agent_port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
+    proxy_port = int(getattr(settings, "AGENT_GUI_PROXY_PORT", 18790))
     service_name = gui_service_name(pod.metadata.name)
     ingress_name = gui_ingress_name(pod.metadata.name)
     ingress_class = getattr(settings, "AGENT_GUI_INGRESS_CLASS", "") or None
@@ -307,8 +308,8 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
             ports=[
                 client_module.V1ServicePort(
                     name="gui",
-                    port=port,
-                    target_port=port,
+                    port=proxy_port,
+                    target_port=proxy_port,
                     protocol="TCP",
                 )
             ],
@@ -325,9 +326,9 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
 
     endpoint_port_cls = _model_class(client_module, "V1EndpointPort")
     endpoint_port = (
-        endpoint_port_cls(name="gui", port=port, protocol="TCP")
+        endpoint_port_cls(name="gui", port=proxy_port, protocol="TCP")
         if endpoint_port_cls
-        else {"name": "gui", "port": port, "protocol": "TCP"}
+        else {"name": "gui", "port": proxy_port, "protocol": "TCP"}
     )
 
     endpoints_body = client_module.V1Endpoints(
@@ -434,7 +435,7 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
                                 backend=client_module.V1IngressBackend(
                                     service=client_module.V1IngressServiceBackend(
                                         name=service_name,
-                                        port=client_module.V1ServiceBackendPort(number=port),
+                                        port=client_module.V1ServiceBackendPort(number=proxy_port),
                                     )
                                 ),
                             )
@@ -826,6 +827,8 @@ def agent_manager(request):
                                 raise
 
                         deployment_name = "openclaw-agent"
+                        agent_port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
+                        proxy_port = int(getattr(settings, "AGENT_GUI_PROXY_PORT", 18790))
                         labels = {"app": "openclaw-agent", "owner": request.user.username}
                         pod_spec = client.V1PodSpec(
                             containers=[
@@ -834,7 +837,7 @@ def agent_manager(request):
                                     image="athenalive/openclaw:latest",
                                     ports=[
                                         client.V1ContainerPort(
-                                            container_port=int(getattr(settings, "AGENT_GUI_PORT", 18789)),
+                                            container_port=agent_port,
                                             name="gui",
                                         )
                                     ],
@@ -843,7 +846,7 @@ def agent_manager(request):
                                         client.V1EnvVar(name="OPENCLAW_GATEWAY_BIND", value="0.0.0.0"),
                                         client.V1EnvVar(
                                             name="OPENCLAW_GATEWAY_PORT",
-                                            value=str(getattr(settings, "AGENT_GUI_PORT", 18789)),
+                                            value=str(agent_port),
                                         ),
                                         client.V1EnvVar(
                                             name="OPENAI_API_KEY",
@@ -861,12 +864,12 @@ def agent_manager(request):
                                     image="alpine/socat:1.7.4.4-r0",
                                     args=[
                                         "-dd",
-                                        f"TCP-LISTEN:{int(getattr(settings, 'AGENT_GUI_PORT', 18789))},fork,reuseaddr",
+                                        f"TCP-LISTEN:{int(getattr(settings, 'AGENT_GUI_PROXY_PORT', 18790))},fork,reuseaddr",
                                         f"TCP:127.0.0.1:{int(getattr(settings, 'AGENT_GUI_PORT', 18789))}",
                                     ],
                                     ports=[
                                         client.V1ContainerPort(
-                                            container_port=int(getattr(settings, "AGENT_GUI_PORT", 18789)),
+                                            container_port=proxy_port,
                                             name="gui-proxy",
                                         )
                                     ],

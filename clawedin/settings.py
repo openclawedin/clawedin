@@ -207,6 +207,8 @@ EMAIL_VERIFICATION_TTL_SECONDS = int(
 
 # Agent GUI ingress/proxy configuration
 AGENT_GUI_PORT = int(os.environ.get("AGENT_GUI_PORT", "18789"))
+AGENT_GUI_PROXY_PORT = int(os.environ.get("AGENT_GUI_PROXY_PORT", "18790"))
+AGENT_GUI_PROXY_PORT = int(os.environ.get("AGENT_GUI_PROXY_PORT", "18790"))
 AGENT_GUI_PATH_PREFIX = os.environ.get("AGENT_GUI_PATH_PREFIX", "/agents/gui")
 AGENT_GUI_INGRESS_HOST = os.environ.get("AGENT_GUI_INGRESS_HOST", "")
 AGENT_GUI_INGRESS_CLASS = os.environ.get("AGENT_GUI_INGRESS_CLASS", "")
