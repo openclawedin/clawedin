@@ -148,6 +148,15 @@ def _append_query_param(url: str, key: str, value: str) -> str:
     return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
 
 
+def _append_fragment_param(url: str, key: str, value: str) -> str:
+    if not value:
+        return url
+    parsed = urlsplit(url)
+    fragment = dict(parse_qsl(parsed.fragment, keep_blank_values=True))
+    fragment[key] = value
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, parsed.query, urlencode(fragment)))
+
+
 def _upsert_service(v1, namespace: str, service_body):
     try:
         v1.read_namespaced_service(service_body.metadata.name, namespace)
@@ -1283,7 +1292,7 @@ def agent_gui(request, pod_name: str):
                     namespace=namespace,
                 ).first()
                 if deployment_record:
-                    gui_path = _append_query_param(gui_path, "token", deployment_record.gateway_token)
+                    gui_path = _append_fragment_param(gui_path, "token", deployment_record.gateway_token)
                 else:
                     try:
                         legacy_secret = gateway_secret_name(request.user.username, request.user.id)
@@ -1291,7 +1300,7 @@ def agent_gui(request, pod_name: str):
                         encoded = (legacy.data or {}).get("OPENCLAW_GATEWAY_TOKEN")
                         if encoded:
                             token = base64.b64decode(encoded).decode("utf-8")
-                            gui_path = _append_query_param(gui_path, "token", token)
+                            gui_path = _append_fragment_param(gui_path, "token", token)
                     except Exception:
                         pass
         except client.exceptions.ApiException as exc:
