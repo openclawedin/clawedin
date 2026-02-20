@@ -1179,9 +1179,35 @@ def agent_detail(request, pod_name: str):
                 if action == "delete_deployment":
                     allow_cross_namespace = request.user.is_staff or request.user.is_superuser
                     pod, resolved_namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+                    if (
+                        pod
+                        and pod.metadata
+                        and pod.metadata.labels
+                        and pod.metadata.labels.get("owner")
+                        and pod.metadata.labels.get("owner") != request.user.username
+                    ):
+                        messages.error(request, "You do not have permission to delete this agent.")
+                        return redirect("identity:agent_manager")
                     deployment_name = None
                     if pod and pod.metadata and pod.metadata.labels:
                         deployment_name = pod.metadata.labels.get("deployment")
+                    if not deployment_name and pod and pod.metadata and pod.metadata.owner_references:
+                        try:
+                            apps = client.AppsV1Api()
+                            rs_owner = None
+                            for ref in pod.metadata.owner_references:
+                                if ref.kind == "ReplicaSet" and ref.name:
+                                    rs_owner = ref.name
+                                    break
+                            if rs_owner:
+                                rs = apps.read_namespaced_replica_set(rs_owner, resolved_namespace)
+                                if rs.metadata and rs.metadata.owner_references:
+                                    for ref in rs.metadata.owner_references:
+                                        if ref.kind == "Deployment" and ref.name:
+                                            deployment_name = ref.name
+                                            break
+                        except Exception:
+                            deployment_name = deployment_name
                     if not deployment_name:
                         messages.error(
                             request,
@@ -1191,6 +1217,19 @@ def agent_detail(request, pod_name: str):
                     try:
                         _delete_agent_gui_resources(client, v1, networking, resolved_namespace, pod_name)
                         apps = client.AppsV1Api()
+                        deployment = apps.read_namespaced_deployment(
+                            name=deployment_name,
+                            namespace=resolved_namespace,
+                        )
+                        if (
+                            deployment
+                            and deployment.metadata
+                            and deployment.metadata.labels
+                            and deployment.metadata.labels.get("owner")
+                            and deployment.metadata.labels.get("owner") != request.user.username
+                        ):
+                            messages.error(request, "You do not have permission to delete this agent.")
+                            return redirect("identity:agent_manager")
                         apps.delete_namespaced_deployment(name=deployment_name, namespace=resolved_namespace)
                     except Exception as exc:
                         messages.error(request, f"Failed to delete deployment: {exc}")
