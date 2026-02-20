@@ -29,12 +29,20 @@
           <div class="card">
             <h4>Terminal</h4>
             <p class="muted">Open an interactive shell inside your agent.</p>
-            <a class="btn btn-outline-primary" href="{% url 'identity:agent_terminal' pod.metadata.name %}">Open terminal</a>
+            {% if pod %}
+              <a class="btn btn-outline-primary" href="{% url 'identity:agent_terminal' pod.metadata.name %}">Open terminal</a>
+            {% else %}
+              <button class="btn btn-outline-primary" type="button" disabled>Open terminal</button>
+            {% endif %}
           </div>
           <div class="card">
             <h4>Web GUI</h4>
             <p class="muted">Launch the agent's web interface in your browser.</p>
-            <a class="btn btn-outline-primary" href="{% url 'identity:agent_gui' pod.metadata.name %}" target="_blank" rel="noopener">Open web GUI</a>
+            {% if pod %}
+              <a class="btn btn-outline-primary" href="{% url 'identity:agent_gui' pod.metadata.name %}" target="_blank" rel="noopener">Open web GUI</a>
+            {% else %}
+              <button class="btn btn-outline-primary" type="button" disabled>Open web GUI</button>
+            {% endif %}
           </div>
           <div class="card">
             <h4>Restart</h4>
