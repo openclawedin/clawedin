@@ -136,7 +136,11 @@ def _gui_url_for_pod(request, pod_name: str) -> str:
     host = _gui_host_for_pod(pod_name)
     if not host:
         return _gui_path_for_pod(pod_name)
-    scheme = "https" if request.is_secure() else "http"
+    forwarded = request.META.get("HTTP_X_FORWARDED_PROTO", "").split(",")[0].strip().lower()
+    scheme = forwarded if forwarded in {"http", "https"} else None
+    if not scheme:
+        force_https = bool(getattr(settings, "AGENT_GUI_FORCE_HTTPS", False))
+        scheme = "https" if (force_https or host) else ("https" if request.is_secure() else "http")
     default_path = getattr(settings, "AGENT_GUI_DEFAULT_PATH", "/overview") or "/overview"
     if not default_path.startswith("/"):
         default_path = f"/{default_path}"
