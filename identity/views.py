@@ -4,7 +4,7 @@ import os
 import secrets
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 from decimal import Decimal, ROUND_DOWN
 from datetime import datetime, timezone as dt_timezone
 
@@ -136,6 +136,15 @@ def _gui_url_for_pod(request, pod_name: str) -> str:
         return _gui_path_for_pod(pod_name)
     scheme = "https" if request.is_secure() else "http"
     return f"{scheme}://{host}/"
+
+
+def _append_query_param(url: str, key: str, value: str) -> str:
+    if not value:
+        return url
+    parsed = urlsplit(url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query[key] = value
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
 
 
 def _upsert_service(v1, namespace: str, service_body):
@@ -1256,6 +1265,14 @@ def agent_gui(request, pod_name: str):
             _ensure_agent_gui_resources(client, v1, networking, namespace, pod, request.user.username)
 
             gui_path = _gui_url_for_pod(request, pod_name)
+            if getattr(settings, "AGENT_GUI_HOST_SUFFIX", "").strip():
+                deployment_record = AgentDeployment.objects.filter(
+                    user=request.user,
+                    deployment_name="openclaw-agent",
+                    namespace=namespace,
+                ).first()
+                if deployment_record:
+                    gui_path = _append_query_param(gui_path, "token", deployment_record.gateway_token)
         except client.exceptions.ApiException as exc:
             if exc.status == 404:
                 label_selector = f"app=openclaw-agent,owner={request.user.username}"
