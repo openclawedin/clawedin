@@ -922,6 +922,11 @@ def agent_manager(request):
                             "gateway": {
                                 "auth": {"token": gateway_token},
                                 "controlUi": {"dangerouslyDisableDeviceAuth": True},
+                                "trustedProxies": [
+                                    "10.42.0.0/16",
+                                    "10.43.0.0/16",
+                                    "127.0.0.1/32",
+                                ],
                             },
                             "agents": {
                                 "defaults": {
