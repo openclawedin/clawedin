@@ -915,7 +915,13 @@ def agent_manager(request):
                             "gateway": {
                                 "auth": {"token": gateway_token},
                                 "controlUi": {"dangerouslyDisableDeviceAuth": True},
-                            }
+                            },
+                            "agents": {
+                                "defaults": {
+                                    "model": {"primary": "openai/gpt-4o"},
+                                    "models": {"openai/gpt-4o": {}},
+                                }
+                            },
                         }
                         gateway_secret = gateway_secret_name_for_deployment(deployment_name, request.user.id)
                         gateway_secret_body = client.V1Secret(
