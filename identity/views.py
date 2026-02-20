@@ -119,6 +119,22 @@ def _gui_path_for_pod(pod_name: str) -> str:
     return f"{_gui_path_prefix()}/{pod_name}/"
 
 
+def _gui_host_for_pod(pod_name: str) -> str | None:
+    suffix = getattr(settings, "AGENT_GUI_HOST_SUFFIX", "").strip().lower()
+    if suffix:
+        return f"{pod_name}.{suffix}"
+    host = getattr(settings, "AGENT_GUI_INGRESS_HOST", "").strip().lower()
+    return host or None
+
+
+def _gui_url_for_pod(request, pod_name: str) -> str:
+    host = _gui_host_for_pod(pod_name)
+    if not host:
+        return _gui_path_for_pod(pod_name)
+    scheme = "https" if request.is_secure() else "http"
+    return f"{scheme}://{host}/"
+
+
 def _upsert_service(v1, namespace: str, service_body):
     try:
         v1.read_namespaced_service(service_body.metadata.name, namespace)
@@ -356,27 +372,56 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
     except Exception as exc:
         raise RuntimeError(f"Failed to upsert endpoints for {service_name}: {exc}") from exc
 
-    host = getattr(settings, "AGENT_GUI_INGRESS_HOST", "").strip() or None
+    host = _gui_host_for_pod(pod.metadata.name)
     path_prefix = _gui_path_prefix()
     annotations = {}
     path = f"{path_prefix}/{pod.metadata.name}(/|$)(.*)"
     path_type = "ImplementationSpecific"
+    subdomain_mode = bool(getattr(settings, "AGENT_GUI_HOST_SUFFIX", "").strip())
     if ingress_class == "traefik":
         middleware_name = gui_middleware_name(pod.metadata.name)
-        middleware_body = {
-            "apiVersion": "traefik.io/v1alpha1",
-            "kind": "Middleware",
-            "metadata": {
-                "name": middleware_name,
-                "namespace": namespace,
-                "labels": labels,
-            },
-            "spec": {
-                "stripPrefix": {
-                    "prefixes": [f"{path_prefix}/{pod.metadata.name}"],
-                }
-            },
-        }
+        if subdomain_mode:
+            middleware_body = {
+                "apiVersion": "traefik.io/v1alpha1",
+                "kind": "Middleware",
+                "metadata": {
+                    "name": middleware_name,
+                    "namespace": namespace,
+                    "labels": labels,
+                },
+                "spec": {
+                    "headers": {
+                        "customResponseHeaders": {
+                            "Content-Security-Policy": (
+                                "default-src 'self'; "
+                                "base-uri 'none'; "
+                                "object-src 'none'; "
+                                "frame-ancestors 'none'; "
+                                "script-src 'self'; "
+                                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                                "img-src 'self' data: https:; "
+                                "font-src 'self' https://fonts.gstatic.com; "
+                                "connect-src 'self' ws: wss:"
+                            ),
+                        }
+                    }
+                },
+            }
+        else:
+            middleware_body = {
+                "apiVersion": "traefik.io/v1alpha1",
+                "kind": "Middleware",
+                "metadata": {
+                    "name": middleware_name,
+                    "namespace": namespace,
+                    "labels": labels,
+                },
+                "spec": {
+                    "stripPrefix": {
+                        "prefixes": [f"{path_prefix}/{pod.metadata.name}"],
+                    }
+                },
+            }
         custom_api = client_module.CustomObjectsApi()
         middleware_groups = (
             ("traefik.io", "v1alpha1"),
@@ -401,8 +446,17 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
         if last_error:
             raise RuntimeError(f"Failed to upsert traefik middleware {middleware_name}: {last_error}") from last_error
         annotations["traefik.ingress.kubernetes.io/router.middlewares"] = f"{namespace}-{middleware_name}@kubernetescrd"
-        path = f"{path_prefix}/{pod.metadata.name}"
-        path_type = "Prefix"
+        annotations["traefik.ingress.kubernetes.io/router.entrypoints"] = "websecure"
+        annotations["traefik.ingress.kubernetes.io/router.tls"] = "true"
+        cert_resolver = getattr(settings, "AGENT_GUI_TLS_RESOLVER", "").strip()
+        if cert_resolver:
+            annotations["traefik.ingress.kubernetes.io/router.tls.certresolver"] = cert_resolver
+        if subdomain_mode:
+            path = "/"
+            path_type = "Prefix"
+        else:
+            path = f"{path_prefix}/{pod.metadata.name}"
+            path_type = "Prefix"
     else:
         annotations.update(
             {
@@ -1152,7 +1206,7 @@ def agent_gui(request, pod_name: str):
 
             _ensure_agent_gui_resources(client, v1, networking, namespace, pod, request.user.username)
 
-            gui_path = _gui_path_for_pod(pod_name)
+            gui_path = _gui_url_for_pod(request, pod_name)
         except client.exceptions.ApiException as exc:
             if exc.status == 404:
                 label_selector = f"app=openclaw-agent,owner={request.user.username}"
