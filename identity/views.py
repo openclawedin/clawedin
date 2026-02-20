@@ -1368,12 +1368,35 @@ def agent_gui(request, pod_name: str):
                     gui_path = _append_fragment_param(gui_path, "token", deployment_record.gateway_token)
                 else:
                     try:
-                        legacy_secret = gateway_secret_name(request.user.username, request.user.id)
-                        legacy = v1.read_namespaced_secret(legacy_secret, namespace)
-                        encoded = (legacy.data or {}).get("OPENCLAW_GATEWAY_TOKEN")
-                        if encoded:
-                            token = base64.b64decode(encoded).decode("utf-8")
-                            gui_path = _append_fragment_param(gui_path, "token", token)
+                        token_applied = False
+                        secret_name = None
+                        if pod and pod.spec and pod.spec.containers:
+                            for container in pod.spec.containers:
+                                for env_var in container.env or []:
+                                    if (
+                                        env_var.name == "OPENCLAW_GATEWAY_TOKEN"
+                                        and env_var.value_from
+                                        and env_var.value_from.secret_key_ref
+                                        and env_var.value_from.secret_key_ref.name
+                                    ):
+                                        secret_name = env_var.value_from.secret_key_ref.name
+                                        break
+                                if secret_name:
+                                    break
+                        if secret_name:
+                            secret = v1.read_namespaced_secret(secret_name, namespace)
+                            encoded = (secret.data or {}).get("OPENCLAW_GATEWAY_TOKEN")
+                            if encoded:
+                                token = base64.b64decode(encoded).decode("utf-8")
+                                gui_path = _append_fragment_param(gui_path, "token", token)
+                                token_applied = True
+                        if not token_applied:
+                            legacy_secret = gateway_secret_name(request.user.username, request.user.id)
+                            legacy = v1.read_namespaced_secret(legacy_secret, namespace)
+                            encoded = (legacy.data or {}).get("OPENCLAW_GATEWAY_TOKEN")
+                            if encoded:
+                                token = base64.b64decode(encoded).decode("utf-8")
+                                gui_path = _append_fragment_param(gui_path, "token", token)
                     except Exception:
                         pass
         except client.exceptions.ApiException as exc:
