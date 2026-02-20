@@ -57,3 +57,10 @@ def gui_middleware_name(pod_name: str) -> str:
 
 def gateway_secret_name(username: str, user_id: int) -> str:
     return normalize_k8s_name(f"openclaw-gateway-{username}", f"openclaw-gateway-{user_id}")
+
+
+def gateway_secret_name_for_deployment(deployment_name: str, user_id: int) -> str:
+    return normalize_k8s_name(
+        f"openclaw-gateway-{deployment_name}",
+        f"openclaw-gateway-{user_id}",
+    )
