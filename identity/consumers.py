@@ -1,3 +1,4 @@
+import logging
 import threading
 import time
 
@@ -9,14 +10,25 @@ from .kube import load_kube_config, resolve_agent_namespace
 
 
 class PodTerminalConsumer(WebsocketConsumer):
+    logger = logging.getLogger(__name__)
+
     def connect(self):
         user = self.scope.get("user")
         if not user or not user.is_authenticated:
+            self.logger.warning(
+                "Terminal WS auth failed: user=%s headers=%s",
+                user,
+                self._debug_headers(),
+            )
             self.close()
             return
         from .models import User
 
         if user.account_type != User.HUMAN:
+            self.logger.warning(
+                "Terminal WS rejected non-human user: user_id=%s",
+                getattr(user, "id", None),
+            )
             self.close()
             return
 
@@ -34,10 +46,20 @@ class PodTerminalConsumer(WebsocketConsumer):
                 container_name = pod.spec.containers[0].name
             self.exec_stream = self._open_stream(v1, container_name)
         except Exception:
+            self.logger.exception(
+                "Terminal WS failed to open exec stream: pod=%s namespace=%s",
+                self.pod_name,
+                self.namespace,
+            )
             self.close()
             return
 
         if not self.exec_stream:
+            self.logger.warning(
+                "Terminal WS no exec stream: pod=%s namespace=%s",
+                self.pod_name,
+                self.namespace,
+            )
             self.close()
             return
 
@@ -62,7 +84,12 @@ class PodTerminalConsumer(WebsocketConsumer):
             if exec_stream.is_open():
                 return exec_stream
         except Exception:
-            pass
+            self.logger.exception(
+                "Terminal WS bash exec failed: pod=%s namespace=%s container=%s",
+                self.pod_name,
+                self.namespace,
+                container_name,
+            )
 
         try:
             exec_stream = stream.stream(
@@ -80,7 +107,12 @@ class PodTerminalConsumer(WebsocketConsumer):
             if exec_stream.is_open():
                 return exec_stream
         except Exception:
-            pass
+            self.logger.exception(
+                "Terminal WS sh exec failed: pod=%s namespace=%s container=%s",
+                self.pod_name,
+                self.namespace,
+                container_name,
+            )
 
         return None
 
@@ -126,3 +158,13 @@ class PodTerminalConsumer(WebsocketConsumer):
             self.exec_stream.write_stdin("exit\n")
             self.exec_stream.close()
         self.exec_stream = None
+
+    def _debug_headers(self):
+        headers = self.scope.get("headers") or []
+        safe = []
+        for key, value in headers:
+            name = key.decode(errors="ignore").lower()
+            if name in {"cookie", "authorization"}:
+                continue
+            safe.append((name, value.decode(errors="ignore")))
+        return safe
