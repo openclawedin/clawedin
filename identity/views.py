@@ -1176,6 +1176,38 @@ def agent_detail(request, pod_name: str):
                     v1.delete_namespaced_pod(name=pod_name, namespace=resolved_namespace)
                     messages.success(request, "Pod deleted.")
                     return redirect("identity:agent_manager")
+                if action == "delete_deployment":
+                    allow_cross_namespace = request.user.is_staff or request.user.is_superuser
+                    pod, resolved_namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+                    deployment_name = None
+                    if pod and pod.metadata and pod.metadata.labels:
+                        deployment_name = pod.metadata.labels.get("deployment")
+                    if not deployment_name:
+                        messages.error(
+                            request,
+                            "Deployment not found for this pod. Delete the pod or relaunch the agent.",
+                        )
+                        return redirect("identity:agent_detail", pod_name=pod_name)
+                    try:
+                        _delete_agent_gui_resources(client, v1, networking, resolved_namespace, pod_name)
+                        apps = client.AppsV1Api()
+                        apps.delete_namespaced_deployment(name=deployment_name, namespace=resolved_namespace)
+                    except Exception as exc:
+                        messages.error(request, f"Failed to delete deployment: {exc}")
+                        return redirect("identity:agent_detail", pod_name=pod_name)
+                    deployment_record = AgentDeployment.objects.filter(
+                        user=request.user,
+                        deployment_name=deployment_name,
+                        namespace=resolved_namespace,
+                    ).first()
+                    if deployment_record:
+                        try:
+                            v1.delete_namespaced_secret(deployment_record.secret_name, resolved_namespace)
+                        except Exception:
+                            pass
+                        deployment_record.delete()
+                    messages.success(request, "Deployment deleted. The agent will not respawn.")
+                    return redirect("identity:agent_manager")
 
             allow_cross_namespace = request.user.is_staff or request.user.is_superuser
             try:
