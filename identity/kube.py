@@ -53,3 +53,7 @@ def gui_ingress_name(pod_name: str) -> str:
 
 def gui_middleware_name(pod_name: str) -> str:
     return normalize_k8s_name(f"agent-gui-mw-{pod_name}", "agent-gui-mw")
+
+
+def gateway_secret_name(username: str, user_id: int) -> str:
+    return normalize_k8s_name(f"openclaw-gateway-{username}", f"openclaw-gateway-{user_id}")

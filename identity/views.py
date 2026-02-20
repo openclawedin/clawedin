@@ -1,6 +1,7 @@
 import base64
 import logging
 import os
+import secrets
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from urllib.parse import urlsplit, urlunsplit
@@ -46,6 +47,7 @@ from .kube import (
     gui_ingress_name,
     gui_middleware_name,
     gui_service_name,
+    gateway_secret_name,
     load_kube_config,
     normalize_namespace,
     resolve_agent_namespace,
@@ -59,6 +61,7 @@ from .models import (
     ResumeExperience,
     ResumeProject,
     ResumeSkill,
+    AgentDeployment,
     User,
     UserSkill,
 )
@@ -880,6 +883,22 @@ def agent_manager(request):
                             else:
                                 raise
 
+                        gateway_token = secrets.token_urlsafe(32)
+                        gateway_secret = gateway_secret_name(request.user.username, request.user.id)
+                        gateway_secret_body = client.V1Secret(
+                            metadata=client.V1ObjectMeta(name=gateway_secret),
+                            type="Opaque",
+                            string_data={"OPENCLAW_GATEWAY_TOKEN": gateway_token},
+                        )
+                        try:
+                            v1.read_namespaced_secret(gateway_secret, namespace)
+                            v1.patch_namespaced_secret(gateway_secret, namespace, gateway_secret_body)
+                        except client.exceptions.ApiException as exc:
+                            if exc.status == 404:
+                                v1.create_namespaced_secret(namespace, gateway_secret_body)
+                            else:
+                                raise
+
                         deployment_name = "openclaw-agent"
                         agent_port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
                         proxy_port = int(getattr(settings, "AGENT_GUI_PROXY_PORT", 18790))
@@ -908,6 +927,15 @@ def agent_manager(request):
                                                 secret_key_ref=client.V1SecretKeySelector(
                                                     name=secret_name,
                                                     key="OPENAI_API_KEY",
+                                                ),
+                                            ),
+                                        ),
+                                        client.V1EnvVar(
+                                            name="OPENCLAW_GATEWAY_TOKEN",
+                                            value_from=client.V1EnvVarSource(
+                                                secret_key_ref=client.V1SecretKeySelector(
+                                                    name=gateway_secret,
+                                                    key="OPENCLAW_GATEWAY_TOKEN",
                                                 ),
                                             ),
                                         ),
@@ -959,6 +987,16 @@ def agent_manager(request):
                                 apps.create_namespaced_deployment(namespace, deployment)
                             else:
                                 raise
+
+                        AgentDeployment.objects.update_or_create(
+                            user=request.user,
+                            deployment_name=deployment_name,
+                            namespace=namespace,
+                            defaults={
+                                "gateway_token": gateway_token,
+                                "secret_name": gateway_secret,
+                            },
+                        )
 
                         messages.success(request, "Agent launch started. Your container is spinning up.")
                         return redirect("identity:agent_manager")
@@ -1057,6 +1095,17 @@ def agent_detail(request, pod_name: str):
                     allow_cross_namespace = request.user.is_staff or request.user.is_superuser
                     _, resolved_namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
                     _delete_agent_gui_resources(client, v1, networking, resolved_namespace, pod_name)
+                    deployment_record = AgentDeployment.objects.filter(
+                        user=request.user,
+                        deployment_name="openclaw-agent",
+                        namespace=resolved_namespace,
+                    ).first()
+                    if deployment_record:
+                        try:
+                            v1.delete_namespaced_secret(deployment_record.secret_name, resolved_namespace)
+                        except Exception:
+                            pass
+                        deployment_record.delete()
                     v1.delete_namespaced_pod(name=pod_name, namespace=resolved_namespace)
                     messages.success(request, "Pod deleted.")
                     return redirect("identity:agent_manager")

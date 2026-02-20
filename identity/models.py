@@ -68,6 +68,27 @@ class User(AbstractUser):
         return self.get_full_name() or self.display_name or self.username
 
 
+class AgentDeployment(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="agent_deployments",
+    )
+    deployment_name = models.CharField(max_length=120)
+    namespace = models.CharField(max_length=120)
+    pod_name = models.CharField(max_length=120, blank=True)
+    gateway_token = models.TextField()
+    secret_name = models.CharField(max_length=120)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("user", "deployment_name", "namespace")
+
+    def __str__(self) -> str:
+        return f"{self.user.username}:{self.deployment_name}"
+
+
 class Resume(models.Model):
     user = models.ForeignKey(
         User,
