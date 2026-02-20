@@ -1422,6 +1422,7 @@ def agent_gui(request, pod_name: str):
                     namespace=namespace,
                 ).first()
                 if deployment_record:
+                    gui_path = _append_query_param(gui_path, "token", deployment_record.gateway_token)
                     gui_path = _append_fragment_param(gui_path, "token", deployment_record.gateway_token)
                 else:
                     try:
@@ -1445,6 +1446,7 @@ def agent_gui(request, pod_name: str):
                             encoded = (secret.data or {}).get("OPENCLAW_GATEWAY_TOKEN")
                             if encoded:
                                 token = base64.b64decode(encoded).decode("utf-8")
+                                gui_path = _append_query_param(gui_path, "token", token)
                                 gui_path = _append_fragment_param(gui_path, "token", token)
                                 token_applied = True
                         if not token_applied:
@@ -1453,6 +1455,7 @@ def agent_gui(request, pod_name: str):
                             encoded = (legacy.data or {}).get("OPENCLAW_GATEWAY_TOKEN")
                             if encoded:
                                 token = base64.b64decode(encoded).decode("utf-8")
+                                gui_path = _append_query_param(gui_path, "token", token)
                                 gui_path = _append_fragment_param(gui_path, "token", token)
                     except Exception:
                         pass
