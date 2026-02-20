@@ -137,7 +137,10 @@ def _gui_url_for_pod(request, pod_name: str) -> str:
     if not host:
         return _gui_path_for_pod(pod_name)
     scheme = "https" if request.is_secure() else "http"
-    return f"{scheme}://{host}/"
+    default_path = getattr(settings, "AGENT_GUI_DEFAULT_PATH", "/overview") or "/overview"
+    if not default_path.startswith("/"):
+        default_path = f"/{default_path}"
+    return f"{scheme}://{host}{default_path}"
 
 
 def _append_query_param(url: str, key: str, value: str) -> str:
