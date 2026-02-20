@@ -1230,6 +1230,17 @@ def agent_detail(request, pod_name: str):
                         ):
                             messages.error(request, "You do not have permission to delete this agent.")
                             return redirect("identity:agent_manager")
+                        if deployment_name == "openclaw-agent":
+                            apps.patch_namespaced_deployment_scale(
+                                name=deployment_name,
+                                namespace=resolved_namespace,
+                                body={"spec": {"replicas": 0}},
+                            )
+                            messages.success(
+                                request,
+                                "Legacy deployment scaled to 0. The agent will not respawn.",
+                            )
+                            return redirect("identity:agent_manager")
                         apps.delete_namespaced_deployment(name=deployment_name, namespace=resolved_namespace)
                     except Exception as exc:
                         messages.error(request, f"Failed to delete deployment: {exc}")
