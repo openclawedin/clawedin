@@ -201,7 +201,7 @@ STRIPE_PRICE_ID_BUSINESS = os.environ.get("STRIPE_PRICE_ID_BUSINESS", "")
 # Solana wallet encryption (base64-encoded 32-byte key for Fernet)
 SOLANA_WALLET_ENCRYPTION_KEY = os.environ.get("SOLANA_WALLET_ENCRYPTION_KEY", "")
 SOLANA_RPC_URL = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
-BIRDEY_API_KEY = os.environ.get("BIRDEY_API_KEY", "")
+BIRDEYE_API_KEY = os.environ.get("BIRDEYE_API_KEY") or os.environ.get("BIRDEY_API_KEY", "")
 
 # Email verification
 EMAIL_VERIFICATION_TTL_SECONDS = int(

@@ -346,13 +346,21 @@ a {
 
 input,
 select,
-textarea {
+textarea,
+.form-control {
   background: #0f131a;
   border: 1px solid var(--line);
   border-radius: 12px;
   color: var(--text);
   padding: 12px 14px;
   font: inherit;
+}
+
+input::placeholder,
+textarea::placeholder,
+.form-control::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 
 textarea {

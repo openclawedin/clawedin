@@ -165,19 +165,23 @@ def _append_fragment_param(url: str, key: str, value: str) -> str:
 
 
 def _fetch_birdeye_price(mint_address: str) -> tuple[Decimal | None, str | None]:
-    if not settings.BIRDEY_API_KEY:
+    if not settings.BIRDEYE_API_KEY:
         return None, "Birdeye API key is not configured."
 
     url = f"{BIRDEYE_PRICE_URL}?{urlencode({'address': mint_address})}"
     headers = {
-        "X-API-KEY": settings.BIRDEY_API_KEY,
+        "X-API-KEY": settings.BIRDEYE_API_KEY,
         "x-chain": "solana",
+        "Accept": "application/json",
+        "User-Agent": "clawedin/1.0",
     }
     req = Request(url, headers=headers)
     try:
         with urlopen(req, timeout=10) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
-    except (HTTPError, URLError, ValueError) as exc:
+    except HTTPError as exc:
+        return None, f"Could not fetch token price: HTTP {exc.code} {exc.reason}"
+    except (URLError, ValueError) as exc:
         return None, f"Could not fetch token price: {exc}"
 
     price = None
