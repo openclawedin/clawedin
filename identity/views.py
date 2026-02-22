@@ -1090,7 +1090,8 @@ def agent_manager(request):
             load_kube_config()
             v1 = client.CoreV1Api()
             try:
-                pods = v1.list_namespaced_pod(namespace=namespace)
+                label_selector = f"app=openclaw-agent,owner={request.user.username}"
+                pods = v1.list_namespaced_pod(namespace=namespace, label_selector=label_selector)
                 agents = []
                 for pod in pods.items:
                     agents.append(
@@ -1195,6 +1196,20 @@ def agent_detail(request, pod_name: str):
                         pod
                         and pod.metadata
                         and pod.metadata.labels
+                        and (
+                            pod.metadata.labels.get("app") != "openclaw-agent"
+                            or (
+                                not _is_admin_user(request.user)
+                                and pod.metadata.labels.get("owner") != request.user.username
+                            )
+                        )
+                    ):
+                        messages.error(request, "You do not have permission to delete this agent.")
+                        return redirect("identity:agent_manager")
+                    if (
+                        pod
+                        and pod.metadata
+                        and pod.metadata.labels
                         and pod.metadata.labels.get("owner")
                         and pod.metadata.labels.get("owner") != request.user.username
                     ):
@@ -1279,6 +1294,20 @@ def agent_detail(request, pod_name: str):
                     messages.error(request, "Pod not found. It may have been replaced.")
                     return redirect("identity:agent_manager")
                 raise
+            if (
+                pod
+                and pod.metadata
+                and pod.metadata.labels
+                and (
+                    pod.metadata.labels.get("app") != "openclaw-agent"
+                    or (
+                        not _is_admin_user(request.user)
+                        and pod.metadata.labels.get("owner") != request.user.username
+                    )
+                )
+            ):
+                messages.error(request, "You do not have permission to view this agent.")
+                return redirect("identity:agent_manager")
             logs = v1.read_namespaced_pod_log(
                 name=pod_name,
                 namespace=namespace,
@@ -1332,6 +1361,20 @@ def agent_terminal(request, pod_name: str):
                     messages.error(request, "Pod not found. It may have been replaced.")
                     return redirect("identity:agent_manager")
                 raise
+            if (
+                pod
+                and pod.metadata
+                and pod.metadata.labels
+                and (
+                    pod.metadata.labels.get("app") != "openclaw-agent"
+                    or (
+                        not _is_admin_user(request.user)
+                        and pod.metadata.labels.get("owner") != request.user.username
+                    )
+                )
+            ):
+                messages.error(request, "You do not have permission to access this agent.")
+                return redirect("identity:agent_manager")
         except client.exceptions.ApiException as exc:
             if exc.status == 404:
                 messages.error(request, "Pod not found.")
@@ -1413,6 +1456,20 @@ def agent_gui(request, pod_name: str):
                 )
                 pod = pods_sorted[0]
                 pod_name = pod.metadata.name
+            if (
+                pod
+                and pod.metadata
+                and pod.metadata.labels
+                and (
+                    pod.metadata.labels.get("app") != "openclaw-agent"
+                    or (
+                        not _is_admin_user(request.user)
+                        and pod.metadata.labels.get("owner") != request.user.username
+                    )
+                )
+            ):
+                messages.error(request, "Agent GUI is only available for your agent pods.")
+                return redirect("identity:agent_manager")
 
             _ensure_agent_gui_resources(client, v1, networking, namespace, pod, request.user.username)
 
@@ -1583,6 +1640,19 @@ def agent_gui_proxy(request, pod_name: str, subpath: str = ""):
                 if subpath:
                     target_path = f"{target_path}{subpath}"
                 return redirect(target_path)
+        if (
+            pod
+            and pod.metadata
+            and pod.metadata.labels
+            and (
+                pod.metadata.labels.get("app") != "openclaw-agent"
+                or (
+                    not _is_admin_user(request.user)
+                    and pod.metadata.labels.get("owner") != request.user.username
+                )
+            )
+        ):
+            return HttpResponse("Agent GUI is only available for your agent pods.", status=403)
         _ensure_agent_gui_resources(client, v1, networking, namespace, pod, request.user.username)
     except client.exceptions.ApiException as exc:
         error_message = (
