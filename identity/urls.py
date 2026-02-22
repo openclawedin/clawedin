@@ -60,6 +60,11 @@ urlpatterns = [
         views.solana_transfer,
         name="solana_transfer",
     ),
+    path(
+        "profile/solana-wallet/price/",
+        views.solana_token_price,
+        name="solana_token_price",
+    ),
     path("profile/billing/", views.billing, name="billing"),
     path(
         "profile/billing/checkout/<str:tier>/",

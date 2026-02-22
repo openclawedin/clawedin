@@ -15,12 +15,12 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.views import LoginView, LogoutView
 from django.core.mail import send_mail
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
-from django.http import HttpResponse, StreamingHttpResponse
+from django.http import HttpResponse, StreamingHttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 try:
     import stripe
@@ -88,6 +88,8 @@ try:
     SOLANA_SDK_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional in environments without solana installed
     SOLANA_SDK_AVAILABLE = False
+
+BIRDEYE_PRICE_URL = "https://public-api.birdeye.so/defi/price"
 
 def _ensure_dockerhub_secret(client_module, v1, namespace: str, source_namespace: str = "default") -> None:
     secret_name = "dockerhub-secret"
@@ -160,6 +162,65 @@ def _append_fragment_param(url: str, key: str, value: str) -> str:
     fragment = dict(parse_qsl(parsed.fragment, keep_blank_values=True))
     fragment[key] = value
     return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, parsed.query, urlencode(fragment)))
+
+
+def _fetch_birdeye_price(mint_address: str) -> tuple[Decimal | None, str | None]:
+    if not settings.BIRDEY_API_KEY:
+        return None, "Birdeye API key is not configured."
+
+    url = f"{BIRDEYE_PRICE_URL}?{urlencode({'address': mint_address})}"
+    headers = {
+        "X-API-KEY": settings.BIRDEY_API_KEY,
+        "x-chain": "solana",
+    }
+    req = Request(url, headers=headers)
+    try:
+        with urlopen(req, timeout=10) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except (HTTPError, URLError, ValueError) as exc:
+        return None, f"Could not fetch token price: {exc}"
+
+    price = None
+    if isinstance(payload, dict):
+        data = payload.get("data")
+        if isinstance(data, dict):
+            for key in ("value", "price", "usd", "usdPrice", "valueUsd"):
+                if data.get(key) is not None:
+                    price = data.get(key)
+                    break
+        if price is None:
+            for key in ("price", "value", "usd", "usdPrice"):
+                if payload.get(key) is not None:
+                    price = payload.get(key)
+                    break
+
+    if price is None:
+        return None, "Token price unavailable from Birdeye."
+
+    try:
+        return Decimal(str(price)), None
+    except Exception:
+        return None, "Token price is invalid."
+
+
+@login_required
+@require_GET
+def solana_token_price(request):
+    mint_address = request.GET.get("mint", "").strip()
+    if not mint_address:
+        return JsonResponse({"ok": False, "error": "Token mint address is required."}, status=400)
+
+    if SOLANA_SDK_AVAILABLE:
+        try:
+            Pubkey.from_string(mint_address)
+        except Exception:
+            return JsonResponse({"ok": False, "error": "Token mint address is invalid."}, status=400)
+
+    price, price_error = _fetch_birdeye_price(mint_address)
+    if price_error:
+        return JsonResponse({"ok": False, "error": price_error}, status=400)
+
+    return JsonResponse({"ok": True, "price": str(price)})
 
 
 def _upsert_service(v1, namespace: str, service_body):
@@ -1836,6 +1897,11 @@ def solana_transfer(request):
         messages.error(request, f"Could not load token decimals: {exc}")
         return redirect("identity:profile")
 
+    price, price_error = _fetch_birdeye_price(mint_address)
+    if price_error:
+        messages.error(request, price_error)
+        return redirect("identity:profile")
+
     if amount.as_tuple().exponent < -decimals:
         messages.error(request, f"Amount supports up to {decimals} decimal places.")
         return redirect("identity:profile")
@@ -1898,7 +1964,12 @@ def solana_transfer(request):
         return redirect("identity:profile")
 
     signature = send_resp.value if hasattr(send_resp, "value") else send_resp.get("result")
-    messages.success(request, f"Transfer submitted. Signature: {signature}")
+    total_value = (amount * price).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    messages.success(
+        request,
+        "Transfer submitted. Signature: "
+        f"{signature}. Estimated value: ${total_value:,.2f}",
+    )
     return redirect("identity:profile")
 
 

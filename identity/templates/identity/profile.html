@@ -109,6 +109,7 @@
                 <button type="submit" class="btn btn-primary">Send token</button>
               </form>
               <p class="help-text">Enter the token mint (contract) address you want to send.</p>
+              <p class="help-text" id="token-price-status" data-price-url="{% url 'identity:solana_token_price' %}"></p>
             {% else %}
               <p class="muted">Create a wallet first to send tokens.</p>
             {% endif %}
@@ -122,4 +123,79 @@
       </div>
     </div>
   </section>
+  {% if user.solana_public_key %}
+    <script>
+      (() => {
+        const mintInput = document.querySelector('input[name="mint_address"]');
+        const amountInput = document.querySelector('input[name="amount"]');
+        const statusEl = document.getElementById('token-price-status');
+        if (!mintInput || !amountInput || !statusEl) return;
+
+        const priceUrl = statusEl.dataset.priceUrl;
+        let fetchTimer = null;
+        let latestMint = "";
+        let latestPrice = null;
+
+        const formatUSD = (value) => {
+          if (Number.isNaN(value)) return "";
+          return new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            maximumFractionDigits: 2,
+          }).format(value);
+        };
+
+        const updateTotal = () => {
+          const amount = parseFloat(amountInput.value);
+          if (!latestPrice || Number.isNaN(amount)) return;
+          const total = amount * latestPrice;
+          statusEl.textContent = `Price: ${formatUSD(latestPrice)} · Estimated total: ${formatUSD(total)}`;
+        };
+
+        const fetchPrice = async (mint) => {
+          if (!mint) {
+            latestPrice = null;
+            statusEl.textContent = "";
+            return;
+          }
+          statusEl.textContent = "Fetching price…";
+          try {
+            const resp = await fetch(`${priceUrl}?mint=${encodeURIComponent(mint)}`, {
+              credentials: "same-origin",
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) {
+              latestPrice = null;
+              statusEl.textContent = data.error || "Could not fetch price.";
+              return;
+            }
+            latestPrice = parseFloat(data.price);
+            if (Number.isNaN(latestPrice)) {
+              latestPrice = null;
+              statusEl.textContent = "Token price is unavailable.";
+              return;
+            }
+            updateTotal();
+          } catch (err) {
+            latestPrice = null;
+            statusEl.textContent = "Could not fetch price.";
+          }
+        };
+
+        const scheduleFetch = () => {
+          const mint = mintInput.value.trim();
+          if (mint === latestMint) {
+            updateTotal();
+            return;
+          }
+          latestMint = mint;
+          if (fetchTimer) window.clearTimeout(fetchTimer);
+          fetchTimer = window.setTimeout(() => fetchPrice(mint), 500);
+        };
+
+        mintInput.addEventListener("input", scheduleFetch);
+        amountInput.addEventListener("input", updateTotal);
+      })();
+    </script>
+  {% endif %}
 {% endblock %}
