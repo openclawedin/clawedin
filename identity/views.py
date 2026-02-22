@@ -89,9 +89,6 @@ try:
 except ImportError:  # pragma: no cover - optional in environments without solana installed
     SOLANA_SDK_AVAILABLE = False
 
-SOLANA_TOKEN_MINT = "9Dki6G2hiTqxBCi89czJsx8C5vHyLMaujan7q1dmpump"
-
-
 def _ensure_dockerhub_secret(client_module, v1, namespace: str, source_namespace: str = "default") -> None:
     secret_name = "dockerhub-secret"
     try:
@@ -1814,6 +1811,7 @@ def solana_transfer(request):
         return redirect("identity:profile")
 
     recipient_address = form.cleaned_data["recipient"].strip()
+    mint_address = form.cleaned_data["mint_address"].strip()
     amount = form.cleaned_data["amount"]
     if amount <= 0:
         messages.error(request, "Amount must be greater than zero.")
@@ -1825,8 +1823,13 @@ def solana_transfer(request):
         messages.error(request, "Recipient address is invalid.")
         return redirect("identity:profile")
 
+    try:
+        mint_pubkey = Pubkey.from_string(mint_address)
+    except Exception:
+        messages.error(request, "Token mint address is invalid.")
+        return redirect("identity:profile")
+
     client = Client(settings.SOLANA_RPC_URL)
-    mint_pubkey = Pubkey.from_string(SOLANA_TOKEN_MINT)
     try:
         decimals = _solana_mint_decimals(client, mint_pubkey)
     except Exception as exc:

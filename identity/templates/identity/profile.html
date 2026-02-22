@@ -95,6 +95,10 @@
               <form method="post" action="{% url 'identity:solana_transfer' %}" class="form-grid">
                 {% csrf_token %}
                 <div class="form-field">
+                  <label for="{{ solana_transfer_form.mint_address.id_for_label }}">Token mint address</label>
+                  {{ solana_transfer_form.mint_address }}
+                </div>
+                <div class="form-field">
                   <label for="{{ solana_transfer_form.recipient.id_for_label }}">Recipient address</label>
                   {{ solana_transfer_form.recipient }}
                 </div>
@@ -102,9 +106,9 @@
                   <label for="{{ solana_transfer_form.amount.id_for_label }}">Amount</label>
                   {{ solana_transfer_form.amount }}
                 </div>
-                <button type="submit" class="btn btn-primary">Send OCD</button>
+                <button type="submit" class="btn btn-primary">Send token</button>
               </form>
-              <p class="help-text">OpenClaw Dollar (OCD) · 9Dki6G2hiTqxBCi89czJsx8C5vHyLMaujan7q1dmpump</p>
+              <p class="help-text">Enter the token mint (contract) address you want to send.</p>
             {% else %}
               <p class="muted">Create a wallet first to send tokens.</p>
             {% endif %}

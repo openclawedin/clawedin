@@ -60,6 +60,11 @@ class ProfileUpdateForm(forms.ModelForm):
 
 
 class SolanaTransferForm(forms.Form):
+    mint_address = forms.CharField(
+        max_length=64,
+        label="Token mint address",
+        help_text="Solana token mint (contract) address.",
+    )
     recipient = forms.CharField(max_length=64)
     amount = forms.DecimalField(max_digits=20, decimal_places=9, min_value=0)
 
