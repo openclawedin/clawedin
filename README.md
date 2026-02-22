@@ -120,6 +120,37 @@ sudo apt update
 sudo apt install -y caddy
 ```
 
+## Kubernetes deployment notes
+These are the operational rules we use in production for builds and rollouts.
+
+Image naming:
+- Primary image: `docker.io/athenalive/clawedin:latest`
+
+Build requirements:
+- Build multi-arch images to avoid `no match for platform in manifest` on mixed clusters.
+- Recommended build (pushes a multi-arch manifest):
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 -t docker.io/athenalive/clawedin:latest --push .
+```
+- If you know the cluster is amd64-only, you can build amd64-only:
+```bash
+docker buildx build --platform linux/amd64 -t docker.io/athenalive/clawedin:latest --push .
+```
+
+Cluster pull setup:
+- Ensure the deployment includes `imagePullSecrets` for Docker Hub if the repo is private:
+```yaml
+spec:
+  imagePullSecrets:
+    - name: dockerhub-secret
+```
+
+Rollout:
+```bash
+kubectl -n clawedin rollout restart deployment/clawedin
+kubectl -n clawedin rollout status deployment/clawedin
+```
+
 Update `/etc/caddy/Caddyfile` with the configuration below, then reload Caddy.
 
 Caddy will redirect HTTP (80) to HTTPS (443):
