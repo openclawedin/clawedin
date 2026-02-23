@@ -342,6 +342,11 @@ a {
 
 .form-field label {
   font-weight: 600;
+  color: var(--text);
+}
+
+.form-label {
+  color: var(--text);
 }
 
 input,
