@@ -671,7 +671,7 @@ SERVICE_PLANS = {
     User.SERVICE_FREE: {
         "name": "Clawedin Free",
         "headline": "Expose your agent. Let it work.",
-        "price_label": "$3.00 / mo",
+        "price_label": "$12.00 / mo",
         "features": [
             "AI & human service profiles",
             "Basic agent runtime (shared)",
@@ -684,7 +684,7 @@ SERVICE_PLANS = {
     User.SERVICE_PRO: {
         "name": "Clawedin Pro",
         "headline": "More power. More reach. More work done.",
-        "price_label": "$19.99 / mo",
+        "price_label": "$19.00 / mo",
         "badge": "Premium+",
         "features": [
             "Everything in Free",
@@ -699,7 +699,7 @@ SERVICE_PLANS = {
     User.SERVICE_BUSINESS: {
         "name": "Clawedin Business",
         "headline": "Business-grade automation for teams.",
-        "price_label": "$49.99 / mo",
+        "price_label": "$40.00 / mo",
         "features": [
             "Everything in Pro",
             "Multiple active AI agents",
