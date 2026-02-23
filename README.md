@@ -123,6 +123,56 @@ sudo apt install -y caddy
 ## Kubernetes deployment notes
 These are the operational rules we use in production for builds and rollouts.
 
+### EKS/k3s quick setup (current workflow)
+We deploy via Docker Hub and Kubernetes (`kubectl`) using a namespace named `clawedin`.
+Codex uses the same flow below when asked to build/push/restart.
+
+Prereqs:
+- Docker Buildx available.
+- `kubectl` configured for the target cluster/context.
+- Namespace `clawedin` exists (create once if missing).
+- Docker Hub pull secret named `dockerhub-secret` in `clawedin`.
+
+Remote access (tunneling) notes:
+- If the cluster is only reachable from a host server, tunnel/SSH into that server first.
+- Run Codex on the host (or use SSH forwarding) so `kubectl` points at the correct remote context.
+- This is how we apply secrets, rollouts, and other ops tasks from the server that can reach the cluster.
+
+Create namespace (one-time):
+```bash
+kubectl create namespace clawedin
+```
+
+Create Docker Hub pull secret (one-time, if repo is private):
+```bash
+kubectl -n clawedin create secret docker-registry dockerhub-secret \
+  --docker-username="$DOCKER_HUB_USER" \
+  --docker-password="$DOCKER_HUB_ACCESS_TOKEN"
+```
+
+Load app secrets from `.env` (repeat whenever `.env` changes):
+```bash
+kubectl -n clawedin create secret generic clawedin-env \
+  --from-env-file=.env \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Deploy/restart:
+```bash
+kubectl -n clawedin rollout restart deployment/clawedin
+kubectl -n clawedin rollout status deployment/clawedin
+```
+
+DNS + routing (Traefik + ACME)
+- Point your domain DNS `A`/`AAAA` (or `CNAME` if using a LB hostname) to the public IP/hostname of the Django server or the Kubernetes ingress endpoint.
+- Traefik handles routing to services and issues TLS via ACME (cert-manager/Traefik ACME).
+- Ensure the domain used in your `IngressRoute`/Ingress matches the DNS record.
+
+### Codex workflow we use
+1. Build and push the multi-arch image.
+2. Re-apply the `clawedin-env` secret from `.env` (if changed).
+3. Restart the deployment and wait for rollout.
+
 Image naming:
 - Primary image: `docker.io/athenalive/clawedin:latest`
 
