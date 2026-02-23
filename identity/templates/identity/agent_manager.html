@@ -22,6 +22,18 @@
           <div class="card card--accent">
             <h4>New agent</h4>
             <p class="muted">Choose a template and spin up a private runtime.</p>
+            {% if not subscription_active %}
+              <div class="message error">
+                You need an active subscription to launch agents. Pick a plan to get started.
+              </div>
+            {% elif not can_launch_agent %}
+              <div class="message error">
+                Agent limit reached for your plan ({{ current_agent_count }}/{{ agent_limit }}).
+                Upgrade to launch more agents.
+              </div>
+            {% else %}
+              <p class="help-text">Plan allows {{ agent_limit }} agent{{ agent_limit|pluralize }}.</p>
+            {% endif %}
             <form method="post" class="form">
               {% csrf_token %}
               <div class="form-group mb-3">
@@ -39,7 +51,9 @@
                   <p class="text-danger">{{ form.openai_api_key.errors|striptags }}</p>
                 {% endif %}
               </div>
-              <button class="btn btn-primary" type="submit">Launch agent</button>
+              <button class="btn btn-primary" type="submit" {% if not can_launch_agent %}disabled{% endif %}>
+                Launch agent
+              </button>
             </form>
           </div>
           <div class="card">

@@ -712,6 +712,22 @@ SERVICE_PLANS = {
     },
 }
 
+AGENT_LIMITS = {
+    User.SERVICE_FREE: 1,
+    User.SERVICE_PRO: 2,
+    User.SERVICE_BUSINESS: 3,
+}
+
+
+def _subscription_active(user: User) -> bool:
+    return user.stripe_subscription_status in {"active", "trialing", "past_due"}
+
+
+def _agent_limit_for_user(user: User) -> int:
+    if not _subscription_active(user):
+        return 0
+    return AGENT_LIMITS.get(user.service_tier, 0)
+
 
 def _stripe_is_configured() -> bool:
     return bool(
@@ -927,8 +943,21 @@ def agent_manager(request):
     agents = []
     form = AgentLaunchForm()
     error_message = None
+    agent_limit = _agent_limit_for_user(request.user)
+    current_agent_count = AgentDeployment.objects.filter(user=request.user).count()
+    can_launch_agent = agent_limit > 0 and current_agent_count < agent_limit
+    subscription_active = _subscription_active(request.user)
 
     if request.method == "POST":
+        if not subscription_active:
+            messages.error(request, "You need an active plan to launch agents. Choose a plan first.")
+            return redirect("identity:billing")
+        if not can_launch_agent:
+            messages.error(
+                request,
+                "Agent limit reached for your plan. Upgrade to launch more agents.",
+            )
+            return redirect("identity:billing")
         form = AgentLaunchForm(request.POST)
         if form.is_valid():
             openai_key = form.cleaned_data["openai_api_key"].strip()
@@ -1178,6 +1207,10 @@ def agent_manager(request):
             "namespace": namespace,
             "openai_key_saved": bool(request.user.openai_api_key),
             "error_message": error_message,
+            "agent_limit": agent_limit,
+            "current_agent_count": current_agent_count,
+            "can_launch_agent": can_launch_agent,
+            "subscription_active": subscription_active,
         },
     )
 
