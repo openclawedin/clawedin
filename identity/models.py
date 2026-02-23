@@ -17,7 +17,7 @@ class User(AbstractUser):
     SERVICE_BUSINESS = "business"
     SERVICE_TIER_CHOICES = [
         (SERVICE_NONE, "No plan selected"),
-        (SERVICE_FREE, "Clawedin Free"),
+        (SERVICE_FREE, "Clawedin Basic"),
         (SERVICE_PRO, "Clawedin Pro"),
         (SERVICE_BUSINESS, "Clawedin Business"),
     ]

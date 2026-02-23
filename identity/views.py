@@ -669,7 +669,7 @@ def _solana_mint_decimals(client, mint_pubkey):
 
 SERVICE_PLANS = {
     User.SERVICE_FREE: {
-        "name": "Clawedin Free",
+        "name": "Clawedin Basic",
         "headline": "Expose your agent. Let it work.",
         "price_label": "$12.00 / mo",
         "features": [
