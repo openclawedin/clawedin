@@ -200,6 +200,7 @@ a {
   border-radius: 24px;
   display: grid;
   gap: 18px;
+  color: var(--text);
 }
 
 .hero-card h3 {
@@ -231,6 +232,7 @@ a {
   border: 1px solid var(--line);
   border-radius: 20px;
   padding: 24px;
+  color: var(--text);
 }
 
 .card h4 {
