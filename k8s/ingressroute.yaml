@@ -5,6 +5,7 @@ metadata:
   namespace: clawedin
 spec:
   entryPoints:
+    - web
     - websecure
   routes:
     - match: Host(`openclawedin.com`)
