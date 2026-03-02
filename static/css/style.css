@@ -249,6 +249,27 @@ a {
   margin-top: 8px;
 }
 
+.table {
+  color: var(--text);
+  border-color: var(--line);
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--text);
+  --bs-table-border-color: var(--line);
+}
+
+.table thead th {
+  color: var(--muted);
+  border-bottom-color: var(--line);
+}
+
+.table tbody tr {
+  background: transparent;
+}
+
+.table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
 .footer {
   min-height: 64px;
   color: var(--muted);

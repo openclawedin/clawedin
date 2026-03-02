@@ -1,0 +1,92 @@
+{% extends "identity/base.html" %}
+
+{% block title %}User Management{% endblock %}
+
+{% block content %}
+  <section class="page-shell">
+    <header class="page-header">
+      <h1>User management</h1>
+      <p class="muted">Admin-only access to user plans and subscriptions.</p>
+    </header>
+
+    <div class="card p-4 mb-4">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-8">
+          <label class="form-label" for="user-search">Search users</label>
+          <input
+            id="user-search"
+            class="form-control"
+            type="text"
+            name="q"
+            value="{{ query }}"
+            placeholder="Search username, email, or name"
+          />
+        </div>
+        <div class="col-md-4">
+          <button type="submit" class="btn btn-primary w-100">Search</button>
+        </div>
+      </form>
+      {% if query %}
+        <p class="muted mt-3 mb-0">Showing results for "{{ query }}".</p>
+      {% endif %}
+    </div>
+
+    <div class="card p-4">
+      <h2 class="h5">Users</h2>
+      {% if users %}
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Email</th>
+                <th>Plan</th>
+                <th>Status</th>
+                <th>Agents</th>
+                <th>Update plan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for user in users %}
+                <tr>
+                  <td>
+                    <div class="fw-semibold">
+                      {% if user.get_full_name %}
+                        {{ user.get_full_name }}
+                      {% elif user.display_name %}
+                        {{ user.display_name }}
+                      {% else %}
+                        {{ user.username }}
+                      {% endif %}
+                    </div>
+                    <div class="muted">@{{ user.username }}</div>
+                  </td>
+                  <td>{{ user.email|default:"-" }}</td>
+                  <td>{{ user.get_service_tier_display }}</td>
+                  <td>{{ user.stripe_subscription_status|default:"-" }}</td>
+                  <td>{{ user.agent_count }}</td>
+                  <td>
+                    <form method="post" class="d-flex gap-2 align-items-center">
+                      {% csrf_token %}
+                      <input type="hidden" name="user_id" value="{{ user.id }}" />
+                      <select name="service_tier" class="form-select form-select-sm" aria-label="Plan">
+                        {% for value, label in service_tiers %}
+                          <option value="{{ value }}" {% if value == user.service_tier %}selected{% endif %}>
+                            {{ label }}
+                          </option>
+                        {% endfor %}
+                      </select>
+                      <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted mb-0">No users found.</p>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}

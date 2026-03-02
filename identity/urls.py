@@ -44,6 +44,7 @@ urlpatterns = [
         views.deployed_agents,
         name="deployed_agents",
     ),
+    path("admin/users/", views.admin_users, name="admin_users"),
     path("profile/edit/", views.profile_update, name="profile_update"),
     path(
         "profile/solana-wallet/create/",

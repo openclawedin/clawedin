@@ -18,6 +18,7 @@ from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.http import HttpResponse, StreamingHttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.db.models import Count, Q
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
@@ -933,6 +934,68 @@ def deployed_agents(request):
         context["error"] = str(exc)
 
     return render(request, "identity/admin_deployed_agents.html", context)
+
+
+@login_required
+@user_passes_test(_is_admin_user)
+def admin_users(request):
+    query = request.GET.get("q", "").strip()
+    users_qs = User.objects.annotate(agent_count=Count("agent_deployments"))
+
+    if query:
+        users_qs = users_qs.filter(
+            Q(username__icontains=query)
+            | Q(email__icontains=query)
+            | Q(display_name__icontains=query)
+            | Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+        )
+
+    users_qs = users_qs.order_by("-date_joined")
+
+    if request.method == "POST":
+        user_id = request.POST.get("user_id")
+        tier = request.POST.get("service_tier")
+        tier_values = {choice[0] for choice in User.SERVICE_TIER_CHOICES}
+
+        target_user = get_object_or_404(User, pk=user_id)
+        if tier not in tier_values:
+            messages.error(request, "Unknown plan selected.")
+        else:
+            updates = {
+                "service_tier": tier,
+                "stripe_subscription_id": "",
+                "stripe_price_id": "",
+                "stripe_current_period_end": None,
+            }
+            if tier == User.SERVICE_NONE:
+                updates["stripe_subscription_status"] = ""
+            else:
+                updates["stripe_subscription_status"] = "active"
+                updates["stripe_price_id"] = _price_id_for_tier(tier)
+
+            for field, value in updates.items():
+                setattr(target_user, field, value)
+            target_user.save(update_fields=[*updates.keys(), "updated_at"])
+            messages.success(
+                request,
+                f"Updated plan for {target_user.username} to {target_user.get_service_tier_display()}.",
+            )
+
+        if query:
+            query_string = urlencode({"q": query})
+            return redirect(f"{reverse('identity:admin_users')}?{query_string}")
+        return redirect("identity:admin_users")
+
+    return render(
+        request,
+        "identity/admin_users.html",
+        {
+            "query": query,
+            "users": users_qs,
+            "service_tiers": User.SERVICE_TIER_CHOICES,
+        },
+    )
 
 
 @login_required

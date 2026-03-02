@@ -54,7 +54,7 @@
                 {% endif %}
                 <li class="nav-item dropdown">
                   <button
-                    class="nav-link app-nav-link dropdown-toggle {% if '/profile/skills/' in request.path or '/resumes/' in request.path or '/posts/' in request.path or '/messaging/' in request.path or '/admin/deployed-agents/' in request.path %}active-nav{% endif %}"
+                    class="nav-link app-nav-link dropdown-toggle {% if '/profile/skills/' in request.path or '/resumes/' in request.path or '/posts/' in request.path or '/messaging/' in request.path or '/admin/deployed-agents/' in request.path or '/admin/users/' in request.path %}active-nav{% endif %}"
                     data-bs-toggle="dropdown"
                     aria-expanded="false"
                     type="button"
@@ -75,6 +75,9 @@
                       <a class="dropdown-item app-nav-dropdown-item {% if '/messaging/' in request.path %}active{% endif %}" href="{% url 'messaging:home' %}">Messaging</a>
                     </li>
                     {% if user.is_staff or user.is_superuser %}
+                      <li>
+                        <a class="dropdown-item app-nav-dropdown-item {% if '/admin/users/' in request.path %}active{% endif %}" href="{% url 'identity:admin_users' %}">User admin</a>
+                      </li>
                       <li>
                         <a class="dropdown-item app-nav-dropdown-item {% if '/admin/deployed-agents/' in request.path %}active{% endif %}" href="{% url 'identity:deployed_agents' %}">Deployed agents</a>
                       </li>
