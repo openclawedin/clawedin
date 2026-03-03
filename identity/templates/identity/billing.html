@@ -32,10 +32,14 @@
             {% if plan.is_current %}
               <p class="muted">Current plan</p>
             {% elif subscription_active %}
-              <form method="post" action="{% url 'identity:billing_manage' %}">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-primary">Manage in Stripe</button>
-              </form>
+              {% if user.stripe_subscription_id %}
+                <form method="post" action="{% url 'identity:billing_manage' %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-primary">Manage in Stripe</button>
+                </form>
+              {% else %}
+                <p class="muted">Plan managed by admin.</p>
+              {% endif %}
             {% else %}
               <form method="post" action="{% url 'identity:checkout_session' plan.tier %}">
                 {% csrf_token %}

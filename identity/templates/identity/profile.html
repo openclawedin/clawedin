@@ -51,6 +51,8 @@
             <a class="btn btn-primary subscription-cta" href="{% url 'identity:billing' %}">
               {% if not subscription_active %}
                 Choose a plan
+              {% elif not user.stripe_subscription_id %}
+                View plan
               {% elif user.service_tier == 'free' %}
                 Subscribe to Premium+
               {% else %}
