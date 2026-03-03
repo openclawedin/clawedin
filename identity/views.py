@@ -1086,8 +1086,8 @@ def agent_manager(request):
                             },
                             "agents": {
                                 "defaults": {
-                                    "model": {"primary": "openai/gpt-4o"},
-                                    "models": {"openai/gpt-4o": {}},
+                                    "model": {"primary": "openai/gpt-5.2"},
+                                    "models": {"openai/gpt-5.2": {}},
                                 }
                             },
                         }
@@ -1128,7 +1128,7 @@ def agent_manager(request):
                                         )
                                     ],
                                     env=[
-                                        client.V1EnvVar(name="DEFAULT_MODEL", value="openai/gpt-4o"),
+                                        client.V1EnvVar(name="DEFAULT_MODEL", value="openai/gpt-5.2"),
                                         client.V1EnvVar(name="OPENCLAW_GATEWAY_BIND", value="0.0.0.0"),
                                         client.V1EnvVar(
                                             name="OPENCLAW_GATEWAY_PORT",
