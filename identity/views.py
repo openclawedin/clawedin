@@ -53,6 +53,7 @@ from .kube import (
     gateway_secret_name_for_deployment,
     load_kube_config,
     normalize_namespace,
+    openai_secret_name_for_deployment,
     resolve_agent_namespace,
 )
 from .solana_wallet import generate_solana_wallet, load_keypair
@@ -1056,7 +1057,8 @@ def agent_manager(request):
 
                         _ensure_dockerhub_secret(client, v1, namespace)
 
-                        secret_name = "openai-secret"
+                        deployment_name = f"openclaw-agent-{request.user.id}-{secrets.token_hex(4)}"
+                        secret_name = openai_secret_name_for_deployment(deployment_name, request.user.id)
                         secret_body = client.V1Secret(
                             metadata=client.V1ObjectMeta(name=secret_name),
                             type="Opaque",
@@ -1071,7 +1073,6 @@ def agent_manager(request):
                             else:
                                 raise
 
-                        deployment_name = f"openclaw-agent-{request.user.id}-{secrets.token_hex(4)}"
                         gateway_token = secrets.token_urlsafe(32)
                         gateway_config = {
                             "gateway": {

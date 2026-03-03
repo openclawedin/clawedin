@@ -64,3 +64,14 @@ def gateway_secret_name_for_deployment(deployment_name: str, user_id: int) -> st
         f"openclaw-gateway-{deployment_name}",
         f"openclaw-gateway-{user_id}",
     )
+
+
+def openai_secret_name(username: str, user_id: int) -> str:
+    return normalize_k8s_name(f"openai-key-{username}", f"openai-key-{user_id}")
+
+
+def openai_secret_name_for_deployment(deployment_name: str, user_id: int) -> str:
+    return normalize_k8s_name(
+        f"openai-key-{deployment_name}",
+        f"openai-key-{user_id}",
+    )
