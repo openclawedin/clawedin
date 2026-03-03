@@ -721,6 +721,8 @@ AGENT_LIMITS = {
 
 
 def _subscription_active(user: User) -> bool:
+    if user.service_tier and user.service_tier != User.SERVICE_NONE:
+        return True
     return user.stripe_subscription_status in {"active", "trialing", "past_due"}
 
 
@@ -887,8 +889,7 @@ def profile(request):
         {
             "current_plan": current_plan,
             "is_stripe_ready": _stripe_is_configured(),
-            "subscription_active": request.user.stripe_subscription_status
-            in {"active", "trialing", "past_due"},
+            "subscription_active": _subscription_active(request.user),
             "solana_transfer_form": SolanaTransferForm(),
         },
     )
@@ -2091,8 +2092,7 @@ def billing(request):
         {
             "plans": plans,
             "is_stripe_ready": _stripe_is_configured(),
-            "subscription_active": request.user.stripe_subscription_status
-            in {"active", "trialing", "past_due"},
+            "subscription_active": _subscription_active(request.user),
         },
     )
 
