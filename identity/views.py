@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import secrets
+import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
@@ -406,6 +407,21 @@ def _format_api_exception(exc) -> str:
     return f"status={status} reason={reason} body={body}"
 
 
+def _wait_for_agent_pod(v1, namespace: str, deployment_name: str, owner_username: str, timeout_seconds: int = 15):
+    label_selector = f"app=openclaw-agent,owner={owner_username},deployment={deployment_name}"
+    deadline = time.monotonic() + timeout_seconds
+    last_pod = None
+    while time.monotonic() < deadline:
+        pods = v1.list_namespaced_pod(namespace=namespace, label_selector=label_selector)
+        if pods.items:
+            for pod in pods.items:
+                last_pod = pod
+                if pod.status and pod.status.pod_ip:
+                    return pod
+        time.sleep(2)
+    return last_pod
+
+
 def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, pod, owner_username: str):
     agent_port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
     proxy_port = int(getattr(settings, "AGENT_GUI_PROXY_PORT", 18790))
@@ -438,39 +454,43 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
 
     pod_ip = pod.status.pod_ip
     if not pod_ip:
-        raise ValueError("Pod has no IP yet.")
+        logger.info(
+            "Agent GUI pod has no IP yet; skipping endpoints for %s in %s",
+            pod.metadata.name,
+            namespace,
+        )
+    else:
+        endpoint_port_cls = _model_class(client_module, "V1EndpointPort")
+        endpoint_port = (
+            endpoint_port_cls(name="gui", port=proxy_port, protocol="TCP")
+            if endpoint_port_cls
+            else {"name": "gui", "port": proxy_port, "protocol": "TCP"}
+        )
 
-    endpoint_port_cls = _model_class(client_module, "V1EndpointPort")
-    endpoint_port = (
-        endpoint_port_cls(name="gui", port=proxy_port, protocol="TCP")
-        if endpoint_port_cls
-        else {"name": "gui", "port": proxy_port, "protocol": "TCP"}
-    )
-
-    endpoints_body = client_module.V1Endpoints(
-        metadata=client_module.V1ObjectMeta(name=service_name, labels=labels),
-        subsets=[
-            client_module.V1EndpointSubset(
-                addresses=[
-                    client_module.V1EndpointAddress(
-                        ip=pod_ip,
-                        target_ref=client_module.V1ObjectReference(
-                            kind="Pod",
-                            name=pod.metadata.name,
-                            namespace=namespace,
-                        ),
-                    )
-                ],
-                ports=[
-                    endpoint_port
-                ],
-            )
-        ],
-    )
-    try:
-        _upsert_endpoints(v1, namespace, endpoints_body)
-    except Exception as exc:
-        raise RuntimeError(f"Failed to upsert endpoints for {service_name}: {exc}") from exc
+        endpoints_body = client_module.V1Endpoints(
+            metadata=client_module.V1ObjectMeta(name=service_name, labels=labels),
+            subsets=[
+                client_module.V1EndpointSubset(
+                    addresses=[
+                        client_module.V1EndpointAddress(
+                            ip=pod_ip,
+                            target_ref=client_module.V1ObjectReference(
+                                kind="Pod",
+                                name=pod.metadata.name,
+                                namespace=namespace,
+                            ),
+                        )
+                    ],
+                    ports=[
+                        endpoint_port
+                    ],
+                )
+            ],
+        )
+        try:
+            _upsert_endpoints(v1, namespace, endpoints_body)
+        except Exception as exc:
+            raise RuntimeError(f"Failed to upsert endpoints for {service_name}: {exc}") from exc
 
     host = _gui_host_for_pod(pod.metadata.name)
     path_prefix = _gui_path_prefix()
@@ -1219,6 +1239,32 @@ def agent_manager(request):
 
                         apps.create_namespaced_deployment(namespace, deployment)
 
+                        pod_name = ""
+                        try:
+                            pod_for_gui = _wait_for_agent_pod(
+                                v1,
+                                namespace,
+                                deployment_name,
+                                request.user.username,
+                            )
+                            if pod_for_gui:
+                                pod_name = pod_for_gui.metadata.name
+                                networking = client.NetworkingV1Api()
+                                _ensure_agent_gui_resources(
+                                    client,
+                                    v1,
+                                    networking,
+                                    namespace,
+                                    pod_for_gui,
+                                    request.user.username,
+                                )
+                        except Exception as exc:  # pragma: no cover - depends on kube setup
+                            logger.warning(
+                                "Failed to precreate agent GUI ingress for user %s: %s",
+                                request.user.id,
+                                exc,
+                            )
+
                         AgentDeployment.objects.update_or_create(
                             user=request.user,
                             deployment_name=deployment_name,
@@ -1226,7 +1272,7 @@ def agent_manager(request):
                             defaults={
                                 "gateway_token": gateway_token,
                                 "secret_name": gateway_secret,
-                                "pod_name": "",
+                                "pod_name": pod_name,
                             },
                         )
 
