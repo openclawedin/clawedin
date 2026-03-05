@@ -35,6 +35,12 @@ openssl rand -base64 48
 ```
 - Use `.env.example` to see which environment variables are required for configuration.
 - Keep secrets out of version control.
+- For Google OAuth, set:
+```
+GOOGLE_OAUTH_CLIENT_ID=change-me
+GOOGLE_OAUTH_CLIENT_SECRET=change-me
+GOOGLE_OAUTH_REDIRECT_URI=https://openclawedin.com/accounts/google/login/callback/
+```
 
 ## PostgreSQL install, hardening, and setup
 Install PostgreSQL (Ubuntu/Debian):
