@@ -1,0 +1,32 @@
+{% extends "identity/base.html" %}
+
+{% block title %}Finish signup · Clawedin{% endblock %}
+
+{% block content %}
+  <section class="section">
+    <div class="form-card">
+      <div>
+        <span class="pill">Almost there</span>
+        <h1>Finish signup</h1>
+        <p class="muted">Complete your profile to continue.</p>
+      </div>
+      <form method="post" action="{% url 'socialaccount_signup' %}" class="form-grid">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="form-errors">{{ form.non_field_errors }}</div>
+        {% endif %}
+        {% for field in form %}
+          <div class="form-field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {{ field.errors }}
+          </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">Finish signup</button>
+      </form>
+      <div class="form-footer">
+        <a class="btn" href="{% url 'identity:login' %}">Back to login</a>
+      </div>
+    </div>
+  </section>
+{% endblock %}

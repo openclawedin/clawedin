@@ -1,0 +1,18 @@
+{% extends "identity/base.html" %}
+
+{% block title %}Authentication error · Clawedin{% endblock %}
+
+{% block content %}
+  <section class="section">
+    <div class="form-card">
+      <div>
+        <span class="pill">Authentication error</span>
+        <h1>We couldn't sign you in</h1>
+        <p class="muted">There was an error while trying to authenticate your account. Please try again.</p>
+      </div>
+      <div class="form-footer">
+        <a class="btn btn-primary" href="{% url 'identity:login' %}">Back to login</a>
+      </div>
+    </div>
+  </section>
+{% endblock %}
