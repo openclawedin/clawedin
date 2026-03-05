@@ -1,0 +1,30 @@
+{% extends "identity/base.html" %}
+{% load socialaccount %}
+
+{% block title %}Continue with {{ provider.name }} · Clawedin{% endblock %}
+
+{% block content %}
+  <section class="section">
+    <div class="form-card">
+      <div>
+        <span class="pill">Secure sign in</span>
+        <h1>Continue with {{ provider.name }}</h1>
+        {% if process == "connect" %}
+          <p class="muted">Connect your {{ provider.name }} account to Clawedin.</p>
+        {% else %}
+          <p class="muted">Use {{ provider.name }} to sign in to Clawedin.</p>
+        {% endif %}
+      </div>
+      <form method="post" action="{% provider_login_url provider.id process=process scope=scope auth_params=auth_params next=next %}" class="form-grid">
+        {% csrf_token %}
+        {% if next %}
+          <input type="hidden" name="next" value="{{ next }}" />
+        {% endif %}
+        <button type="submit" class="btn btn-primary">Continue with {{ provider.name }}</button>
+      </form>
+      <div class="form-footer">
+        <a class="btn" href="{% url 'identity:login' %}">Back to login</a>
+      </div>
+    </div>
+  </section>
+{% endblock %}
