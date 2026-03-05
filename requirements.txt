@@ -3,10 +3,14 @@ channels==4.1.0
 uvicorn==0.30.6
 dj-database-url==3.1.0
 Django==6.0.1
+django-allauth==65.14.3
 gunicorn==23.0.0
 kubernetes==31.0.0
 psycopg[binary]==3.3.2
+pyjwt==2.11.0
 python-dotenv==1.2.1
+requests==2.32.5
+requests-oauthlib==2.0.0
 sqlparse==0.5.5
 stripe==14.3.0
 cryptography==42.0.8

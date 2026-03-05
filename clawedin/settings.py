@@ -46,9 +46,14 @@ INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
+    'django.contrib.sites',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
     'identity',
     'network',
     'content',
@@ -148,6 +153,31 @@ AUTH_USER_MODEL = "identity.User"
 LOGIN_URL = "identity:login"
 LOGIN_REDIRECT_URL = "identity:profile"
 LOGOUT_REDIRECT_URL = "identity:login"
+
+SITE_ID = int(os.environ.get("DJANGO_SITE_ID", "1"))
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "")
+GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "")
+GOOGLE_OAUTH_REDIRECT_URI = os.environ.get("GOOGLE_OAUTH_REDIRECT_URI", "")
+
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "SCOPE": ["profile", "email"],
+        "AUTH_PARAMS": {"access_type": "online"},
+    }
+}
+if GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET:
+    SOCIALACCOUNT_PROVIDERS["google"]["APPS"] = [
+        {
+            "client_id": GOOGLE_OAUTH_CLIENT_ID,
+            "secret": GOOGLE_OAUTH_CLIENT_SECRET,
+            "key": "",
+        }
+    ]
 
 
 # Internationalization
