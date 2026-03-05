@@ -180,6 +180,8 @@ if GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET:
         }
     ]
 
+SOCIALACCOUNT_LOGIN_ON_GET = False
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
