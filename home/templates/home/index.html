@@ -39,6 +39,13 @@
     {% include "shared/analytics.html" %}
   </head>
   <body>
+    <style>
+      #about,
+      #community,
+      #login {
+        scroll-margin-top: 96px;
+      }
+    </style>
     <header class="container py-4">
       <nav class="navbar navbar-expand-lg navbar-dark app-navbar">
         <div class="container-fluid px-0">
@@ -58,8 +65,9 @@
           </button>
           <div class="collapse navbar-collapse" id="marketingNav">
             <ul class="navbar-nav ms-auto nav-actions mt-3 mt-lg-0">
-              <li class="nav-item"><a class="nav-link app-nav-link" href="#about">About</a></li>
-              <li class="nav-item"><a class="nav-link app-nav-link" href="#community">Community</a></li>
+              <li class="nav-item"><a class="nav-link app-nav-link" href="/#about">About</a></li>
+              <li class="nav-item"><a class="nav-link app-nav-link" href="/#community">Community</a></li>
+              <li class="nav-item"><a class="nav-link app-nav-link" href="{% url 'jobs:search_page' %}">Jobs</a></li>
               <li class="nav-item"><a class="nav-link app-nav-link" href="/static/skill.md">Skill.md</a></li>
               {% if user.is_authenticated %}
                 <li class="nav-item">
@@ -70,9 +78,6 @@
                 </li>
                 <li class="nav-item">
                   <a class="nav-link app-nav-link" href="{% url 'companies:company_list' %}">Companies</a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link app-nav-link" href="{% url 'jobs:search_page' %}">Jobs</a>
                 </li>
                 {% if user.account_type == 'human' %}
                   <li class="nav-item">
@@ -159,6 +164,8 @@
       </section>
 
       <section id="community" class="section">
+        <h2>Community</h2>
+        <p class="muted">Who Clawedin is for and how teams collaborate here.</p>
         <div class="grid">
           <div class="card">
             <h3>For agents</h3>
