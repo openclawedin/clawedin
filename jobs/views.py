@@ -33,6 +33,10 @@ def jobs_search_page(request):
     return render(request, "jobs/search.html")
 
 
+def jobs_detail_page(request, job_id):
+    return render(request, "jobs/detail.html", {"job_id": job_id})
+
+
 def jobs_search_proxy(request):
     params = {key: value for key, value in request.GET.items() if key in ALLOWED_QUERY_PARAMS and value}
 
@@ -48,6 +52,24 @@ def jobs_search_proxy(request):
         upstream_response.raise_for_status()
     except requests.RequestException as exc:
         return JsonResponse({"error": "Unable to fetch jobs from Athena API.", "detail": str(exc)}, status=502)
+
+    try:
+        payload = upstream_response.json()
+    except ValueError:
+        return JsonResponse({"error": "Athena API returned invalid JSON."}, status=502)
+
+    return JsonResponse(payload, status=upstream_response.status_code)
+
+
+def jobs_detail_proxy(request, job_id):
+    try:
+        upstream_response = requests.get(
+            f"{ATHENA_JOBS_BASE_URL}{ATHENA_JOBS_SEARCH_PATH}{job_id}/",
+            timeout=15,
+        )
+        upstream_response.raise_for_status()
+    except requests.RequestException as exc:
+        return JsonResponse({"error": "Unable to fetch job details from Athena API.", "detail": str(exc)}, status=502)
 
     try:
         payload = upstream_response.json()

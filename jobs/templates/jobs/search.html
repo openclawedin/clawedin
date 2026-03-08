@@ -57,23 +57,87 @@
         .replace(/'/g, "&#039;");
     }
 
-    function renderJobs(items) {
+    function stripHtml(html) {
+      const tmp = document.createElement("div");
+      tmp.innerHTML = String(html || "");
+      return (tmp.textContent || tmp.innerText || "").replace(/\s+/g, " ").trim();
+    }
+
+    function escapeRegExp(value) {
+      return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function highlightText(text, terms) {
+      if (!terms.length) return escapeHtml(text);
+      const pattern = terms
+        .filter(Boolean)
+        .map((term) => escapeRegExp(term))
+        .sort((a, b) => b.length - a.length)
+        .join("|");
+
+      if (!pattern) return escapeHtml(text);
+
+      const regex = new RegExp(pattern, "gi");
+      let lastIndex = 0;
+      let result = "";
+      let match;
+
+      while ((match = regex.exec(text)) !== null) {
+        result += escapeHtml(text.slice(lastIndex, match.index));
+        result += `<mark>${escapeHtml(match[0])}</mark>`;
+        lastIndex = regex.lastIndex;
+      }
+
+      result += escapeHtml(text.slice(lastIndex));
+      return result;
+    }
+
+    function buildSnippet(job, terms) {
+      const plain = stripHtml(job.excerpt || job.description || "");
+      if (!plain) return "";
+
+      const lower = plain.toLowerCase();
+      let firstMatch = -1;
+      terms.forEach((term) => {
+        const idx = lower.indexOf(term.toLowerCase());
+        if (idx !== -1 && (firstMatch === -1 || idx < firstMatch)) {
+          firstMatch = idx;
+        }
+      });
+
+      const windowSize = 240;
+      const start = firstMatch === -1 ? 0 : Math.max(0, firstMatch - 80);
+      const end = Math.min(plain.length, start + windowSize);
+      const prefix = start > 0 ? "..." : "";
+      const suffix = end < plain.length ? "..." : "";
+      return `${prefix}${highlightText(plain.slice(start, end), terms)}${suffix}`;
+    }
+
+    function renderJobs(items, searchTerm) {
       if (!Array.isArray(items) || !items.length) {
         results.innerHTML = "";
         status.textContent = "No jobs found for this search.";
         return;
       }
 
+      const terms = String(searchTerm || "")
+        .split(/\s+/)
+        .map((term) => term.trim())
+        .filter((term) => term.length >= 2)
+        .slice(0, 8);
+
       results.innerHTML = items
         .map((job) => {
+          const id = Number(job.id);
           const title = escapeHtml(job.title || "Untitled role");
           const company = escapeHtml(job.company || "Unknown company");
           const location = escapeHtml(job.location || "Location not specified");
           const employmentType = escapeHtml(job.employment_type || "");
           const salary = escapeHtml(job.salary || "");
           const posted = escapeHtml(job.posted_label || formatDate(job.posted_at) || "");
-          const excerpt = escapeHtml(job.excerpt || "");
+          const snippetHtml = buildSnippet(job, terms);
           const link = job.link ? escapeHtml(job.link) : "";
+          const detailUrl = Number.isFinite(id) ? `/jobs/${id}/` : "";
 
           return `
             <article class="card">
@@ -83,8 +147,11 @@
               ${employmentType ? `<p class="mb-1"><strong>Type:</strong> ${employmentType}</p>` : ""}
               ${salary ? `<p class="mb-1"><strong>Salary:</strong> ${salary}</p>` : ""}
               ${posted ? `<p class="mb-2"><strong>Posted:</strong> ${posted}</p>` : ""}
-              ${excerpt ? `<p>${excerpt}</p>` : ""}
-              ${link ? `<a class="btn btn-primary mt-2" href="${link}" target="_blank" rel="noopener noreferrer">View job</a>` : ""}
+              ${snippetHtml ? `<p>${snippetHtml}</p>` : ""}
+              <div class="nav-actions">
+                ${detailUrl ? `<a class="btn btn-primary mt-2" href="${detailUrl}">View details</a>` : ""}
+                ${link ? `<a class="btn mt-2" href="${link}" target="_blank" rel="noopener noreferrer">Apply</a>` : ""}
+              </div>
             </article>
           `;
         })
@@ -112,7 +179,7 @@
 
         const total = typeof data.count === "number" ? data.count : null;
         status.textContent = total === null ? "Search complete." : `Found ${total} jobs.`;
-        renderJobs(data.results || []);
+        renderJobs(data.results || [], search);
       } catch (error) {
         status.textContent = `Search failed: ${error.message}`;
         results.innerHTML = "";
