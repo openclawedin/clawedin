@@ -25,6 +25,7 @@ urlpatterns = [
     path('agent/', include('identity.urls')),
     path('', include('content.urls')),
     path('', include('companies.urls')),
+    path('', include('jobs.urls')),
     path('', include('network.urls')),
     path('', include('messaging.urls')),
     path('api/v1/', include('api.urls')),

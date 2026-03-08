@@ -1,0 +1,129 @@
+{% extends "identity/base.html" %}
+
+{% block title %}Jobs{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="hero">
+    <div>
+      <span class="pill">Jobs</span>
+      <h1>Find your next role.</h1>
+      <p>Search jobs powered by Athena Live.</p>
+      <form id="jobs-search-form" class="card mt-3">
+        <div class="mb-3">
+          <label for="search-input" class="form-label">Keyword</label>
+          <input id="search-input" name="search" class="form-control" type="text" placeholder="Python, product manager, designer..." />
+        </div>
+        <div class="mb-3">
+          <label for="location-input" class="form-label">Location</label>
+          <input id="location-input" name="location" class="form-control" type="text" placeholder="San Francisco, CA" />
+        </div>
+        <div class="nav-actions">
+          <button type="submit" class="btn btn-primary">Search jobs</button>
+        </div>
+      </form>
+    </div>
+    <div class="hero-card">
+      <h3>How it works</h3>
+      <p class="muted mb-0">This page queries a Clawedin backend proxy, which forwards your search to Athena's public jobs API.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div id="jobs-status" class="muted">Run a search to view jobs.</div>
+  <div id="jobs-results" class="grid mt-3"></div>
+</section>
+
+<script>
+  (function () {
+    const form = document.getElementById("jobs-search-form");
+    const status = document.getElementById("jobs-status");
+    const results = document.getElementById("jobs-results");
+
+    function formatDate(value) {
+      if (!value) return "";
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return "";
+      return parsed.toLocaleDateString();
+    }
+
+    function escapeHtml(text) {
+      return String(text || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function renderJobs(items) {
+      if (!Array.isArray(items) || !items.length) {
+        results.innerHTML = "";
+        status.textContent = "No jobs found for this search.";
+        return;
+      }
+
+      results.innerHTML = items
+        .map((job) => {
+          const title = escapeHtml(job.title || "Untitled role");
+          const company = escapeHtml(job.company || "Unknown company");
+          const location = escapeHtml(job.location || "Location not specified");
+          const employmentType = escapeHtml(job.employment_type || "");
+          const salary = escapeHtml(job.salary || "");
+          const posted = escapeHtml(job.posted_label || formatDate(job.posted_at) || "");
+          const excerpt = escapeHtml(job.excerpt || "");
+          const link = job.link ? escapeHtml(job.link) : "";
+
+          return `
+            <article class="card">
+              <h4>${title}</h4>
+              <p class="muted mb-1">${company}</p>
+              <p class="muted mb-1">${location}</p>
+              ${employmentType ? `<p class="mb-1"><strong>Type:</strong> ${employmentType}</p>` : ""}
+              ${salary ? `<p class="mb-1"><strong>Salary:</strong> ${salary}</p>` : ""}
+              ${posted ? `<p class="mb-2"><strong>Posted:</strong> ${posted}</p>` : ""}
+              ${excerpt ? `<p>${excerpt}</p>` : ""}
+              ${link ? `<a class="btn btn-primary mt-2" href="${link}" target="_blank" rel="noopener noreferrer">View job</a>` : ""}
+            </article>
+          `;
+        })
+        .join("");
+    }
+
+    async function runSearch(search, location) {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (location) params.set("location", location);
+      params.set("page_size", "24");
+
+      status.textContent = "Searching jobs...";
+      results.innerHTML = "";
+
+      try {
+        const response = await fetch(`/jobs/proxy/search/?${params.toString()}`, {
+          headers: { Accept: "application/json" },
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Request failed.");
+        }
+
+        const total = typeof data.count === "number" ? data.count : null;
+        status.textContent = total === null ? "Search complete." : `Found ${total} jobs.`;
+        renderJobs(data.results || []);
+      } catch (error) {
+        status.textContent = `Search failed: ${error.message}`;
+        results.innerHTML = "";
+      }
+    }
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const formData = new FormData(form);
+      runSearch(formData.get("search"), formData.get("location"));
+    });
+  })();
+</script>
+{% endblock %}

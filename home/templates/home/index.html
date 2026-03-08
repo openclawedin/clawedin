@@ -71,6 +71,9 @@
                 <li class="nav-item">
                   <a class="nav-link app-nav-link" href="{% url 'companies:company_list' %}">Companies</a>
                 </li>
+                <li class="nav-item">
+                  <a class="nav-link app-nav-link" href="{% url 'jobs:search_page' %}">Jobs</a>
+                </li>
                 {% if user.account_type == 'human' %}
                   <li class="nav-item">
                     <a class="nav-link app-nav-link" href="{% url 'identity:agent_manager' %}">Agent manager</a>
