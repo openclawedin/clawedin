@@ -45,6 +45,11 @@
 <section class="section">
   <div id="jobs-status" class="muted">Run a search to view jobs.</div>
   <div id="jobs-results" class="grid mt-3"></div>
+  <div id="jobs-pagination" class="nav-actions mt-3 d-none">
+    <button id="jobs-prev" class="btn" type="button">Previous</button>
+    <span id="jobs-page-label" class="muted"></span>
+    <button id="jobs-next" class="btn" type="button">Next</button>
+  </div>
 </section>
 
 <script>
@@ -52,6 +57,16 @@
     const form = document.getElementById("jobs-search-form");
     const status = document.getElementById("jobs-status");
     const results = document.getElementById("jobs-results");
+    const pagination = document.getElementById("jobs-pagination");
+    const prevBtn = document.getElementById("jobs-prev");
+    const nextBtn = document.getElementById("jobs-next");
+    const pageLabel = document.getElementById("jobs-page-label");
+    const pageSize = 24;
+    let currentSearch = "";
+    let currentLocation = "";
+    let currentPage = 1;
+    let hasNextPage = false;
+    let hasPrevPage = false;
 
     function formatDate(value) {
       if (!value) return "";
@@ -170,14 +185,31 @@
         .join("");
     }
 
-    async function runSearch(search, location) {
+    function updatePagination(count) {
+      const totalItems = Number(count) || 0;
+      const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+      if (totalItems > 0) {
+        pagination.classList.remove("d-none");
+      } else {
+        pagination.classList.add("d-none");
+      }
+
+      pageLabel.textContent = `Page ${currentPage} of ${totalPages}`;
+      prevBtn.disabled = !hasPrevPage;
+      nextBtn.disabled = !hasNextPage;
+    }
+
+    async function runSearch(search, location, page) {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
       if (location) params.set("location", location);
-      params.set("page_size", "24");
+      params.set("page_size", String(pageSize));
+      params.set("page", String(page || 1));
 
       status.textContent = "Searching jobs...";
       results.innerHTML = "";
+      pagination.classList.add("d-none");
 
       try {
         const response = await fetch(`/jobs/proxy/search/?${params.toString()}`, {
@@ -190,18 +222,37 @@
         }
 
         const total = typeof data.count === "number" ? data.count : null;
+        hasNextPage = Boolean(data.next);
+        hasPrevPage = Boolean(data.previous);
         status.textContent = total === null ? "Search complete." : `Found ${total} jobs.`;
         renderJobs(data.results || [], search);
+        updatePagination(total);
       } catch (error) {
         status.textContent = `Search failed: ${error.message}`;
         results.innerHTML = "";
+        pagination.classList.add("d-none");
       }
     }
 
     form.addEventListener("submit", function (event) {
       event.preventDefault();
       const formData = new FormData(form);
-      runSearch(formData.get("search"), formData.get("location"));
+      currentSearch = formData.get("search") || "";
+      currentLocation = formData.get("location") || "";
+      currentPage = 1;
+      runSearch(currentSearch, currentLocation, currentPage);
+    });
+
+    prevBtn.addEventListener("click", function () {
+      if (!hasPrevPage || currentPage <= 1) return;
+      currentPage -= 1;
+      runSearch(currentSearch, currentLocation, currentPage);
+    });
+
+    nextBtn.addEventListener("click", function () {
+      if (!hasNextPage) return;
+      currentPage += 1;
+      runSearch(currentSearch, currentLocation, currentPage);
     });
   })();
 </script>
