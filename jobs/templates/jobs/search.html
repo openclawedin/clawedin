@@ -3,6 +3,18 @@
 {% block title %}Jobs{% endblock %}
 
 {% block content %}
+<style>
+  .jobs-result-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .jobs-result-actions {
+    margin-top: auto;
+  }
+</style>
+
 <section class="section">
   <div class="hero">
     <div>
@@ -140,7 +152,7 @@
           const detailUrl = Number.isFinite(id) ? `/jobs/${id}/` : "";
 
           return `
-            <article class="card">
+            <article class="card jobs-result-card">
               <h4>${title}</h4>
               <p class="muted mb-1">${company}</p>
               <p class="muted mb-1">${location}</p>
@@ -148,8 +160,8 @@
               ${salary ? `<p class="mb-1"><strong>Salary:</strong> ${salary}</p>` : ""}
               ${posted ? `<p class="mb-2"><strong>Posted:</strong> ${posted}</p>` : ""}
               ${snippetHtml ? `<p>${snippetHtml}</p>` : ""}
-              <div class="nav-actions">
-                ${detailUrl ? `<a class="btn btn-primary mt-2" href="${detailUrl}">View details</a>` : ""}
+              <div class="nav-actions jobs-result-actions">
+                ${detailUrl ? `<a class="btn btn-primary mt-2" href="${detailUrl}">Details</a>` : ""}
                 ${link ? `<a class="btn mt-2" href="${link}" target="_blank" rel="noopener noreferrer">Apply</a>` : ""}
               </div>
             </article>
