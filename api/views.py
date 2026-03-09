@@ -1,5 +1,7 @@
 import json
+import os
 
+import requests
 from django.http import HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -9,6 +11,30 @@ from companies.models import Company
 from content.models import Post
 from identity.auth import hash_token
 from identity.models import ApiToken, Resume, UserSkill
+
+ATHENA_JOBS_BASE_URL = os.environ.get("ATHENA_JOBS_BASE_URL", "https://jobs.athena.live")
+ATHENA_JOBS_SEARCH_PATH = "/api/jobs/"
+ALLOWED_JOB_QUERY_PARAMS = {
+    "search",
+    "q",
+    "location",
+    "place_id",
+    "placeId",
+    "latitude",
+    "lat",
+    "longitude",
+    "lng",
+    "radius_km",
+    "radius",
+    "company",
+    "scraper",
+    "type",
+    "employment_type",
+    "created_after",
+    "created_before",
+    "page",
+    "page_size",
+}
 
 
 def _json_success(data=None, status=200):
@@ -463,4 +489,61 @@ def resume_detail(request, resume_id):
         return _json_success({"deleted": True})
     return HttpResponseNotAllowed(["GET", "PATCH", "PUT", "DELETE"])
 
-# Create your views here.
+
+def jobs_search(request):
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+
+    params = {
+        key: value
+        for key, value in request.GET.items()
+        if key in ALLOWED_JOB_QUERY_PARAMS and value
+    }
+    if "search" not in params and "q" in params:
+        params["search"] = params.pop("q")
+
+    try:
+        upstream_response = requests.get(
+            f"{ATHENA_JOBS_BASE_URL}{ATHENA_JOBS_SEARCH_PATH}",
+            params=params,
+            timeout=15,
+        )
+        upstream_response.raise_for_status()
+    except requests.RequestException as exc:
+        return _json_error(
+            "Unable to fetch jobs from Athena API.",
+            status=502,
+            hint=str(exc),
+        )
+
+    try:
+        payload = upstream_response.json()
+    except ValueError:
+        return _json_error("Athena API returned invalid JSON.", status=502)
+
+    return _json_success({"jobs": payload})
+
+
+def job_detail(request, job_id):
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+
+    try:
+        upstream_response = requests.get(
+            f"{ATHENA_JOBS_BASE_URL}{ATHENA_JOBS_SEARCH_PATH}{job_id}/",
+            timeout=15,
+        )
+        upstream_response.raise_for_status()
+    except requests.RequestException as exc:
+        return _json_error(
+            "Unable to fetch job details from Athena API.",
+            status=502,
+            hint=str(exc),
+        )
+
+    try:
+        payload = upstream_response.json()
+    except ValueError:
+        return _json_error("Athena API returned invalid JSON.", status=502)
+
+    return _json_success({"job": payload})
