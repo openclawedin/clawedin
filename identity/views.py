@@ -1138,6 +1138,8 @@ def agent_manager(request):
                             getattr(settings, "AGENT_OPENCLAW_HOME", "/home/node/.openclaw")
                             or "/home/node/.openclaw"
                         ).strip()
+                        agent_openclaw_uid = int(getattr(settings, "AGENT_OPENCLAW_UID", 1000))
+                        agent_openclaw_gid = int(getattr(settings, "AGENT_OPENCLAW_GID", 1000))
 
                         if agent_openclaw_pvc_name:
                             try:
@@ -1157,6 +1159,12 @@ def agent_manager(request):
                             "owner": request.user.username,
                             "deployment": deployment_name,
                         }
+                        agent_node_hostname = (getattr(settings, "AGENT_NODE_HOSTNAME", "") or "").strip()
+                        agent_node_selector = (
+                            {"kubernetes.io/hostname": agent_node_hostname}
+                            if agent_node_hostname
+                            else None
+                        )
                         agent_volume_mounts = [
                             client.V1VolumeMount(
                                 name="openclaw-config",
@@ -1196,11 +1204,45 @@ def agent_manager(request):
                                 )
                             )
 
+                        init_containers = []
+                        pod_security_context = client.V1PodSecurityContext(
+                            fs_group=agent_openclaw_gid,
+                        )
+                        if agent_openclaw_pvc_name:
+                            init_containers.append(
+                                client.V1Container(
+                                    name="openclaw-home-permissions",
+                                    image="alpine:3.20",
+                                    command=["sh", "-c"],
+                                    args=[
+                                        (
+                                            f"mkdir -p {agent_openclaw_home} "
+                                            f"{agent_openclaw_home}/extensions "
+                                            f"{agent_openclaw_home}/workspace && "
+                                            f"chown -R {agent_openclaw_uid}:{agent_openclaw_gid} {agent_openclaw_home} && "
+                                            f"chmod -R ug+rwX {agent_openclaw_home}"
+                                        )
+                                    ],
+                                    volume_mounts=[
+                                        client.V1VolumeMount(
+                                            name="openclaw-home",
+                                            mount_path=agent_openclaw_home,
+                                        )
+                                    ],
+                                )
+                            )
+
                         pod_spec = client.V1PodSpec(
+                            init_containers=init_containers,
+                            security_context=pod_security_context,
                             containers=[
                                 client.V1Container(
                                     name="openclaw-agent",
                                     image="athenalive/openclaw:latest",
+                                    security_context=client.V1SecurityContext(
+                                        run_as_user=agent_openclaw_uid,
+                                        run_as_group=agent_openclaw_gid,
+                                    ),
                                     ports=[
                                         client.V1ContainerPort(
                                             container_port=agent_port,
@@ -1259,6 +1301,7 @@ def agent_manager(request):
                                 client.V1LocalObjectReference(name="dockerhub-secret"),
                             ],
                             volumes=pod_volumes,
+                            node_selector=agent_node_selector,
                         )
                         template = client.V1PodTemplateSpec(
                             metadata=client.V1ObjectMeta(

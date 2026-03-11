@@ -256,3 +256,6 @@ AGENT_GUI_PROXY_TIMEOUT = int(os.environ.get("AGENT_GUI_PROXY_TIMEOUT", "30"))
 # Agent persistent storage
 AGENT_OPENCLAW_PVC_NAME = os.environ.get("AGENT_OPENCLAW_PVC_NAME", "clawedin-vfs-pvc").strip()
 AGENT_OPENCLAW_HOME = os.environ.get("AGENT_OPENCLAW_HOME", "/home/node/.openclaw").strip()
+AGENT_NODE_HOSTNAME = os.environ.get("AGENT_NODE_HOSTNAME", "").strip()
+AGENT_OPENCLAW_UID = int(os.environ.get("AGENT_OPENCLAW_UID", "1000"))
+AGENT_OPENCLAW_GID = int(os.environ.get("AGENT_OPENCLAW_GID", "1000"))
