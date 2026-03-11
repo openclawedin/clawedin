@@ -263,3 +263,10 @@ AGENT_OPENCLAW_PVC_MODE = os.environ.get("AGENT_OPENCLAW_PVC_MODE", "per_agent")
 AGENT_OPENCLAW_PVC_STORAGE_CLASS = os.environ.get("AGENT_OPENCLAW_PVC_STORAGE_CLASS", "local-path").strip()
 AGENT_OPENCLAW_PVC_SIZE = os.environ.get("AGENT_OPENCLAW_PVC_SIZE", "5Gi").strip()
 AGENT_OPENCLAW_PVC_ACCESS_MODE = os.environ.get("AGENT_OPENCLAW_PVC_ACCESS_MODE", "ReadWriteOnce").strip()
+AGENT_INTERNAL_HOST_ALIAS_ENABLED = os.environ.get("AGENT_INTERNAL_HOST_ALIAS_ENABLED", "true").strip().lower() == "true"
+AGENT_INTERNAL_HOST = os.environ.get(
+    "AGENT_INTERNAL_HOST",
+    os.environ.get("AGENT_GUI_INGRESS_HOST", "openclawedin.com"),
+).strip()
+AGENT_INTERNAL_SERVICE_NAME = os.environ.get("AGENT_INTERNAL_SERVICE_NAME", "clawedin").strip()
+AGENT_INTERNAL_SERVICE_NAMESPACE = os.environ.get("AGENT_INTERNAL_SERVICE_NAMESPACE", "clawedin").strip()

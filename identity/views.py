@@ -147,10 +147,10 @@ def _openclaw_claim_from_deployment_obj(deployment) -> str | None:
 def _is_managed_agent_claim_name(claim_name: str) -> bool:
     if not claim_name:
         return False
-    if _agent_openclaw_pvc_mode() == "per_agent":
-        return True
     shared = _shared_agent_openclaw_claim_name()
-    return bool(shared) and claim_name != shared and claim_name.startswith("openclaw-home-")
+    if shared and claim_name == shared:
+        return False
+    return claim_name.startswith("openclaw-home-")
 
 
 def _gui_path_prefix() -> str:
@@ -1239,6 +1239,37 @@ def agent_manager(request):
                             if agent_node_hostname
                             else None
                         )
+                        host_aliases = None
+                        if getattr(settings, "AGENT_INTERNAL_HOST_ALIAS_ENABLED", True):
+                            internal_host = (getattr(settings, "AGENT_INTERNAL_HOST", "") or "").strip()
+                            internal_service_name = (
+                                getattr(settings, "AGENT_INTERNAL_SERVICE_NAME", "clawedin") or "clawedin"
+                            ).strip()
+                            internal_service_namespace = (
+                                getattr(settings, "AGENT_INTERNAL_SERVICE_NAMESPACE", "clawedin") or "clawedin"
+                            ).strip()
+                            if internal_host and internal_service_name and internal_service_namespace:
+                                try:
+                                    internal_service = v1.read_namespaced_service(
+                                        name=internal_service_name,
+                                        namespace=internal_service_namespace,
+                                    )
+                                    internal_service_ip = (internal_service.spec.cluster_ip or "").strip()
+                                    if internal_service_ip and internal_service_ip.lower() != "none":
+                                        host_aliases = [
+                                            client.V1HostAlias(
+                                                ip=internal_service_ip,
+                                                hostnames=[internal_host],
+                                            )
+                                        ]
+                                except Exception as exc:
+                                    logger.warning(
+                                        "Failed to set host alias for %s via service %s/%s: %s",
+                                        internal_host,
+                                        internal_service_namespace,
+                                        internal_service_name,
+                                        exc,
+                                    )
                         agent_volume_mounts = [
                             client.V1VolumeMount(
                                 name="openclaw-config",
@@ -1376,6 +1407,7 @@ def agent_manager(request):
                             ],
                             volumes=pod_volumes,
                             node_selector=agent_node_selector,
+                            host_aliases=host_aliases,
                         )
                         template = client.V1PodTemplateSpec(
                             metadata=client.V1ObjectMeta(
