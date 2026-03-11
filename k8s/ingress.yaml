@@ -20,3 +20,13 @@ spec:
                 name: clawedin
                 port:
                   number: 80
+    - host: www.openclawedin.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: clawedin
+                port:
+                  number: 80
