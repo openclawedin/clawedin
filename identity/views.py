@@ -1555,13 +1555,29 @@ def agent_detail(request, pod_name: str):
             ):
                 messages.error(request, "You do not have permission to view this agent.")
                 return redirect("identity:agent_manager")
-            logs = v1.read_namespaced_pod_log(
-                name=pod_name,
-                namespace=namespace,
-                container="openclaw-agent",
-                tail_lines=tail_lines_int,
-                timestamps=True,
-            )
+            startup_wait_seconds = 2
+            startup_max_retries = 3
+            for attempt in range(startup_max_retries + 1):
+                try:
+                    logs = v1.read_namespaced_pod_log(
+                        name=pod_name,
+                        namespace=namespace,
+                        container="openclaw-agent",
+                        tail_lines=tail_lines_int,
+                        timestamps=True,
+                    )
+                    break
+                except client.exceptions.ApiException as exc:
+                    body = getattr(exc, "body", "") or ""
+                    # During startup, log reads can return 400 while the container is ContainerCreating.
+                    if exc.status == 400 and "ContainerCreating" in body:
+                        if attempt < startup_max_retries:
+                            time.sleep(startup_wait_seconds)
+                            continue
+                        logs = "Agent container is starting. Please refresh in a few seconds."
+                        error_message = None
+                        break
+                    raise
         except client.exceptions.ApiException as exc:
             if exc.status == 404:
                 messages.error(request, "Pod not found.")
