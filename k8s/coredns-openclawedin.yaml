@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  openclawedin.override: |
+    rewrite stop {
+      name exact openclawedin.com traefik.kube-system.svc.cluster.local
+      name regex (.*)\.openclawedin\.com traefik.kube-system.svc.cluster.local
+    }

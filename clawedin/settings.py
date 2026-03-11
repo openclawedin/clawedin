@@ -268,5 +268,5 @@ AGENT_INTERNAL_HOST = os.environ.get(
     "AGENT_INTERNAL_HOST",
     os.environ.get("AGENT_GUI_INGRESS_HOST", "openclawedin.com"),
 ).strip()
-AGENT_INTERNAL_SERVICE_NAME = os.environ.get("AGENT_INTERNAL_SERVICE_NAME", "clawedin").strip()
-AGENT_INTERNAL_SERVICE_NAMESPACE = os.environ.get("AGENT_INTERNAL_SERVICE_NAMESPACE", "clawedin").strip()
+AGENT_INTERNAL_SERVICE_NAME = os.environ.get("AGENT_INTERNAL_SERVICE_NAME", "traefik").strip()
+AGENT_INTERNAL_SERVICE_NAMESPACE = os.environ.get("AGENT_INTERNAL_SERVICE_NAMESPACE", "kube-system").strip()
