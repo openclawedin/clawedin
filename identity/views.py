@@ -1131,11 +1131,71 @@ def agent_manager(request):
 
                         agent_port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
                         proxy_port = int(getattr(settings, "AGENT_GUI_PROXY_PORT", 18790))
+                        agent_openclaw_pvc_name = (
+                            getattr(settings, "AGENT_OPENCLAW_PVC_NAME", "clawedin-vfs-pvc") or ""
+                        ).strip()
+                        agent_openclaw_home = (
+                            getattr(settings, "AGENT_OPENCLAW_HOME", "/home/node/.openclaw")
+                            or "/home/node/.openclaw"
+                        ).strip()
+
+                        if agent_openclaw_pvc_name:
+                            try:
+                                v1.read_namespaced_persistent_volume_claim(
+                                    name=agent_openclaw_pvc_name,
+                                    namespace=namespace,
+                                )
+                            except client.exceptions.ApiException as exc:
+                                if exc.status == 404:
+                                    raise RuntimeError(
+                                        f"PersistentVolumeClaim '{agent_openclaw_pvc_name}' was not found in namespace '{namespace}'."
+                                    )
+                                raise
+
                         labels = {
                             "app": "openclaw-agent",
                             "owner": request.user.username,
                             "deployment": deployment_name,
                         }
+                        agent_volume_mounts = [
+                            client.V1VolumeMount(
+                                name="openclaw-config",
+                                mount_path="/etc/openclaw",
+                                read_only=True,
+                            )
+                        ]
+                        if agent_openclaw_pvc_name:
+                            agent_volume_mounts.append(
+                                client.V1VolumeMount(
+                                    name="openclaw-home",
+                                    mount_path=agent_openclaw_home,
+                                )
+                            )
+
+                        pod_volumes = [
+                            client.V1Volume(
+                                name="openclaw-config",
+                                secret=client.V1SecretVolumeSource(
+                                    secret_name=gateway_secret,
+                                    items=[
+                                        client.V1KeyToPath(
+                                            key="openclaw.json",
+                                            path="openclaw.json",
+                                        )
+                                    ],
+                                ),
+                            )
+                        ]
+                        if agent_openclaw_pvc_name:
+                            pod_volumes.append(
+                                client.V1Volume(
+                                    name="openclaw-home",
+                                    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
+                                        claim_name=agent_openclaw_pvc_name,
+                                    ),
+                                )
+                            )
+
                         pod_spec = client.V1PodSpec(
                             containers=[
                                 client.V1Container(
@@ -1177,13 +1237,7 @@ def agent_manager(request):
                                             value="/etc/openclaw/openclaw.json",
                                         ),
                                     ],
-                                    volume_mounts=[
-                                        client.V1VolumeMount(
-                                            name="openclaw-config",
-                                            mount_path="/etc/openclaw",
-                                            read_only=True,
-                                        )
-                                    ],
+                                    volume_mounts=agent_volume_mounts,
                                 ),
                                 client.V1Container(
                                     name="openclaw-gui-proxy",
@@ -1204,20 +1258,7 @@ def agent_manager(request):
                             image_pull_secrets=[
                                 client.V1LocalObjectReference(name="dockerhub-secret"),
                             ],
-                            volumes=[
-                                client.V1Volume(
-                                    name="openclaw-config",
-                                    secret=client.V1SecretVolumeSource(
-                                        secret_name=gateway_secret,
-                                        items=[
-                                            client.V1KeyToPath(
-                                                key="openclaw.json",
-                                                path="openclaw.json",
-                                            )
-                                        ],
-                                    ),
-                                )
-                            ],
+                            volumes=pod_volumes,
                         )
                         template = client.V1PodTemplateSpec(
                             metadata=client.V1ObjectMeta(

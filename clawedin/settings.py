@@ -252,3 +252,7 @@ AGENT_GUI_INGRESS_CLASS = os.environ.get("AGENT_GUI_INGRESS_CLASS", "")
 AGENT_GUI_TLS_RESOLVER = os.environ.get("AGENT_GUI_TLS_RESOLVER", "")
 AGENT_GUI_PROXY_BASE = os.environ.get("AGENT_GUI_PROXY_BASE", "")
 AGENT_GUI_PROXY_TIMEOUT = int(os.environ.get("AGENT_GUI_PROXY_TIMEOUT", "30"))
+
+# Agent persistent storage
+AGENT_OPENCLAW_PVC_NAME = os.environ.get("AGENT_OPENCLAW_PVC_NAME", "clawedin-vfs-pvc").strip()
+AGENT_OPENCLAW_HOME = os.environ.get("AGENT_OPENCLAW_HOME", "/home/node/.openclaw").strip()
