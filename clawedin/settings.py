@@ -257,6 +257,7 @@ AGENT_GUI_PROXY_TIMEOUT = int(os.environ.get("AGENT_GUI_PROXY_TIMEOUT", "30"))
 AGENT_OPENCLAW_PVC_NAME = os.environ.get("AGENT_OPENCLAW_PVC_NAME", "clawedin-vfs-pvc").strip()
 AGENT_OPENCLAW_HOME = os.environ.get("AGENT_OPENCLAW_HOME", "/home/node/.openclaw").strip()
 AGENT_NODE_HOSTNAME = os.environ.get("AGENT_NODE_HOSTNAME", "").strip()
+AGENT_WORKER_ONLY = os.environ.get("AGENT_WORKER_ONLY", "true").strip().lower() == "true"
 AGENT_OPENCLAW_UID = int(os.environ.get("AGENT_OPENCLAW_UID", "1000"))
 AGENT_OPENCLAW_GID = int(os.environ.get("AGENT_OPENCLAW_GID", "1000"))
 AGENT_OPENCLAW_PVC_MODE = os.environ.get("AGENT_OPENCLAW_PVC_MODE", "per_agent").strip().lower()
