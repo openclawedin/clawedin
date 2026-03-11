@@ -1,0 +1,33 @@
+ingressClass:
+  enabled: true
+  isDefaultClass: false
+  name: traefik
+
+providers:
+  kubernetesCRD:
+    enabled: true
+  kubernetesIngress:
+    enabled: true
+
+ports:
+  web:
+    port: 80
+    expose:
+      default: true
+  websecure:
+    port: 443
+    expose:
+      default: true
+
+persistence:
+  enabled: true
+  name: data
+  accessMode: ReadWriteOnce
+  size: 1Gi
+  path: /data
+
+additionalArguments:
+  - "--certificatesresolvers.clawedincert.acme.email=noreply@openclawedin.com"
+  - "--certificatesresolvers.clawedincert.acme.storage=/data/acme.json"
+  - "--certificatesresolvers.clawedincert.acme.httpchallenge=true"
+  - "--certificatesresolvers.clawedincert.acme.httpchallenge.entrypoint=web"
