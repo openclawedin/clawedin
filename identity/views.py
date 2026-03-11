@@ -53,6 +53,7 @@ from .kube import (
     gateway_secret_name,
     gateway_secret_name_for_deployment,
     load_kube_config,
+    normalize_k8s_name,
     normalize_namespace,
     openai_secret_name_for_deployment,
     resolve_agent_namespace,
@@ -113,6 +114,43 @@ def _ensure_dockerhub_secret(client_module, v1, namespace: str, source_namespace
         data=source_secret.data,
     )
     v1.create_namespaced_secret(namespace, secret_body)
+
+
+def _agent_openclaw_pvc_mode() -> str:
+    mode = (getattr(settings, "AGENT_OPENCLAW_PVC_MODE", "per_agent") or "per_agent").strip().lower()
+    if mode in {"per-agent", "per_agent", "dedicated"}:
+        return "per_agent"
+    return "shared"
+
+
+def _shared_agent_openclaw_claim_name() -> str:
+    return (getattr(settings, "AGENT_OPENCLAW_PVC_NAME", "clawedin-vfs-pvc") or "").strip()
+
+
+def _agent_openclaw_claim_name_for_deployment(deployment_name: str, user_id: int) -> str:
+    return normalize_k8s_name(
+        f"openclaw-home-{deployment_name}",
+        f"openclaw-home-{user_id}",
+    )
+
+
+def _openclaw_claim_from_deployment_obj(deployment) -> str | None:
+    if not deployment or not deployment.spec or not deployment.spec.template or not deployment.spec.template.spec:
+        return None
+    for volume in deployment.spec.template.spec.volumes or []:
+        pvc = getattr(volume, "persistent_volume_claim", None)
+        if volume.name == "openclaw-home" and pvc and pvc.claim_name:
+            return pvc.claim_name
+    return None
+
+
+def _is_managed_agent_claim_name(claim_name: str) -> bool:
+    if not claim_name:
+        return False
+    if _agent_openclaw_pvc_mode() == "per_agent":
+        return True
+    shared = _shared_agent_openclaw_claim_name()
+    return bool(shared) and claim_name != shared and claim_name.startswith("openclaw-home-")
 
 
 def _gui_path_prefix() -> str:
@@ -1131,15 +1169,30 @@ def agent_manager(request):
 
                         agent_port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
                         proxy_port = int(getattr(settings, "AGENT_GUI_PROXY_PORT", 18790))
-                        agent_openclaw_pvc_name = (
-                            getattr(settings, "AGENT_OPENCLAW_PVC_NAME", "clawedin-vfs-pvc") or ""
-                        ).strip()
+                        agent_openclaw_pvc_mode = _agent_openclaw_pvc_mode()
+                        shared_agent_openclaw_pvc_name = _shared_agent_openclaw_claim_name()
+                        if agent_openclaw_pvc_mode == "per_agent":
+                            agent_openclaw_pvc_name = _agent_openclaw_claim_name_for_deployment(
+                                deployment_name,
+                                request.user.id,
+                            )
+                        else:
+                            agent_openclaw_pvc_name = shared_agent_openclaw_pvc_name
                         agent_openclaw_home = (
                             getattr(settings, "AGENT_OPENCLAW_HOME", "/home/node/.openclaw")
                             or "/home/node/.openclaw"
                         ).strip()
                         agent_openclaw_uid = int(getattr(settings, "AGENT_OPENCLAW_UID", 1000))
                         agent_openclaw_gid = int(getattr(settings, "AGENT_OPENCLAW_GID", 1000))
+                        agent_openclaw_pvc_storage_class = (
+                            getattr(settings, "AGENT_OPENCLAW_PVC_STORAGE_CLASS", "local-path") or "local-path"
+                        ).strip()
+                        agent_openclaw_pvc_size = (
+                            getattr(settings, "AGENT_OPENCLAW_PVC_SIZE", "5Gi") or "5Gi"
+                        ).strip()
+                        agent_openclaw_pvc_access_mode = (
+                            getattr(settings, "AGENT_OPENCLAW_PVC_ACCESS_MODE", "ReadWriteOnce") or "ReadWriteOnce"
+                        ).strip()
 
                         if agent_openclaw_pvc_name:
                             try:
@@ -1149,10 +1202,31 @@ def agent_manager(request):
                                 )
                             except client.exceptions.ApiException as exc:
                                 if exc.status == 404:
-                                    raise RuntimeError(
-                                        f"PersistentVolumeClaim '{agent_openclaw_pvc_name}' was not found in namespace '{namespace}'."
-                                    )
-                                raise
+                                    if agent_openclaw_pvc_mode == "per_agent":
+                                        pvc_body = client.V1PersistentVolumeClaim(
+                                            metadata=client.V1ObjectMeta(
+                                                name=agent_openclaw_pvc_name,
+                                                labels={
+                                                    "app": "openclaw-agent",
+                                                    "owner": request.user.username,
+                                                    "deployment": deployment_name,
+                                                },
+                                            ),
+                                            spec=client.V1PersistentVolumeClaimSpec(
+                                                access_modes=[agent_openclaw_pvc_access_mode],
+                                                resources=client.V1ResourceRequirements(
+                                                    requests={"storage": agent_openclaw_pvc_size},
+                                                ),
+                                                storage_class_name=agent_openclaw_pvc_storage_class,
+                                            ),
+                                        )
+                                        v1.create_namespaced_persistent_volume_claim(namespace, pvc_body)
+                                    else:
+                                        raise RuntimeError(
+                                            f"PersistentVolumeClaim '{agent_openclaw_pvc_name}' was not found in namespace '{namespace}'."
+                                        )
+                                else:
+                                    raise
 
                         labels = {
                             "app": "openclaw-agent",
@@ -1538,6 +1612,7 @@ def agent_detail(request, pod_name: str):
                             name=deployment_name,
                             namespace=resolved_namespace,
                         )
+                        agent_home_claim_name = _openclaw_claim_from_deployment_obj(deployment)
                         if (
                             deployment
                             and deployment.metadata
@@ -1559,6 +1634,20 @@ def agent_detail(request, pod_name: str):
                             )
                             return redirect("identity:agent_manager")
                         apps.delete_namespaced_deployment(name=deployment_name, namespace=resolved_namespace)
+                        if agent_home_claim_name and _is_managed_agent_claim_name(agent_home_claim_name):
+                            try:
+                                v1.delete_namespaced_persistent_volume_claim(
+                                    name=agent_home_claim_name,
+                                    namespace=resolved_namespace,
+                                )
+                            except client.exceptions.ApiException as pvc_exc:
+                                if pvc_exc.status != 404:
+                                    logger.warning(
+                                        "Failed to delete managed PVC %s in %s: %s",
+                                        agent_home_claim_name,
+                                        resolved_namespace,
+                                        pvc_exc,
+                                    )
                     except Exception as exc:
                         messages.error(request, f"Failed to delete deployment: {exc}")
                         return redirect("identity:agent_detail", pod_name=pod_name)

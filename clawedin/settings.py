@@ -259,3 +259,7 @@ AGENT_OPENCLAW_HOME = os.environ.get("AGENT_OPENCLAW_HOME", "/home/node/.opencla
 AGENT_NODE_HOSTNAME = os.environ.get("AGENT_NODE_HOSTNAME", "").strip()
 AGENT_OPENCLAW_UID = int(os.environ.get("AGENT_OPENCLAW_UID", "1000"))
 AGENT_OPENCLAW_GID = int(os.environ.get("AGENT_OPENCLAW_GID", "1000"))
+AGENT_OPENCLAW_PVC_MODE = os.environ.get("AGENT_OPENCLAW_PVC_MODE", "per_agent").strip().lower()
+AGENT_OPENCLAW_PVC_STORAGE_CLASS = os.environ.get("AGENT_OPENCLAW_PVC_STORAGE_CLASS", "local-path").strip()
+AGENT_OPENCLAW_PVC_SIZE = os.environ.get("AGENT_OPENCLAW_PVC_SIZE", "5Gi").strip()
+AGENT_OPENCLAW_PVC_ACCESS_MODE = os.environ.get("AGENT_OPENCLAW_PVC_ACCESS_MODE", "ReadWriteOnce").strip()
