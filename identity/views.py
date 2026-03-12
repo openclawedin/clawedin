@@ -1132,6 +1132,11 @@ def agent_manager(request):
                                 raise
 
                         gateway_token = secrets.token_urlsafe(32)
+                        browser_ssrf_allowed_hostnames = [
+                            value.strip()
+                            for value in getattr(settings, "AGENT_BROWSER_SSRF_ALLOWED_HOSTNAMES", [])
+                            if isinstance(value, str) and value.strip()
+                        ]
                         gateway_config = {
                             "gateway": {
                                 "auth": {"token": gateway_token},
@@ -1149,6 +1154,12 @@ def agent_manager(request):
                                 }
                             },
                         }
+                        if browser_ssrf_allowed_hostnames:
+                            gateway_config["browser"] = {
+                                "ssrfPolicy": {
+                                    "allowedHostnames": browser_ssrf_allowed_hostnames,
+                                }
+                            }
                         gateway_secret = gateway_secret_name_for_deployment(deployment_name, request.user.id)
                         gateway_secret_body = client.V1Secret(
                             metadata=client.V1ObjectMeta(name=gateway_secret),

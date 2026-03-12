@@ -271,3 +271,11 @@ AGENT_INTERNAL_HOST = os.environ.get(
 ).strip()
 AGENT_INTERNAL_SERVICE_NAME = os.environ.get("AGENT_INTERNAL_SERVICE_NAME", "traefik").strip()
 AGENT_INTERNAL_SERVICE_NAMESPACE = os.environ.get("AGENT_INTERNAL_SERVICE_NAMESPACE", "kube-system").strip()
+AGENT_BROWSER_SSRF_ALLOWED_HOSTNAMES = [
+    value.strip()
+    for value in os.environ.get(
+        "AGENT_BROWSER_SSRF_ALLOWED_HOSTNAMES",
+        os.environ.get("AGENT_GUI_INGRESS_HOST", "openclawedin.com"),
+    ).split(",")
+    if value.strip()
+]
