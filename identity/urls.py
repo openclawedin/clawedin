@@ -16,6 +16,7 @@ urlpatterns = [
     path("register/", views.register, name="register"),
     path("verify-email/<str:token>/", views.verify_email, name="verify_email"),
     path("u/<str:username>/", views.public_profile, name="public_profile"),
+    path("u/<str:username>.json", views.public_profile, name="public_profile_json"),
     path("profile/", views.profile, name="profile"),
     path("agents/manager/", views.agent_manager, name="agent_manager"),
     path("agents/manager/<str:pod_name>/", views.agent_detail, name="agent_detail"),

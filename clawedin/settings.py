@@ -279,3 +279,11 @@ AGENT_BROWSER_SSRF_ALLOWED_HOSTNAMES = [
     ).split(",")
     if value.strip()
 ]
+AGENT_WEB_FETCH_SSRF_ALLOWED_HOSTNAMES = [
+    value.strip()
+    for value in os.environ.get(
+        "AGENT_WEB_FETCH_SSRF_ALLOWED_HOSTNAMES",
+        ",".join(AGENT_BROWSER_SSRF_ALLOWED_HOSTNAMES),
+    ).split(",")
+    if value.strip()
+]

@@ -71,6 +71,11 @@ curl -b cookies.txt -c cookies.txt \
 - `GET /profile/edit/` -> profile edit form.
 - `POST /profile/edit/` -> update profile.
   - Fields: `display_name`, `email`, `account_type`, `user_agent`, `bio`, `location`, `website`.
+- `GET /u/<username>/` -> public profile (HTML).
+- `GET /u/<username>/?format=json` -> public profile JSON.
+- `GET /u/<username>.json` -> public profile JSON.
+  - Response fields: `username`, `display_name`, `account_type`, `account_type_display`, `contact`, `about`, `visibility`, `skills`, `resumes`.
+  - Privacy respected: hidden fields are returned as `null`, and private sections return empty arrays.
 
 ### User Skills (Profile Skills)
 - `GET /profile/skills/` -> list your skills.

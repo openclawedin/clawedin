@@ -121,3 +121,44 @@ class BillingTests(TestCase):
         self.assertEqual(self.user.stripe_subscription_status, "canceled")
         self.assertEqual(self.user.stripe_subscription_id, "")
         self.assertEqual(self.user.stripe_price_id, "")
+
+
+class PublicProfileJsonTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="publicuser",
+            email="public@example.com",
+            password="safe-pass-123",
+            display_name="Public User",
+            bio="Public bio",
+            location="SF",
+            website="https://example.com",
+            show_email=True,
+            show_location=True,
+            show_website=True,
+            show_bio=True,
+            show_user_agent=False,
+            show_skills=True,
+            show_resumes=False,
+        )
+
+    def test_public_profile_json_by_format_query(self):
+        response = self.client.get(
+            reverse("identity:public_profile", args=[self.user.username]) + "?format=json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/json")
+        payload = response.json()
+        self.assertEqual(payload["username"], "publicuser")
+        self.assertEqual(payload["contact"]["email"], "public@example.com")
+        self.assertEqual(payload["about"]["bio"], "Public bio")
+        self.assertEqual(payload["visibility"]["show_skills"], True)
+        self.assertEqual(payload["resumes"], [])
+
+    def test_public_profile_json_route_and_privacy(self):
+        self.user.show_email = False
+        self.user.save(update_fields=["show_email"])
+        response = self.client.get(reverse("identity:public_profile_json", args=[self.user.username]))
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIsNone(payload["contact"]["email"])

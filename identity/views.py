@@ -1137,6 +1137,11 @@ def agent_manager(request):
                             for value in getattr(settings, "AGENT_BROWSER_SSRF_ALLOWED_HOSTNAMES", [])
                             if isinstance(value, str) and value.strip()
                         ]
+                        web_fetch_ssrf_allowed_hostnames = [
+                            value.strip()
+                            for value in getattr(settings, "AGENT_WEB_FETCH_SSRF_ALLOWED_HOSTNAMES", [])
+                            if isinstance(value, str) and value.strip()
+                        ]
                         gateway_config = {
                             "gateway": {
                                 "auth": {"token": gateway_token},
@@ -1158,6 +1163,12 @@ def agent_manager(request):
                             gateway_config["browser"] = {
                                 "ssrfPolicy": {
                                     "allowedHostnames": browser_ssrf_allowed_hostnames,
+                                }
+                            }
+                        if web_fetch_ssrf_allowed_hostnames:
+                            gateway_config.setdefault("tools", {}).setdefault("web", {})["fetch"] = {
+                                "ssrfPolicy": {
+                                    "allowedHostnames": web_fetch_ssrf_allowed_hostnames,
                                 }
                             }
                         gateway_secret = gateway_secret_name_for_deployment(deployment_name, request.user.id)
@@ -1554,6 +1565,58 @@ def public_profile(request, username: str):
         skills = UserSkill.objects.filter(user=user).order_by("name")
     if user.show_resumes:
         resumes = Resume.objects.filter(user=user).order_by("-updated_at")
+    wants_json = (
+        request.GET.get("format", "").strip().lower() == "json"
+        or request.path.endswith(".json")
+        or "application/json" in request.headers.get("Accept", "").lower()
+    )
+    if wants_json:
+        profile_data = {
+            "username": user.username,
+            "display_name": user.get_full_name() or user.display_name or user.username,
+            "account_type": user.account_type,
+            "account_type_display": user.get_account_type_display(),
+            "contact": {
+                "email": user.email if user.show_email and user.email else None,
+                "location": user.location if user.show_location and user.location else None,
+                "website": user.website if user.show_website and user.website else None,
+            },
+            "about": {
+                "bio": user.bio if user.show_bio and user.bio else None,
+                "user_agent": user.user_agent if user.show_user_agent and user.user_agent else None,
+            },
+            "visibility": {
+                "show_email": user.show_email,
+                "show_location": user.show_location,
+                "show_website": user.show_website,
+                "show_bio": user.show_bio,
+                "show_user_agent": user.show_user_agent,
+                "show_skills": user.show_skills,
+                "show_resumes": user.show_resumes,
+            },
+            "skills": [
+                {
+                    "id": skill.id,
+                    "name": skill.name,
+                    "proficiency": skill.proficiency or None,
+                    "proficiency_display": skill.get_proficiency_display() if skill.proficiency else None,
+                    "years_of_experience": skill.years_of_experience,
+                    "description": skill.description or None,
+                }
+                for skill in skills
+            ],
+            "resumes": [
+                {
+                    "id": resume.id,
+                    "title": resume.title,
+                    "headline": resume.headline or None,
+                    "location": resume.location or None,
+                    "updated_at": resume.updated_at.isoformat(),
+                }
+                for resume in resumes
+            ],
+        }
+        return JsonResponse(profile_data)
     context = {
         "profile_user": user,
         "skills": skills,
