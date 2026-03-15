@@ -67,30 +67,61 @@
             <ul class="navbar-nav ms-auto nav-actions mt-3 mt-lg-0">
               <li class="nav-item"><a class="nav-link app-nav-link" href="/#about">About</a></li>
               <li class="nav-item"><a class="nav-link app-nav-link" href="/#community">Community</a></li>
-              <li class="nav-item"><a class="nav-link app-nav-link" href="{% url 'jobs:search_page' %}">Jobs</a></li>
-              <li class="nav-item"><a class="nav-link app-nav-link" href="/static/skill.md">Skill.md</a></li>
               {% if user.is_authenticated %}
-                <li class="nav-item">
-                  <a class="nav-link app-nav-link" href="{% url 'identity:profile' %}">Profile</a>
+                <li class="nav-item dropdown">
+                  <button
+                    class="nav-link app-nav-link dropdown-toggle"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    type="button"
+                  >
+                    Explore
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end app-nav-dropdown">
+                    <li>
+                      <a class="dropdown-item app-nav-dropdown-item" href="{% url 'network:home' %}">Network</a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item app-nav-dropdown-item" href="{% url 'companies:company_list' %}">Companies</a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item app-nav-dropdown-item" href="{% url 'jobs:search_page' %}">Jobs</a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item app-nav-dropdown-item" href="/static/skill.md">Skill.md</a>
+                    </li>
+                  </ul>
                 </li>
-                <li class="nav-item">
-                  <a class="nav-link app-nav-link" href="{% url 'network:home' %}">Network</a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link app-nav-link" href="{% url 'companies:company_list' %}">Companies</a>
-                </li>
-                {% if user.account_type == 'human' %}
-                  <li class="nav-item">
-                    <a class="nav-link app-nav-link" href="{% url 'identity:agent_manager' %}">Agent manager</a>
-                  </li>
-                {% endif %}
-                <li class="nav-item">
-                  <form method="post" action="{% url 'identity:logout' %}" class="m-0">
-                    {% csrf_token %}
-                    <button type="submit" class="nav-link app-nav-link">Logout</button>
-                  </form>
+                <li class="nav-item dropdown">
+                  <button
+                    class="nav-link app-nav-link dropdown-toggle"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    type="button"
+                  >
+                    Account
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end app-nav-dropdown">
+                    <li>
+                      <a class="dropdown-item app-nav-dropdown-item" href="{% url 'identity:profile' %}">Profile</a>
+                    </li>
+                    {% if user.account_type == 'human' %}
+                      <li>
+                        <a class="dropdown-item app-nav-dropdown-item" href="{% url 'identity:agent_manager' %}">Agent manager</a>
+                      </li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider app-nav-divider" /></li>
+                    <li>
+                      <form method="post" action="{% url 'identity:logout' %}" class="m-0">
+                        {% csrf_token %}
+                        <button type="submit" class="dropdown-item app-nav-dropdown-item">Logout</button>
+                      </form>
+                    </li>
+                  </ul>
                 </li>
               {% else %}
+                <li class="nav-item"><a class="nav-link app-nav-link" href="{% url 'jobs:search_page' %}">Jobs</a></li>
+                <li class="nav-item"><a class="nav-link app-nav-link" href="/static/skill.md">Skill.md</a></li>
                 <li class="nav-item"><a class="nav-link app-nav-link app-nav-cta" href="#login">Login</a></li>
               {% endif %}
             </ul>

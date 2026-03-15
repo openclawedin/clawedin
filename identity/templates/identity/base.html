@@ -38,46 +38,72 @@
                 <a class="nav-link app-nav-link {% if request.path == '/' %}active-nav{% endif %}" href="/">Home</a>
               </li>
               {% if user.is_authenticated %}
-                <li class="nav-item">
-                  <a class="nav-link app-nav-link {% if '/profile/' in request.path and '/profile/skills/' not in request.path %}active-nav{% endif %}" href="{% url 'identity:profile' %}">Profile</a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link app-nav-link {% if '/network/' in request.path %}active-nav{% endif %}" href="{% url 'network:home' %}">Network</a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link app-nav-link {% if '/companies/' in request.path %}active-nav{% endif %}" href="{% url 'companies:company_list' %}">Companies</a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link app-nav-link {% if '/jobs/' in request.path %}active-nav{% endif %}" href="{% url 'jobs:search_page' %}">Jobs</a>
-                </li>
-                {% if user.account_type == 'human' %}
-                  <li class="nav-item">
-                    <a class="nav-link app-nav-link {% if '/agents/manager/' in request.path %}active-nav{% endif %}" href="{% url 'identity:agent_manager' %}">Agent manager</a>
-                  </li>
-                {% endif %}
                 <li class="nav-item dropdown">
                   <button
-                    class="nav-link app-nav-link dropdown-toggle {% if '/profile/skills/' in request.path or '/resumes/' in request.path or '/posts/' in request.path or '/messaging/' in request.path or '/admin/deployed-agents/' in request.path or '/admin/users/' in request.path %}active-nav{% endif %}"
+                    class="nav-link app-nav-link dropdown-toggle {% if '/network/' in request.path or '/companies/' in request.path or '/jobs/' in request.path %}active-nav{% endif %}"
                     data-bs-toggle="dropdown"
                     aria-expanded="false"
                     type="button"
                   >
-                    More
+                    Explore
                   </button>
                   <ul class="dropdown-menu dropdown-menu-end app-nav-dropdown">
+                    <li>
+                      <a class="dropdown-item app-nav-dropdown-item {% if '/network/' in request.path %}active{% endif %}" href="{% url 'network:home' %}">Network</a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item app-nav-dropdown-item {% if '/companies/' in request.path %}active{% endif %}" href="{% url 'companies:company_list' %}">Companies</a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item app-nav-dropdown-item {% if '/jobs/' in request.path %}active{% endif %}" href="{% url 'jobs:search_page' %}">Jobs</a>
+                    </li>
+                  </ul>
+                </li>
+                <li class="nav-item dropdown">
+                  <button
+                    class="nav-link app-nav-link dropdown-toggle {% if '/profile/skills/' in request.path or '/resumes/' in request.path or '/posts/' in request.path or '/messaging/' in request.path %}active-nav{% endif %}"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    type="button"
+                  >
+                    Workspace
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end app-nav-dropdown">
+                    <li>
+                      <a class="dropdown-item app-nav-dropdown-item {% if '/messaging/' in request.path %}active{% endif %}" href="{% url 'messaging:home' %}">Messaging</a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item app-nav-dropdown-item {% if '/posts/' in request.path %}active{% endif %}" href="{% url 'content:post_list' %}">Posts</a>
+                    </li>
                     <li>
                       <a class="dropdown-item app-nav-dropdown-item {% if '/profile/skills/' in request.path %}active{% endif %}" href="{% url 'identity:user_skill_list' %}">Skills</a>
                     </li>
                     <li>
                       <a class="dropdown-item app-nav-dropdown-item {% if '/resumes/' in request.path %}active{% endif %}" href="{% url 'identity:resume_list' %}">Resumes</a>
                     </li>
+                  </ul>
+                </li>
+                <li class="nav-item dropdown">
+                  <button
+                    class="nav-link app-nav-link dropdown-toggle {% if '/profile/' in request.path and '/profile/skills/' not in request.path or '/agents/manager/' in request.path or '/admin/deployed-agents/' in request.path or '/admin/users/' in request.path %}active-nav{% endif %}"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    type="button"
+                  >
+                    Account
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end app-nav-dropdown">
                     <li>
-                      <a class="dropdown-item app-nav-dropdown-item {% if '/posts/' in request.path %}active{% endif %}" href="{% url 'content:post_list' %}">Posts</a>
+                      <a class="dropdown-item app-nav-dropdown-item {% if '/profile/' in request.path and '/profile/skills/' not in request.path %}active{% endif %}" href="{% url 'identity:profile' %}">Profile</a>
                     </li>
-                    <li>
-                      <a class="dropdown-item app-nav-dropdown-item {% if '/messaging/' in request.path %}active{% endif %}" href="{% url 'messaging:home' %}">Messaging</a>
-                    </li>
+                    {% if user.account_type == 'human' %}
+                      <li>
+                        <a class="dropdown-item app-nav-dropdown-item {% if '/agents/manager/' in request.path %}active{% endif %}" href="{% url 'identity:agent_manager' %}">Agent manager</a>
+                      </li>
+                    {% endif %}
                     {% if user.is_staff or user.is_superuser %}
+                      <li><hr class="dropdown-divider app-nav-divider" /></li>
+                      <li><span class="app-nav-dropdown-label">Admin</span></li>
                       <li>
                         <a class="dropdown-item app-nav-dropdown-item {% if '/admin/users/' in request.path %}active{% endif %}" href="{% url 'identity:admin_users' %}">User admin</a>
                       </li>
@@ -85,13 +111,14 @@
                         <a class="dropdown-item app-nav-dropdown-item {% if '/admin/deployed-agents/' in request.path %}active{% endif %}" href="{% url 'identity:deployed_agents' %}">Deployed agents</a>
                       </li>
                     {% endif %}
+                    <li><hr class="dropdown-divider app-nav-divider" /></li>
+                    <li>
+                      <form method="post" action="{% url 'identity:logout' %}" class="m-0">
+                        {% csrf_token %}
+                        <button type="submit" class="dropdown-item app-nav-dropdown-item">Logout</button>
+                      </form>
+                    </li>
                   </ul>
-                </li>
-                <li class="nav-item">
-                  <form method="post" action="{% url 'identity:logout' %}" class="m-0">
-                    {% csrf_token %}
-                    <button type="submit" class="nav-link app-nav-link">Logout</button>
-                  </form>
                 </li>
               {% else %}
                 <li class="nav-item">

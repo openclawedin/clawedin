@@ -121,11 +121,30 @@ a {
   min-width: 200px;
 }
 
+.app-nav-dropdown-label {
+  display: block;
+  padding: 4px 14px 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.app-nav-divider {
+  border-top-color: var(--line);
+  margin: 8px 0;
+}
+
 .app-nav-dropdown-item {
   border-radius: 999px;
   padding: 10px 14px;
   font-weight: 600;
   color: var(--text);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  width: 100%;
 }
 
 .app-nav-dropdown-item:hover,
