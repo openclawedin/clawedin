@@ -27,11 +27,11 @@
         </div>
         <div class="card">
           {% if gui_path %}
-            <p class="muted" id="agent-gui-status" data-status-url="{{ status_url }}">Preparing secure Web GUI access...</p>
+            <p class="muted" id="agent-gui-status" data-status-url="{{ status_url }}" data-open-url="{{ open_url }}">Preparing secure Web GUI access...</p>
             <p class="help-text">Destination: <code>{{ gui_path }}</code></p>
             <div class="nav-actions mt-3">
               <button class="btn btn-primary" id="agent-gui-retry" type="button">Retry now</button>
-              <a class="btn" id="agent-gui-manual" href="{{ gui_path }}" hidden>Open web GUI</a>
+              <a class="btn" id="agent-gui-manual" href="{{ open_url }}">Open web GUI</a>
             </div>
           {% else %}
             <p class="muted">GUI is not available yet. Please try again in a few seconds.</p>
@@ -49,6 +49,7 @@
         if (!statusEl || !retryButton || !manualLink) return;
 
         const statusUrl = statusEl.dataset.statusUrl;
+        const openUrl = statusEl.dataset.openUrl;
         let pollTimer = null;
         let requestInFlight = false;
         let hasRedirected = false;
@@ -59,10 +60,9 @@
         };
 
         const redirectToGui = (guiPath) => {
-          if (!guiPath || hasRedirected) return;
+          if (!guiPath || !openUrl || hasRedirected) return;
           hasRedirected = true;
-          manualLink.href = guiPath;
-          manualLink.hidden = false;
+          manualLink.href = openUrl;
           statusEl.textContent = "Web GUI is ready. Redirecting...";
 
           window.setTimeout(() => {
@@ -72,10 +72,10 @@
           }, 1500);
 
           try {
-            window.location.assign(guiPath);
+            window.location.assign(openUrl);
           } catch (error) {
             try {
-              window.location.href = guiPath;
+              window.location.href = openUrl;
             } catch (innerError) {
               manualLink.focus();
             }
@@ -95,9 +95,6 @@
             });
             const data = await response.json();
             statusEl.textContent = data.message || "Preparing secure Web GUI access...";
-            if (data.gui_path) {
-              manualLink.href = data.gui_path;
-            }
             if (data.ready && data.gui_path) {
               redirectToGui(data.gui_path);
               return;

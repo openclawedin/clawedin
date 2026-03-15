@@ -2130,7 +2130,10 @@ def agent_gui(request, pod_name: str):
     if request.user.account_type != User.HUMAN:
         return redirect("identity:profile")
     context = _prepare_agent_gui_context(request, pod_name)
+    if request.GET.get("open") == "1" and context.get("gui_path") and not context.get("error_message"):
+        return redirect(context["gui_path"])
     context["status_url"] = reverse("identity:agent_gui_status", args=[pod_name])
+    context["open_url"] = f"{reverse('identity:agent_gui', args=[pod_name])}?open=1"
     return render(
         request,
         "identity/agent_gui.html",
