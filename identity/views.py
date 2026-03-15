@@ -3,6 +3,8 @@ import json
 import logging
 import os
 import secrets
+import socket
+import ssl
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -203,6 +205,215 @@ def _append_fragment_param(url: str, key: str, value: str) -> str:
     fragment = dict(parse_qsl(parsed.fragment, keep_blank_values=True))
     fragment[key] = value
     return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, parsed.query, urlencode(fragment)))
+
+
+def _pod_container_ready(pod) -> bool:
+    statuses = getattr(getattr(pod, "status", None), "container_statuses", None) or []
+    if not statuses:
+        return False
+    return any(getattr(status, "ready", False) for status in statuses)
+
+
+def _warm_and_probe_agent_gui(gui_url: str) -> tuple[bool, str]:
+    parsed = urlsplit(gui_url)
+    if not parsed.scheme or not parsed.netloc:
+        return True, "Web GUI is ready."
+
+    headers = {"User-Agent": "clawedin/1.0", "Accept": "text/html,application/xhtml+xml"}
+    req = Request(gui_url, headers=headers)
+    try:
+        with urlopen(req, timeout=5) as resp:
+            status_code = getattr(resp, "status", 200)
+            if status_code < 500:
+                return True, "Web GUI is ready."
+            return False, "Container is not ready yet."
+    except HTTPError as exc:
+        if exc.code in {401, 403}:
+            return True, "Web GUI is ready."
+        if exc.code in {404, 425, 429, 500, 502, 503, 504}:
+            return False, "Container is not ready yet."
+        return False, "Preparing secure Web GUI access."
+    except URLError as exc:
+        reason = getattr(exc, "reason", exc)
+        if isinstance(reason, ssl.SSLCertVerificationError):
+            return False, "Preparing secure Web GUI access."
+        if isinstance(reason, ssl.SSLError):
+            return False, "Preparing secure Web GUI access."
+        if isinstance(reason, socket.timeout):
+            return False, "Container is not ready yet."
+        return False, "Preparing secure Web GUI access."
+    except (TimeoutError, ValueError):
+        return False, "Container is not ready yet."
+
+
+def _prepare_agent_gui_context(request, pod_name: str) -> dict:
+    namespace, _ = resolve_agent_namespace(request.user.username, request.user.id)
+    error_message = None
+    pod = None
+    gui_path = None
+
+    try:
+        from kubernetes import client
+    except ImportError:
+        error_message = "Kubernetes client not installed."
+    else:
+        try:
+            load_kube_config()
+            v1 = client.CoreV1Api()
+            networking = client.NetworkingV1Api()
+            allow_cross_namespace = request.user.is_staff or request.user.is_superuser
+            try:
+                pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+            except client.exceptions.ApiException as exc:
+                if exc.status != 404:
+                    raise
+                label_selector = f"app=openclaw-agent,owner={request.user.username}"
+                pods = v1.list_namespaced_pod(
+                    namespace=namespace,
+                    label_selector=label_selector,
+                )
+                if not pods.items:
+                    error_message = (
+                        "Pod not found.\n"
+                        f"Requested pod: {pod_name}\n"
+                        f"Namespace: {namespace}\n"
+                        f"Selector: {label_selector}\n"
+                        f"{_pod_debug_snapshot(v1, namespace, label_selector)}\n"
+                        f"{_kube_context_snapshot()}"
+                    )
+                    logger.warning(
+                        "Agent GUI pod not found: pod=%s namespace=%s selector=%s",
+                        pod_name,
+                        namespace,
+                        label_selector,
+                    )
+                    return {
+                        "namespace": namespace,
+                        "pod": pod,
+                        "gui_path": gui_path,
+                        "error_message": error_message,
+                    }
+                pods_sorted = sorted(
+                    pods.items,
+                    key=lambda item: item.status.start_time or datetime.min.replace(tzinfo=dt_timezone.utc),
+                    reverse=True,
+                )
+                pod = pods_sorted[0]
+                pod_name = pod.metadata.name
+            if (
+                pod
+                and pod.metadata
+                and pod.metadata.labels
+                and (
+                    pod.metadata.labels.get("app") != "openclaw-agent"
+                    or (
+                        not _is_admin_user(request.user)
+                        and pod.metadata.labels.get("owner") != request.user.username
+                    )
+                )
+            ):
+                return {
+                    "namespace": namespace,
+                    "pod": pod,
+                    "gui_path": gui_path,
+                    "error_message": "Agent GUI is only available for your agent pods.",
+                }
+
+            _ensure_agent_gui_resources(client, v1, networking, namespace, pod, request.user.username)
+
+            gui_path = _gui_url_for_pod(request, pod_name)
+            if getattr(settings, "AGENT_GUI_HOST_SUFFIX", "").strip():
+                deployment_name = None
+                if pod and pod.metadata and pod.metadata.labels:
+                    deployment_name = pod.metadata.labels.get("deployment")
+                deployment_record = AgentDeployment.objects.filter(
+                    user=request.user,
+                    deployment_name=deployment_name or "",
+                    namespace=namespace,
+                ).first()
+                if deployment_record:
+                    gui_path = _append_query_param(gui_path, "token", deployment_record.gateway_token)
+                    gui_path = _append_fragment_param(gui_path, "token", deployment_record.gateway_token)
+                else:
+                    try:
+                        token_applied = False
+                        secret_name = None
+                        if pod and pod.spec and pod.spec.containers:
+                            for container in pod.spec.containers:
+                                for env_var in container.env or []:
+                                    if (
+                                        env_var.name == "OPENCLAW_GATEWAY_TOKEN"
+                                        and env_var.value_from
+                                        and env_var.value_from.secret_key_ref
+                                        and env_var.value_from.secret_key_ref.name
+                                    ):
+                                        secret_name = env_var.value_from.secret_key_ref.name
+                                        break
+                                if secret_name:
+                                    break
+                        if secret_name:
+                            secret = v1.read_namespaced_secret(secret_name, namespace)
+                            encoded = (secret.data or {}).get("OPENCLAW_GATEWAY_TOKEN")
+                            if encoded:
+                                token = base64.b64decode(encoded).decode("utf-8")
+                                gui_path = _append_query_param(gui_path, "token", token)
+                                gui_path = _append_fragment_param(gui_path, "token", token)
+                                token_applied = True
+                        if not token_applied:
+                            legacy_secret = gateway_secret_name(request.user.username, request.user.id)
+                            legacy = v1.read_namespaced_secret(legacy_secret, namespace)
+                            encoded = (legacy.data or {}).get("OPENCLAW_GATEWAY_TOKEN")
+                            if encoded:
+                                token = base64.b64decode(encoded).decode("utf-8")
+                                gui_path = _append_query_param(gui_path, "token", token)
+                                gui_path = _append_fragment_param(gui_path, "token", token)
+                    except Exception:
+                        pass
+        except client.exceptions.ApiException as exc:
+            if exc.status == 404:
+                label_selector = f"app=openclaw-agent,owner={request.user.username}"
+                error_message = (
+                    "Pod not found.\n"
+                    f"Requested pod: {pod_name}\n"
+                    f"Namespace: {namespace}\n"
+                    f"Selector: {label_selector}\n"
+                    f"{_pod_debug_snapshot(v1, namespace, label_selector)}\n"
+                    f"{_kube_context_snapshot()}"
+                )
+                logger.warning(
+                    "Agent GUI pod not found (404): pod=%s namespace=%s selector=%s",
+                    pod_name,
+                    namespace,
+                    label_selector,
+                )
+            else:
+                error_message = (
+                    "Cluster API error while preparing agent GUI.\n"
+                    f"Requested pod: {pod_name}\n"
+                    f"Namespace: {namespace}\n"
+                    f"Details: {_format_api_exception(exc)}\n"
+                    f"{_kube_context_snapshot()}"
+                )
+        except Exception as exc:  # pragma: no cover - depends on kube setup
+            error_message = (
+                "Cluster error while preparing agent GUI.\n"
+                f"Requested pod: {pod_name}\n"
+                f"Namespace: {namespace}\n"
+                f"Details: {exc}\n"
+                f"{_kube_context_snapshot()}"
+            )
+            logger.exception(
+                "Agent GUI error: pod=%s namespace=%s",
+                pod_name,
+                namespace,
+            )
+
+    return {
+        "namespace": namespace,
+        "pod": pod,
+        "gui_path": gui_path,
+        "error_message": error_message,
+    }
 
 
 def _fetch_birdeye_price(mint_address: str) -> tuple[Decimal | None, str | None]:
@@ -1918,190 +2129,54 @@ def agent_terminal(request, pod_name: str):
 def agent_gui(request, pod_name: str):
     if request.user.account_type != User.HUMAN:
         return redirect("identity:profile")
-
-    namespace, _ = resolve_agent_namespace(request.user.username, request.user.id)
-    error_message = None
-    pod = None
-    gui_path = None
-
-    try:
-        from kubernetes import client
-    except ImportError:
-        error_message = "Kubernetes client not installed."
-    else:
-        try:
-            load_kube_config()
-            v1 = client.CoreV1Api()
-            networking = client.NetworkingV1Api()
-            allow_cross_namespace = request.user.is_staff or request.user.is_superuser
-            try:
-                pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
-            except client.exceptions.ApiException as exc:
-                if exc.status != 404:
-                    raise
-                label_selector = f"app=openclaw-agent,owner={request.user.username}"
-                pods = v1.list_namespaced_pod(
-                    namespace=namespace,
-                    label_selector=label_selector,
-                )
-                if not pods.items:
-                    error_message = (
-                        "Pod not found.\n"
-                        f"Requested pod: {pod_name}\n"
-                        f"Namespace: {namespace}\n"
-                        f"Selector: {label_selector}\n"
-                        f"{_pod_debug_snapshot(v1, namespace, label_selector)}\n"
-                        f"{_kube_context_snapshot()}"
-                    )
-                    logger.warning(
-                        "Agent GUI pod not found: pod=%s namespace=%s selector=%s",
-                        pod_name,
-                        namespace,
-                        label_selector,
-                    )
-                    return render(
-                        request,
-                        "identity/agent_gui.html",
-                        {
-                            "namespace": namespace,
-                            "pod": pod,
-                            "gui_path": gui_path,
-                            "error_message": error_message,
-                        },
-                    )
-                pods_sorted = sorted(
-                    pods.items,
-                    key=lambda item: item.status.start_time or datetime.min.replace(tzinfo=dt_timezone.utc),
-                    reverse=True,
-                )
-                pod = pods_sorted[0]
-                pod_name = pod.metadata.name
-            if (
-                pod
-                and pod.metadata
-                and pod.metadata.labels
-                and (
-                    pod.metadata.labels.get("app") != "openclaw-agent"
-                    or (
-                        not _is_admin_user(request.user)
-                        and pod.metadata.labels.get("owner") != request.user.username
-                    )
-                )
-            ):
-                messages.error(request, "Agent GUI is only available for your agent pods.")
-                return redirect("identity:agent_manager")
-
-            _ensure_agent_gui_resources(client, v1, networking, namespace, pod, request.user.username)
-
-            gui_path = _gui_url_for_pod(request, pod_name)
-            if getattr(settings, "AGENT_GUI_HOST_SUFFIX", "").strip():
-                deployment_name = None
-                if pod and pod.metadata and pod.metadata.labels:
-                    deployment_name = pod.metadata.labels.get("deployment")
-                deployment_record = AgentDeployment.objects.filter(
-                    user=request.user,
-                    deployment_name=deployment_name or "",
-                    namespace=namespace,
-                ).first()
-                if deployment_record:
-                    gui_path = _append_query_param(gui_path, "token", deployment_record.gateway_token)
-                    gui_path = _append_fragment_param(gui_path, "token", deployment_record.gateway_token)
-                else:
-                    try:
-                        token_applied = False
-                        secret_name = None
-                        if pod and pod.spec and pod.spec.containers:
-                            for container in pod.spec.containers:
-                                for env_var in container.env or []:
-                                    if (
-                                        env_var.name == "OPENCLAW_GATEWAY_TOKEN"
-                                        and env_var.value_from
-                                        and env_var.value_from.secret_key_ref
-                                        and env_var.value_from.secret_key_ref.name
-                                    ):
-                                        secret_name = env_var.value_from.secret_key_ref.name
-                                        break
-                                if secret_name:
-                                    break
-                        if secret_name:
-                            secret = v1.read_namespaced_secret(secret_name, namespace)
-                            encoded = (secret.data or {}).get("OPENCLAW_GATEWAY_TOKEN")
-                            if encoded:
-                                token = base64.b64decode(encoded).decode("utf-8")
-                                gui_path = _append_query_param(gui_path, "token", token)
-                                gui_path = _append_fragment_param(gui_path, "token", token)
-                                token_applied = True
-                        if not token_applied:
-                            legacy_secret = gateway_secret_name(request.user.username, request.user.id)
-                            legacy = v1.read_namespaced_secret(legacy_secret, namespace)
-                            encoded = (legacy.data or {}).get("OPENCLAW_GATEWAY_TOKEN")
-                            if encoded:
-                                token = base64.b64decode(encoded).decode("utf-8")
-                                gui_path = _append_query_param(gui_path, "token", token)
-                                gui_path = _append_fragment_param(gui_path, "token", token)
-                    except Exception:
-                        pass
-        except client.exceptions.ApiException as exc:
-            if exc.status == 404:
-                label_selector = f"app=openclaw-agent,owner={request.user.username}"
-                error_message = (
-                    "Pod not found.\n"
-                    f"Requested pod: {pod_name}\n"
-                    f"Namespace: {namespace}\n"
-                    f"Selector: {label_selector}\n"
-                    f"{_pod_debug_snapshot(v1, namespace, label_selector)}\n"
-                    f"{_kube_context_snapshot()}"
-                )
-                logger.warning(
-                    "Agent GUI pod not found (404): pod=%s namespace=%s selector=%s",
-                    pod_name,
-                    namespace,
-                    label_selector,
-                )
-                return render(
-                    request,
-                    "identity/agent_gui.html",
-                    {
-                        "namespace": namespace,
-                        "pod": pod,
-                        "gui_path": gui_path,
-                        "error_message": error_message,
-                    },
-                )
-            error_message = (
-                "Cluster API error while preparing agent GUI.\n"
-                f"Requested pod: {pod_name}\n"
-                f"Namespace: {namespace}\n"
-                f"Details: {_format_api_exception(exc)}\n"
-                f"{_kube_context_snapshot()}"
-            )
-        except Exception as exc:  # pragma: no cover - depends on kube setup
-            error_message = (
-                "Cluster error while preparing agent GUI.\n"
-                f"Requested pod: {pod_name}\n"
-                f"Namespace: {namespace}\n"
-                f"Details: {exc}\n"
-                f"{_kube_context_snapshot()}"
-            )
-            logger.exception(
-                "Agent GUI error: pod=%s namespace=%s",
-                pod_name,
-                namespace,
-            )
-
-    if gui_path and not error_message:
-        return redirect(gui_path)
-
+    context = _prepare_agent_gui_context(request, pod_name)
+    context["status_url"] = reverse("identity:agent_gui_status", args=[pod_name])
     return render(
         request,
         "identity/agent_gui.html",
-        {
-            "namespace": namespace,
-            "pod": pod,
-            "gui_path": gui_path,
-            "error_message": error_message,
-        },
+        context,
     )
+
+
+@login_required
+@require_GET
+def agent_gui_status(request, pod_name: str):
+    if request.user.account_type != User.HUMAN:
+        return JsonResponse({"ready": False, "error": "Authentication required."}, status=403)
+
+    context = _prepare_agent_gui_context(request, pod_name)
+    response_payload = {
+        "ready": False,
+        "gui_path": context.get("gui_path"),
+        "message": "Container is not ready yet.",
+    }
+
+    if context.get("error_message"):
+        response_payload["message"] = context["error_message"]
+        response = JsonResponse(response_payload, status=503)
+        response["Cache-Control"] = "no-store"
+        return response
+
+    pod = context.get("pod")
+    gui_path = context.get("gui_path")
+    if not pod or not gui_path:
+        response = JsonResponse(response_payload)
+        response["Cache-Control"] = "no-store"
+        return response
+
+    if not _pod_container_ready(pod):
+        _warm_and_probe_agent_gui(gui_path)
+        response_payload["message"] = "Container is not ready yet."
+        response = JsonResponse(response_payload)
+        response["Cache-Control"] = "no-store"
+        return response
+
+    ready, message = _warm_and_probe_agent_gui(gui_path)
+    response_payload["ready"] = ready
+    response_payload["message"] = message
+    response = JsonResponse(response_payload)
+    response["Cache-Control"] = "no-store"
+    return response
 
 
 @login_required

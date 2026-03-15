@@ -31,6 +31,11 @@ urlpatterns = [
         name="agent_gui",
     ),
     path(
+        "agents/manager/<str:pod_name>/gui/status/",
+        views.agent_gui_status,
+        name="agent_gui_status",
+    ),
+    path(
         "agents/gui/<str:pod_name>/",
         views.agent_gui_proxy,
         name="agent_gui_proxy",

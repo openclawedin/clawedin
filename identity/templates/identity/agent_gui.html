@@ -22,16 +22,16 @@
         <div class="section-header">
           <div>
             <h3>Interface</h3>
-            <p class="muted">Some browsers block embedded views. Use the new-tab link below.</p>
+            <p class="muted">We wait for the container and HTTPS certificate before redirecting you to the agent GUI.</p>
           </div>
-          {% if gui_path %}
-            <a class="btn btn-primary" href="{{ gui_path }}" target="_blank" rel="noopener">Open web GUI</a>
-          {% endif %}
         </div>
         <div class="card">
           {% if gui_path %}
-            <p class="muted">If the GUI supports embedding, you can enable it later. Right now it opens in a new tab.</p>
-            <p class="help-text">Proxy path: <code>{{ gui_path }}</code></p>
+            <p class="muted" id="agent-gui-status" data-status-url="{{ status_url }}">Preparing secure Web GUI access...</p>
+            <p class="help-text">Destination: <code>{{ gui_path }}</code></p>
+            <div class="nav-actions mt-3">
+              <button class="btn btn-primary" id="agent-gui-retry" type="button">Retry now</button>
+            </div>
           {% else %}
             <p class="muted">GUI is not available yet. Please try again in a few seconds.</p>
           {% endif %}
@@ -39,4 +39,56 @@
       </div>
     </div>
   </section>
+  {% if gui_path and status_url %}
+    <script>
+      (() => {
+        const statusEl = document.getElementById("agent-gui-status");
+        const retryButton = document.getElementById("agent-gui-retry");
+        if (!statusEl || !retryButton) return;
+
+        const statusUrl = statusEl.dataset.statusUrl;
+        let pollTimer = null;
+        let requestInFlight = false;
+
+        const schedulePoll = (delayMs) => {
+          window.clearTimeout(pollTimer);
+          pollTimer = window.setTimeout(checkStatus, delayMs);
+        };
+
+        const checkStatus = async () => {
+          if (requestInFlight) return;
+          requestInFlight = true;
+          retryButton.disabled = true;
+          try {
+            const response = await fetch(statusUrl, {
+              method: "GET",
+              headers: { "X-Requested-With": "XMLHttpRequest" },
+              credentials: "same-origin",
+              cache: "no-store",
+            });
+            const data = await response.json();
+            statusEl.textContent = data.message || "Preparing secure Web GUI access...";
+            if (data.ready && data.gui_path) {
+              statusEl.textContent = "Web GUI is ready. Redirecting...";
+              window.location.replace(data.gui_path);
+              return;
+            }
+          } catch (error) {
+            statusEl.textContent = "Container is not ready yet.";
+          } finally {
+            requestInFlight = false;
+            retryButton.disabled = false;
+          }
+          schedulePoll(2000);
+        };
+
+        retryButton.addEventListener("click", () => {
+          statusEl.textContent = "Preparing secure Web GUI access...";
+          schedulePoll(0);
+        });
+
+        checkStatus();
+      })();
+    </script>
+  {% endif %}
 {% endblock %}
