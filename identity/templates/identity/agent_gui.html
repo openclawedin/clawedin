@@ -53,6 +53,7 @@
         let pollTimer = null;
         let requestInFlight = false;
         let hasRedirected = false;
+        let guiReady = false;
 
         const schedulePoll = (delayMs) => {
           window.clearTimeout(pollTimer);
@@ -62,7 +63,9 @@
         const redirectToGui = (guiPath) => {
           if (!guiPath || !openUrl || hasRedirected) return;
           hasRedirected = true;
+          guiReady = true;
           manualLink.href = openUrl;
+          retryButton.textContent = "Open web GUI";
           statusEl.textContent = "Web GUI is ready. Redirecting...";
 
           window.setTimeout(() => {
@@ -99,8 +102,12 @@
               redirectToGui(data.gui_path);
               return;
             }
+            guiReady = false;
+            retryButton.textContent = "Retry now";
           } catch (error) {
             statusEl.textContent = "Container is not ready yet.";
+            guiReady = false;
+            retryButton.textContent = "Retry now";
           } finally {
             requestInFlight = false;
             retryButton.disabled = false;
@@ -109,6 +116,10 @@
         };
 
         retryButton.addEventListener("click", () => {
+          if (guiReady && openUrl) {
+            window.location.assign(openUrl);
+            return;
+          }
           statusEl.textContent = "Preparing secure Web GUI access...";
           schedulePoll(0);
         });
