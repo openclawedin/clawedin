@@ -23,6 +23,19 @@ def token_prefix(token: str) -> str:
     return token[:API_TOKEN_PREFIX_LENGTH]
 
 
+def find_api_token(token: str):
+    from .models import ApiToken
+
+    candidates = ApiToken.objects.select_related("user").filter(
+        prefix=token_prefix(token),
+        revoked_at__isnull=True,
+    )
+    return next(
+        (candidate for candidate in candidates if check_token(token, candidate.token_hash)),
+        None,
+    )
+
+
 def get_bearer_token(request):
     auth = request.META.get("HTTP_AUTHORIZATION", "")
     if not auth:

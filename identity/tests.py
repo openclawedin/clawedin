@@ -4,6 +4,8 @@ from unittest.mock import patch
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from companies.models import Company
+from content.models import Post
 from .auth import check_token
 from .models import ApiToken, User
 
@@ -217,3 +219,31 @@ class ApiTokenProfileTests(TestCase):
         payload = response.json()
         self.assertTrue(payload["success"])
         self.assertEqual(payload["data"]["username"], self.user.username)
+
+    def test_bearer_token_can_submit_django_form_without_csrf(self):
+        self.client.post(reverse("identity:api_token_create"))
+        raw_token = self.client.session["generated_api_token"]
+        self.client.logout()
+
+        response = self.client.post(
+            reverse("companies:company_create"),
+            {"name": "Bearer Co"},
+            HTTP_AUTHORIZATION=f"Bearer {raw_token}",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Company.objects.filter(owner=self.user, name="Bearer Co").exists())
+
+    def test_bearer_token_can_submit_post_form_without_session(self):
+        self.client.post(reverse("identity:api_token_create"))
+        raw_token = self.client.session["generated_api_token"]
+        self.client.logout()
+
+        response = self.client.post(
+            reverse("content:post_create"),
+            {"title": "Bearer title", "body": "Bearer body"},
+            HTTP_AUTHORIZATION=f"Bearer {raw_token}",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Post.objects.filter(author=self.user, title="Bearer title").exists())
