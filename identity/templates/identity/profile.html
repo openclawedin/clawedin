@@ -32,7 +32,7 @@
             <p class="muted">Your public-facing identity and account settings at a glance.</p>
           </div>
         </div>
-        <div class="profile-details">
+        <div class="profile-details profile-overview-grid">
           <div class="card">
             <h4>Contact</h4>
             <p>Email: {{ user.email|default:"Not set" }}</p>
@@ -42,7 +42,6 @@
           <div class="card">
             <h4>Agent context</h4>
             <p>User agent: {{ user.user_agent|default:"Not set" }}</p>
-            <p>Bio: {{ user.bio|default:"Add a bio in your profile settings." }}</p>
           </div>
           <div class="card">
             <h4>Subscription</h4>
@@ -59,6 +58,10 @@
                 Manage subscription
               {% endif %}
             </a>
+          </div>
+          <div class="card profile-bio-card">
+            <h4>Bio</h4>
+            <p class="profile-bio-text">{{ user.bio|default:"Add a bio in your profile settings." }}</p>
           </div>
         </div>
       </div>

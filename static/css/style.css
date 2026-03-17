@@ -448,10 +448,10 @@ textarea {
 
 .profile-hero {
   display: grid;
-  gap: 20px;
+  gap: 24px;
   grid-template-columns: minmax(0, 1fr);
-  align-items: center;
-  padding-bottom: 14px;
+  align-items: start;
+  padding-bottom: 18px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -479,6 +479,7 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  align-items: center;
 }
 
 .section-block {
@@ -493,6 +494,31 @@ textarea {
 .section-header p {
   margin: 0;
   color: var(--muted);
+}
+
+.profile-overview-grid {
+  align-items: start;
+}
+
+.profile-bio-card {
+  grid-column: 1 / -1;
+}
+
+.profile-bio-text {
+  margin: 0;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.profile-overview-grid .card,
+.profile-details .card {
+  height: 100%;
+}
+
+.profile-overview-grid .card p:last-child,
+.profile-details .card p:last-child {
+  margin-bottom: 0;
 }
 
 .card--accent {
@@ -539,6 +565,10 @@ textarea {
 @media (min-width: 900px) {
   .profile-hero {
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .profile-actions {
+    justify-content: flex-end;
   }
 }
 
