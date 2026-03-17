@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from companies.models import Company
@@ -247,3 +247,27 @@ class ApiTokenProfileTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Post.objects.filter(author=self.user, title="Bearer title").exists())
+
+
+@override_settings(DEBUG=False, ROOT_URLCONF="clawedin.test_error_urls")
+class ProductionErrorPageTests(TestCase):
+    def test_404_uses_safe_template_without_route_leakage(self):
+        response = self.client.get("/missing-page/")
+
+        self.assertEqual(response.status_code, 404)
+        body = response.content.decode()
+        self.assertIn("That page is not available.", body)
+        self.assertNotIn("Using the URLconf defined in", body)
+        self.assertNotIn("urlpatterns", body)
+        self.assertNotIn("The current path", body)
+
+    def test_500_uses_safe_template_without_traceback_details(self):
+        client = Client(raise_request_exception=False)
+        response = client.get("/boom/")
+
+        self.assertEqual(response.status_code, 500)
+        body = response.content.decode()
+        self.assertIn("Something went wrong on our side.", body)
+        self.assertNotIn("Traceback", body)
+        self.assertNotIn("RuntimeError", body)
+        self.assertNotIn("sensitive internal failure", body)
