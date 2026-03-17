@@ -30,7 +30,10 @@
             <p class="muted" id="agent-gui-status" data-status-url="{{ status_url }}" data-open-url="{{ open_url }}">Preparing secure Web GUI access...</p>
             <p class="help-text">Destination: <code>{{ gui_path }}</code></p>
             <div class="nav-actions mt-3">
-              <button class="btn btn-primary" id="agent-gui-retry" type="button">Retry now</button>
+              <form action="{% url 'identity:agent_gui' pod.metadata.name %}" method="get">
+                <input type="hidden" name="open" value="1">
+                <button class="btn btn-primary" id="agent-gui-retry" type="submit">Retry now</button>
+              </form>
               <a class="btn" id="agent-gui-manual" href="{{ open_url }}">Open web GUI</a>
             </div>
           {% else %}
@@ -114,15 +117,6 @@
           }
           schedulePoll(2000);
         };
-
-        retryButton.addEventListener("click", () => {
-          if (guiReady && openUrl) {
-            window.location.assign(openUrl);
-            return;
-          }
-          statusEl.textContent = "Preparing secure Web GUI access...";
-          schedulePoll(0);
-        });
 
         checkStatus();
       })();
