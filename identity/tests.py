@@ -4,7 +4,8 @@ from unittest.mock import patch
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from .models import User
+from .auth import check_token
+from .models import ApiToken, User
 
 
 @override_settings(
@@ -162,3 +163,57 @@ class PublicProfileJsonTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertIsNone(payload["contact"]["email"])
+
+
+class ApiTokenProfileTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="tokenuser",
+            email="token@example.com",
+            password="safe-pass-123",
+        )
+        self.client.force_login(self.user)
+
+    def test_profile_can_create_single_bearer_token(self):
+        response = self.client.post(reverse("identity:api_token_create"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(ApiToken.objects.filter(user=self.user).count(), 1)
+
+        token = ApiToken.objects.get(user=self.user)
+        session = self.client.session
+        raw_token = session.get("generated_api_token")
+        self.assertTrue(raw_token)
+        self.assertEqual(token.prefix, raw_token[:12])
+        self.assertTrue(check_token(raw_token, token.token_hash))
+
+    def test_profile_regenerate_rotates_existing_token(self):
+        self.client.post(reverse("identity:api_token_create"))
+        first_token = self.client.session["generated_api_token"]
+
+        response = self.client.post(reverse("identity:api_token_regenerate"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(ApiToken.objects.filter(user=self.user).count(), 1)
+
+        token = ApiToken.objects.get(user=self.user)
+        second_token = self.client.session["generated_api_token"]
+        self.assertNotEqual(first_token, second_token)
+        self.assertEqual(token.prefix, second_token[:12])
+        self.assertTrue(check_token(second_token, token.token_hash))
+        self.assertFalse(check_token(first_token, token.token_hash))
+
+    def test_bearer_token_authenticates_login_required_api_call(self):
+        self.client.post(reverse("identity:api_token_create"))
+        raw_token = self.client.session["generated_api_token"]
+        self.client.logout()
+
+        response = self.client.get(
+            reverse("api:me"),
+            HTTP_AUTHORIZATION=f"Bearer {raw_token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["success"])
+        self.assertEqual(payload["data"]["username"], self.user.username)

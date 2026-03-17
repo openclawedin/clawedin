@@ -48,6 +48,7 @@ from .forms import (
     SolanaTransferForm,
     UserSkillForm,
 )
+from .auth import generate_api_token, hash_token, token_prefix
 from .kube import (
     gui_ingress_name,
     gui_middleware_name,
@@ -63,6 +64,7 @@ from .kube import (
 from .solana_wallet import generate_solana_wallet, load_keypair
 from .solana_wallet import generate_solana_wallet
 from .models import (
+    ApiToken,
     Resume,
     ResumeCertification,
     ResumeEducation,
@@ -1150,9 +1152,43 @@ def verify_email(request, token: str):
     return redirect("identity:login")
 
 
+def _consume_generated_api_token(request):
+    token = request.session.pop("generated_api_token", None)
+    if not token:
+        return None
+    request.session.modified = True
+    return token
+
+
+def _get_api_token_for_user(user):
+    return ApiToken.objects.filter(user=user).first()
+
+
+def _upsert_api_token(user, *, replace_existing: bool) -> tuple[ApiToken, str]:
+    raw_token = generate_api_token()
+    defaults = {
+        "name": "Profile bearer token",
+        "token_hash": hash_token(raw_token),
+        "prefix": token_prefix(raw_token),
+        "revoked_at": None,
+        "last_used_at": None,
+    }
+    api_token = _get_api_token_for_user(user)
+    if api_token is None:
+        api_token = ApiToken.objects.create(user=user, **defaults)
+        return api_token, raw_token
+    if not replace_existing:
+        raise ValueError("A bearer token already exists for this user.")
+    for field, value in defaults.items():
+        setattr(api_token, field, value)
+    api_token.save(update_fields=["name", "token_hash", "prefix", "revoked_at", "last_used_at"])
+    return api_token, raw_token
+
+
 @login_required
 def profile(request):
     current_plan = SERVICE_PLANS.get(request.user.service_tier)
+    api_token = _get_api_token_for_user(request.user)
     return render(
         request,
         "identity/profile.html",
@@ -1161,8 +1197,31 @@ def profile(request):
             "is_stripe_ready": _stripe_is_configured(),
             "subscription_active": _subscription_active(request.user),
             "solana_transfer_form": SolanaTransferForm(),
+            "api_token": api_token,
+            "generated_api_token": _consume_generated_api_token(request),
         },
     )
+
+
+@login_required
+@require_POST
+def api_token_create(request):
+    if _get_api_token_for_user(request.user):
+        messages.info(request, "A bearer token already exists. Regenerate it to rotate the secret.")
+        return redirect("identity:profile")
+    _, raw_token = _upsert_api_token(request.user, replace_existing=False)
+    request.session["generated_api_token"] = raw_token
+    messages.success(request, "Bearer token created. Copy it now, it will not be shown again.")
+    return redirect("identity:profile")
+
+
+@login_required
+@require_POST
+def api_token_regenerate(request):
+    _, raw_token = _upsert_api_token(request.user, replace_existing=True)
+    request.session["generated_api_token"] = raw_token
+    messages.success(request, "Bearer token regenerated. Copy the new token now.")
+    return redirect("identity:profile")
 
 
 @login_required

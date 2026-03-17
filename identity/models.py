@@ -274,13 +274,13 @@ class UserSkill(models.Model):
 
 
 class ApiToken(models.Model):
-    user = models.ForeignKey(
+    user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
-        related_name="api_tokens",
+        related_name="api_token",
     )
     name = models.CharField(max_length=120, blank=True)
-    token_hash = models.CharField(max_length=64, unique=True)
+    token_hash = models.CharField(max_length=256)
     prefix = models.CharField(max_length=12)
     created_at = models.DateTimeField(auto_now_add=True)
     last_used_at = models.DateTimeField(null=True, blank=True)

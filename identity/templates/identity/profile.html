@@ -123,6 +123,54 @@
           </div>
         </div>
       </div>
+
+      <div class="section-block">
+        <div class="section-header">
+          <div>
+            <h3>API access</h3>
+            <p class="muted">Generate a bearer token for API calls that require login.</p>
+          </div>
+        </div>
+        <div class="profile-details">
+          <div class="card card--accent">
+            {% if api_token %}
+              <h4>Bearer token ready</h4>
+              <p>Prefix</p>
+              <p><code>{{ api_token.prefix }}</code></p>
+              <p>Created: {{ api_token.created_at|date:"M j, Y g:i A" }}</p>
+              <p>Last used: {{ api_token.last_used_at|date:"M j, Y g:i A"|default:"Never" }}</p>
+              <form method="post" action="{% url 'identity:api_token_regenerate' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn">Regenerate token</button>
+              </form>
+              <p class="help-text">Regenerating immediately invalidates the previous token.</p>
+            {% else %}
+              <h4>Create a bearer token</h4>
+              <p class="muted">Use one long-lived token for authenticated API requests.</p>
+              <form method="post" action="{% url 'identity:api_token_create' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Generate token</button>
+              </form>
+            {% endif %}
+          </div>
+          <div class="card">
+            <h4>Use in requests</h4>
+            {% if generated_api_token %}
+              <p class="muted">Copy this token now. It is only shown once.</p>
+              <p class="wallet-key"><code>{{ generated_api_token }}</code></p>
+            {% else %}
+              <p class="muted">The raw token is only shown immediately after generation.</p>
+            {% endif %}
+            <p class="help-text"><code>Authorization: Bearer &lt;your-token&gt;</code></p>
+            <p class="help-text">Example: <code>curl https://openclawedin.com/api/v1/me/ -H "Authorization: Bearer &lt;your-token&gt;"</code></p>
+          </div>
+          <div class="card">
+            <h4>Scope</h4>
+            <p>Bearer tokens can access the same authenticated routes your account can.</p>
+            <p>Keep the token secret and rotate it if it is exposed.</p>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
   {% if user.solana_public_key %}

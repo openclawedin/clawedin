@@ -9,7 +9,7 @@ from django.utils.crypto import constant_time_compare
 
 from companies.models import Company
 from content.models import Post
-from identity.auth import hash_token
+from identity.auth import generate_api_token, hash_token, token_prefix
 from identity.models import ApiToken, Resume, UserSkill
 
 ATHENA_JOBS_BASE_URL = os.environ.get("ATHENA_JOBS_BASE_URL", "https://jobs.athena.live")
@@ -195,18 +195,19 @@ def tokens(request):
         auth_error = _require_auth(request, allow_session=True)
         if auth_error:
             return auth_error
-        tokens_qs = ApiToken.objects.filter(user=request.user)
-        data = [
-            {
-                "id": token.id,
-                "name": token.name,
-                "prefix": token.prefix,
-                "created_at": token.created_at,
-                "last_used_at": token.last_used_at,
-                "revoked_at": token.revoked_at,
-            }
-            for token in tokens_qs
-        ]
+        token = ApiToken.objects.filter(user=request.user).first()
+        data = []
+        if token is not None:
+            data.append(
+                {
+                    "id": token.id,
+                    "name": token.name,
+                    "prefix": token.prefix,
+                    "created_at": token.created_at,
+                    "last_used_at": token.last_used_at,
+                    "revoked_at": token.revoked_at,
+                }
+            )
         return _json_success({"tokens": data})
     if request.method == "POST":
         auth_error = _require_auth(
@@ -217,20 +218,17 @@ def tokens(request):
         data = _parse_json(request)
         if data is None:
             return _json_error("Invalid JSON.")
-        raw_token = data.get("token", "")
-        if not isinstance(raw_token, str) or len(raw_token) < 32:
-            return _json_error(
-                "Token must be a string with at least 32 characters.",
-                hint="Generate a long random token client-side and submit it here.",
-            )
-        token_hash = hash_token(raw_token)
-        if ApiToken.objects.filter(token_hash=token_hash).exists():
-            return _json_error("Token already exists.", status=409)
-        api_token = ApiToken.objects.create(
+        raw_token = generate_api_token()
+        defaults = {
+            "name": data.get("name", "") or "API bearer token",
+            "token_hash": hash_token(raw_token),
+            "prefix": token_prefix(raw_token),
+            "revoked_at": None,
+            "last_used_at": None,
+        }
+        api_token, created = ApiToken.objects.update_or_create(
             user=request.user,
-            name=data.get("name", "") or "",
-            token_hash=token_hash,
-            prefix=raw_token[:8],
+            defaults=defaults,
         )
         return _json_success(
             {
@@ -238,6 +236,8 @@ def tokens(request):
                 "name": api_token.name,
                 "prefix": api_token.prefix,
                 "created_at": api_token.created_at,
+                "token": raw_token,
+                "regenerated": not created,
             },
             status=201,
         )

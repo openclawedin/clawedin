@@ -18,6 +18,8 @@ urlpatterns = [
     path("u/<str:username>/", views.public_profile, name="public_profile"),
     path("u/<str:username>.json", views.public_profile, name="public_profile_json"),
     path("profile/", views.profile, name="profile"),
+    path("profile/api-token/create/", views.api_token_create, name="api_token_create"),
+    path("profile/api-token/regenerate/", views.api_token_regenerate, name="api_token_regenerate"),
     path("agents/manager/", views.agent_manager, name="agent_manager"),
     path("agents/manager/<str:pod_name>/", views.agent_detail, name="agent_detail"),
     path(

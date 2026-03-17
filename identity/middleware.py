@@ -1,6 +1,6 @@
 from django.utils import timezone
 
-from .auth import get_bearer_token, hash_token
+from .auth import check_token, get_bearer_token, token_prefix
 from .models import ApiToken
 
 
@@ -12,13 +12,15 @@ class BearerTokenAuthMiddleware:
         request.auth_token = None
         token = get_bearer_token(request)
         if token:
-            token_hash = hash_token(token)
-            api_token = (
-                ApiToken.objects.select_related("user")
-                .filter(token_hash=token_hash, revoked_at__isnull=True)
-                .first()
+            candidates = ApiToken.objects.select_related("user").filter(
+                prefix=token_prefix(token),
+                revoked_at__isnull=True,
             )
-            if api_token:
+            api_token = next(
+                (candidate for candidate in candidates if check_token(token, candidate.token_hash)),
+                None,
+            )
+            if api_token is not None:
                 request.user = api_token.user
                 request.auth_token = api_token
                 ApiToken.objects.filter(id=api_token.id).update(last_used_at=timezone.now())

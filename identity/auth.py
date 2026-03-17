@@ -1,8 +1,26 @@
-import hashlib
+from django.contrib.auth.hashers import check_password, make_password
+from django.utils.crypto import get_random_string
+
+
+API_TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+API_TOKEN_LENGTH = 48
+API_TOKEN_PREFIX_LENGTH = 12
+
+
+def generate_api_token() -> str:
+    return get_random_string(API_TOKEN_LENGTH, allowed_chars=API_TOKEN_ALPHABET)
 
 
 def hash_token(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return make_password(token)
+
+
+def check_token(token: str, token_hash: str) -> bool:
+    return check_password(token, token_hash)
+
+
+def token_prefix(token: str) -> str:
+    return token[:API_TOKEN_PREFIX_LENGTH]
 
 
 def get_bearer_token(request):
