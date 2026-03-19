@@ -32,9 +32,9 @@
             <div class="nav-actions mt-3">
               <form action="{% url 'identity:agent_gui' pod.metadata.name %}" method="get">
                 <input type="hidden" name="open" value="1">
-                <button class="btn btn-primary" id="agent-gui-retry" type="submit">Retry now</button>
+                <button class="btn btn-primary" id="agent-gui-retry" type="submit" disabled>Waiting for secure access...</button>
               </form>
-              <a class="btn" id="agent-gui-manual" href="{{ open_url }}">Open web GUI</a>
+              <a class="btn" id="agent-gui-manual" href="{{ open_url }}" aria-disabled="true" tabindex="-1">Open web GUI</a>
             </div>
           {% else %}
             <p class="muted">GUI is not available yet. Please try again in a few seconds.</p>
@@ -68,7 +68,10 @@
           hasRedirected = true;
           guiReady = true;
           manualLink.href = openUrl;
+          manualLink.removeAttribute("aria-disabled");
+          manualLink.removeAttribute("tabindex");
           retryButton.textContent = "Open web GUI";
+          retryButton.disabled = false;
           statusEl.textContent = "Web GUI is ready. Redirecting...";
 
           window.setTimeout(() => {
@@ -91,7 +94,6 @@
         const checkStatus = async () => {
           if (requestInFlight) return;
           requestInFlight = true;
-          retryButton.disabled = true;
           try {
             const response = await fetch(statusUrl, {
               method: "GET",
@@ -106,14 +108,22 @@
               return;
             }
             guiReady = false;
-            retryButton.textContent = "Retry now";
+            retryButton.textContent = "Waiting for secure access...";
+            retryButton.disabled = true;
+            manualLink.setAttribute("aria-disabled", "true");
+            manualLink.setAttribute("tabindex", "-1");
           } catch (error) {
-            statusEl.textContent = "Container is not ready yet.";
+            statusEl.textContent = "Preparing secure Web GUI access...";
             guiReady = false;
-            retryButton.textContent = "Retry now";
+            retryButton.textContent = "Waiting for secure access...";
+            retryButton.disabled = true;
+            manualLink.setAttribute("aria-disabled", "true");
+            manualLink.setAttribute("tabindex", "-1");
           } finally {
             requestInFlight = false;
-            retryButton.disabled = false;
+            if (guiReady) {
+              retryButton.disabled = false;
+            }
           }
           schedulePoll(2000);
         };

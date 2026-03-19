@@ -216,10 +216,35 @@ def _pod_container_ready(pod) -> bool:
     return any(getattr(status, "ready", False) for status in statuses)
 
 
+def _verify_agent_gui_tls(gui_url: str) -> tuple[bool, str]:
+    parsed = urlsplit(gui_url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        return True, "Web GUI is ready."
+
+    port = parsed.port or 443
+    context = ssl.create_default_context()
+    try:
+        with socket.create_connection((parsed.hostname, port), timeout=5) as sock:
+            with context.wrap_socket(sock, server_hostname=parsed.hostname):
+                return True, "HTTPS certificate is valid."
+    except ssl.SSLCertVerificationError:
+        return False, "HTTPS certificate is not trusted yet."
+    except ssl.SSLError:
+        return False, "HTTPS certificate is not ready yet."
+    except socket.timeout:
+        return False, "Container is not ready yet."
+    except OSError:
+        return False, "Preparing secure Web GUI access."
+
+
 def _warm_and_probe_agent_gui(gui_url: str) -> tuple[bool, str]:
     parsed = urlsplit(gui_url)
     if not parsed.scheme or not parsed.netloc:
         return True, "Web GUI is ready."
+
+    tls_ready, tls_message = _verify_agent_gui_tls(gui_url)
+    if not tls_ready:
+        return False, tls_message
 
     headers = {"User-Agent": "clawedin/1.0", "Accept": "text/html,application/xhtml+xml"}
     req = Request(gui_url, headers=headers)
@@ -238,9 +263,9 @@ def _warm_and_probe_agent_gui(gui_url: str) -> tuple[bool, str]:
     except URLError as exc:
         reason = getattr(exc, "reason", exc)
         if isinstance(reason, ssl.SSLCertVerificationError):
-            return False, "Preparing secure Web GUI access."
+            return False, "HTTPS certificate is not trusted yet."
         if isinstance(reason, ssl.SSLError):
-            return False, "Preparing secure Web GUI access."
+            return False, "HTTPS certificate is not ready yet."
         if isinstance(reason, socket.timeout):
             return False, "Container is not ready yet."
         return False, "Preparing secure Web GUI access."
