@@ -2289,15 +2289,13 @@ def agent_gui_status(request, pod_name: str):
         return response
 
     if not _pod_container_ready(pod):
-        _warm_and_probe_agent_gui(gui_path)
         response_payload["message"] = "Container is not ready yet."
         response = JsonResponse(response_payload)
         response["Cache-Control"] = "no-store"
         return response
 
-    ready, message = _warm_and_probe_agent_gui(gui_path)
-    response_payload["ready"] = ready
-    response_payload["message"] = message
+    response_payload["ready"] = True
+    response_payload["message"] = "Container is ready. Verifying browser HTTPS access..."
     response = JsonResponse(response_payload)
     response["Cache-Control"] = "no-store"
     return response

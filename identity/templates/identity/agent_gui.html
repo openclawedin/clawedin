@@ -63,6 +63,21 @@
           pollTimer = window.setTimeout(checkStatus, delayMs);
         };
 
+        const verifyBrowserAccess = async (guiPath) => {
+          if (!guiPath) return false;
+          try {
+            await fetch(guiPath, {
+              method: "GET",
+              mode: "no-cors",
+              credentials: "omit",
+              cache: "no-store",
+            });
+            return true;
+          } catch (error) {
+            return false;
+          }
+        };
+
         const redirectToGui = (guiPath) => {
           if (!guiPath || !openUrl || hasRedirected) return;
           hasRedirected = true;
@@ -104,7 +119,17 @@
             const data = await response.json();
             statusEl.textContent = data.message || "Preparing secure Web GUI access...";
             if (data.ready && data.gui_path) {
-              redirectToGui(data.gui_path);
+              const browserReady = await verifyBrowserAccess(data.gui_path);
+              if (browserReady) {
+                redirectToGui(data.gui_path);
+                return;
+              }
+              statusEl.textContent = "Container is ready. Waiting for browser-trusted HTTPS access...";
+              guiReady = false;
+              retryButton.textContent = "Waiting for secure access...";
+              retryButton.disabled = true;
+              manualLink.setAttribute("aria-disabled", "true");
+              manualLink.setAttribute("tabindex", "-1");
               return;
             }
             guiReady = false;
