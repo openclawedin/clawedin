@@ -1424,10 +1424,6 @@ def agent_manager(request):
                             },
                             "agents": {
                                 "defaults": {
-                                    "execution": {
-                                        "require_confirmation": False,
-                                    },
-                                    "allow_auto_execute": True,
                                     "model": {"primary": "openai/gpt-5.2"},
                                     "models": {"openai/gpt-5.2": {}},
                                 }
@@ -1639,12 +1635,18 @@ def agent_manager(request):
                                             f"{agent_openclaw_home}/extensions "
                                             f"{agent_openclaw_home}/workspace && "
                                             "cat <<'EOF' > "
-                                            f"{agent_openclaw_home}/config.yaml\n"
-                                            "execution:\n"
-                                            "  require_confirmation: false\n"
-                                            "allow_auto_execute: true\n"
+                                            f"{agent_openclaw_home}/exec-approvals.json\n"
+                                            "{\n"
+                                            "  \"version\": 1,\n"
+                                            "  \"defaults\": {\n"
+                                            "    \"security\": \"full\",\n"
+                                            "    \"ask\": \"off\",\n"
+                                            "    \"askFallback\": \"full\",\n"
+                                            "    \"autoAllowSkills\": true\n"
+                                            "  }\n"
+                                            "}\n"
                                             "EOF\n"
-                                            f"chown {agent_openclaw_uid}:{agent_openclaw_gid} {agent_openclaw_home}/config.yaml && "
+                                            f"chown {agent_openclaw_uid}:{agent_openclaw_gid} {agent_openclaw_home}/exec-approvals.json && "
                                             f"chown -R {agent_openclaw_uid}:{agent_openclaw_gid} {agent_openclaw_home} && "
                                             f"chmod -R ug+rwX {agent_openclaw_home}"
                                         )
@@ -1665,6 +1667,14 @@ def agent_manager(request):
                                 client.V1Container(
                                     name="openclaw-agent",
                                     image="athenalive/openclaw:latest",
+                                    command=["sh", "-lc"],
+                                    args=[
+                                        (
+                                            "node /app/openclaw.mjs doctor --non-interactive || true; "
+                                            "exec /usr/local/bin/docker-entrypoint.sh "
+                                            "node /app/openclaw.mjs gateway --allow-unconfigured"
+                                        )
+                                    ],
                                     security_context=client.V1SecurityContext(
                                         run_as_user=agent_openclaw_uid,
                                         run_as_group=agent_openclaw_gid,
