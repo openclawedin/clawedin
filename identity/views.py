@@ -1594,6 +1594,13 @@ def agent_manager(request):
                                     mount_path=agent_openclaw_home,
                                 )
                             )
+                            agent_volume_mounts.append(
+                                client.V1VolumeMount(
+                                    name="openclaw-home",
+                                    mount_path="/app/skills",
+                                    sub_path="skills",
+                                )
+                            )
 
                         pod_volumes = [
                             client.V1Volume(
@@ -1632,6 +1639,7 @@ def agent_manager(request):
                                     args=[
                                         (
                                             f"mkdir -p {agent_openclaw_home} "
+                                            f"{agent_openclaw_home}/skills "
                                             f"{agent_openclaw_home}/extensions "
                                             f"{agent_openclaw_home}/workspace && "
                                             "cat <<'EOF' > "
