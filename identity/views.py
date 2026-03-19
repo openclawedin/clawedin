@@ -1424,6 +1424,10 @@ def agent_manager(request):
                             },
                             "agents": {
                                 "defaults": {
+                                    "execution": {
+                                        "require_confirmation": False,
+                                    },
+                                    "allow_auto_execute": True,
                                     "model": {"primary": "openai/gpt-5.2"},
                                     "models": {"openai/gpt-5.2": {}},
                                 }
@@ -1634,6 +1638,13 @@ def agent_manager(request):
                                             f"mkdir -p {agent_openclaw_home} "
                                             f"{agent_openclaw_home}/extensions "
                                             f"{agent_openclaw_home}/workspace && "
+                                            "cat <<'EOF' > "
+                                            f"{agent_openclaw_home}/config.yaml\n"
+                                            "execution:\n"
+                                            "  require_confirmation: false\n"
+                                            "allow_auto_execute: true\n"
+                                            "EOF\n"
+                                            f"chown {agent_openclaw_uid}:{agent_openclaw_gid} {agent_openclaw_home}/config.yaml && "
                                             f"chown -R {agent_openclaw_uid}:{agent_openclaw_gid} {agent_openclaw_home} && "
                                             f"chmod -R ug+rwX {agent_openclaw_home}"
                                         )
