@@ -1,0 +1,187 @@
+{% extends "identity/base.html" %}
+{% block title %}Agent Dashboard · Clawedin{% endblock %}
+{% block content %}
+  <section class="section">
+    <div class="profile-card">
+      <div class="section-header">
+        <div>
+          <span class="pill">Agent dashboard</span>
+          <h1>{{ pod.metadata.name|default:"OpenClaw agent" }}</h1>
+          <p class="muted">Manage channels, inspect runtime status, and open the Control UI for send/receive messaging.</p>
+        </div>
+        {% if pod %}
+          <div class="profile-actions">
+            <a class="btn btn-primary" href="{% url 'identity:agent_gui' pod.metadata.name %}">Open web GUI</a>
+            <a class="btn btn-outline-primary" href="{% url 'identity:agent_terminal' pod.metadata.name %}">Open terminal</a>
+            <a class="btn" href="{% url 'identity:agent_detail' pod.metadata.name %}">Back to details</a>
+          </div>
+        {% endif %}
+      </div>
+
+      {% if error_message %}
+        <div class="card">
+          <h4>Dashboard status</h4>
+          <pre class="text-danger mb-0">{{ error_message }}</pre>
+        </div>
+      {% endif %}
+
+      <div class="section-block">
+        <div class="section-header">
+          <div>
+            <h3>Overview</h3>
+            <p class="muted">Current pod and deployment information for this OpenClaw runtime.</p>
+          </div>
+        </div>
+        <div class="profile-details">
+          <div class="card">
+            <h4>Runtime</h4>
+            <p>Status: {{ pod.status.phase|default:"Unknown" }}</p>
+            <p>Namespace: {{ namespace|default:"Unknown" }}</p>
+            <p>Node: {{ pod.spec.node_name|default:"Pending" }}</p>
+            <p>Pod IP: {{ pod.status.pod_ip|default:"Pending" }}</p>
+          </div>
+          <div class="card">
+            <h4>Deployment</h4>
+            <p>Name: {{ deployment_record.deployment_name|default:pod.metadata.labels.deployment|default:"Unknown" }}</p>
+            <p>Started: {{ pod.status.start_time|default:"Pending" }}</p>
+            <p>Gateway token: {% if deployment_record %}Configured{% else %}Unknown{% endif %}</p>
+            <p>GUI route: {% if gui_path %}<code>{{ gui_path }}</code>{% else %}Preparing{% endif %}</p>
+          </div>
+          <div class="card card--accent">
+            <h4>Messaging</h4>
+            <p class="muted">Create channels below, then use the OpenClaw UI to send and receive messages through the configured accounts.</p>
+            {% if gui_path %}
+              <a class="btn btn-primary" href="{{ gui_wait_url }}">Open messaging UI</a>
+            {% else %}
+              <button class="btn btn-primary" type="button" disabled>Waiting for GUI</button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="section-block">
+        <div class="section-header">
+          <div>
+            <h3>Channels</h3>
+            <p class="muted">This form runs the OpenClaw CLI inside the agent container using `channels add`.</p>
+          </div>
+        </div>
+        <div class="profile-details dashboard-grid">
+          <div class="card">
+            <h4>Create channel</h4>
+            <form method="post" class="form">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="create_channel" />
+              <div class="form-group mb-3">
+                <label class="form-label" for="{{ create_form.channel_type.id_for_label }}">Channel type</label>
+                {{ create_form.channel_type }}
+                <p class="help-text">{{ create_form.channel_type.help_text }}</p>
+                {% if create_form.channel_type.errors %}
+                  <p class="text-danger">{{ create_form.channel_type.errors|striptags }}</p>
+                {% endif %}
+              </div>
+              <div class="form-group mb-3">
+                <label class="form-label" for="{{ create_form.display_name.id_for_label }}">Display name</label>
+                {{ create_form.display_name }}
+                <p class="help-text">{{ create_form.display_name.help_text }}</p>
+                {% if create_form.display_name.errors %}
+                  <p class="text-danger">{{ create_form.display_name.errors|striptags }}</p>
+                {% endif %}
+              </div>
+              <div class="form-group mb-3">
+                <label class="form-label" for="{{ create_form.account_id.id_for_label }}">Account ID</label>
+                {{ create_form.account_id }}
+                <p class="help-text">{{ create_form.account_id.help_text }}</p>
+                {% if create_form.account_id.errors %}
+                  <p class="text-danger">{{ create_form.account_id.errors|striptags }}</p>
+                {% endif %}
+              </div>
+              <div class="form-group mb-3">
+                <label class="form-label" for="{{ create_form.extra_args.id_for_label }}">Extra CLI args</label>
+                {{ create_form.extra_args }}
+                <p class="help-text">{{ create_form.extra_args.help_text }}</p>
+                {% if create_form.extra_args.errors %}
+                  <p class="text-danger">{{ create_form.extra_args.errors|striptags }}</p>
+                {% endif %}
+              </div>
+              <button class="btn btn-primary" type="submit">Create channel</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <h4>Configured channels</h4>
+            {% if channel_rows %}
+              <div class="dashboard-channel-list">
+                {% for channel in channel_rows %}
+                  <article class="dashboard-channel-item">
+                    <div class="dashboard-channel-head">
+                      <strong>{{ channel.display_name }}</strong>
+                      <span class="pill">{{ channel.type }}</span>
+                    </div>
+                    <p>Status: {{ channel.status }}</p>
+                    {% if channel.account_id %}
+                      <p>Account: {{ channel.account_id }}</p>
+                    {% endif %}
+                    {% if channel.metadata %}
+                      <pre class="dashboard-json mb-0"><code>{{ channel.metadata|pprint }}</code></pre>
+                    {% endif %}
+                  </article>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="muted mb-0">No channel inventory returned yet. Create one above or check the raw CLI output below.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="section-block">
+        <div class="section-header">
+          <div>
+            <h3>Messaging UI</h3>
+            <p class="muted">Use the embedded OpenClaw Control UI to work with live conversations once channels are connected.</p>
+          </div>
+        </div>
+        <div class="card">
+          {% if can_embed_gui and gui_path %}
+            <iframe
+              class="dashboard-frame"
+              src="{{ gui_path }}"
+              title="OpenClaw dashboard"
+              loading="lazy"
+              referrerpolicy="same-origin"
+            ></iframe>
+          {% elif gui_path %}
+            <p class="muted">This deployment serves the GUI on a separate host, so we open it in a full page instead of an iframe.</p>
+            <a class="btn btn-primary" href="{{ gui_wait_url }}">Open Control UI</a>
+          {% else %}
+            <p class="muted">The web GUI is still preparing. Use the button above once the container is ready.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="section-block">
+        <div class="section-header">
+          <div>
+            <h3>CLI output</h3>
+            <p class="muted">Raw OpenClaw command results from the running container for troubleshooting.</p>
+          </div>
+        </div>
+        <div class="profile-details dashboard-grid">
+          <div class="card">
+            <h4>`channels capabilities --json`</h4>
+            <pre class="dashboard-json mb-0"><code>{{ capabilities_raw|default:"No output." }}</code></pre>
+          </div>
+          <div class="card">
+            <h4>`channels list --json`</h4>
+            <pre class="dashboard-json mb-0"><code>{{ channels_raw|default:"No output." }}</code></pre>
+          </div>
+          <div class="card">
+            <h4>`channels status --json`</h4>
+            <pre class="dashboard-json mb-0"><code>{{ status_raw|default:"No output." }}</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

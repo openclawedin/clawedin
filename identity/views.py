@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import secrets
+import shlex
 import socket
 import ssl
 import time
@@ -35,6 +36,7 @@ except ImportError:  # pragma: no cover - exercised in environments without stri
     STRIPE_SDK_AVAILABLE = False
 
 from .forms import (
+    AgentChannelCreateForm,
     LoginForm,
     AgentLaunchForm,
     ProfileUpdateForm,
@@ -701,6 +703,146 @@ def _wait_for_agent_pod(v1, namespace: str, deployment_name: str, owner_username
                     return pod
         time.sleep(2)
     return last_pod
+
+
+def _coerce_openclaw_json(payload: str):
+    payload = (payload or "").strip()
+    if not payload:
+        return None
+    try:
+        return json.loads(payload)
+    except ValueError:
+        return None
+
+
+def _find_first_list(payload):
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        for key in ("channels", "items", "data", "results", "accounts"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return value
+        for value in payload.values():
+            if isinstance(value, list):
+                return value
+    return []
+
+
+def _normalize_channel_choices(capabilities_payload):
+    items = _find_first_list(capabilities_payload)
+    normalized = []
+    seen = set()
+    for item in items:
+        if isinstance(item, dict):
+            raw_value = (
+                item.get("type")
+                or item.get("channel")
+                or item.get("name")
+                or item.get("id")
+            )
+            label = item.get("label") or item.get("title") or raw_value
+        else:
+            raw_value = item
+            label = item
+        if not raw_value:
+            continue
+        value = str(raw_value).strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        normalized.append((value, str(label or value)))
+    return normalized
+
+
+def _normalize_channels(list_payload, status_payload):
+    items = _find_first_list(list_payload)
+    status_map = status_payload if isinstance(status_payload, dict) else {}
+    rows = []
+
+    for item in items:
+        if isinstance(item, dict):
+            channel_type = item.get("type") or item.get("channel") or item.get("provider") or "unknown"
+            channel_id = item.get("id") or item.get("name") or item.get("slug") or item.get("accountId") or channel_type
+            display_name = item.get("name") or item.get("displayName") or item.get("label") or channel_id
+            account_id = item.get("accountId") or item.get("account") or item.get("identifier") or ""
+            metadata = {key: value for key, value in item.items() if key not in {"id", "name", "displayName", "label", "type", "channel", "provider", "accountId", "account", "identifier"}}
+        else:
+            channel_type = "unknown"
+            channel_id = str(item)
+            display_name = str(item)
+            account_id = ""
+            metadata = {}
+
+        status_value = None
+        if isinstance(status_map, dict):
+            status_value = (
+                status_map.get(channel_id)
+                or status_map.get(display_name)
+                or status_map.get(channel_type)
+            )
+        if isinstance(status_value, dict):
+            status_label = (
+                status_value.get("status")
+                or status_value.get("state")
+                or status_value.get("health")
+                or json.dumps(status_value)
+            )
+        else:
+            status_label = status_value
+
+        rows.append(
+            {
+                "id": channel_id,
+                "display_name": display_name,
+                "type": channel_type,
+                "account_id": account_id,
+                "status": status_label or "Unknown",
+                "metadata": metadata,
+            }
+        )
+
+    return rows
+
+
+def _exec_agent_shell_command(v1, namespace: str, pod_name: str, shell_command: str) -> dict:
+    from kubernetes import stream
+
+    wrapped_command = (
+        f"{shell_command} 2>&1\n"
+        "status=$?\n"
+        "printf '\\n__CLAWEDIN_EXIT_CODE__=%s' \"$status\"\n"
+    )
+    output = stream.stream(
+        v1.connect_get_namespaced_pod_exec,
+        pod_name,
+        namespace,
+        container="openclaw-agent",
+        command=["/bin/sh", "-lc", wrapped_command],
+        stderr=True,
+        stdin=False,
+        stdout=True,
+        tty=False,
+    )
+    marker = "__CLAWEDIN_EXIT_CODE__="
+    stdout = output or ""
+    exit_code = 1
+    if marker in stdout:
+        stdout, _, tail = stdout.rpartition(marker)
+        try:
+            exit_code = int(tail.strip().splitlines()[0])
+        except (TypeError, ValueError, IndexError):
+            exit_code = 1
+    return {
+        "ok": exit_code == 0,
+        "exit_code": exit_code,
+        "output": stdout.strip(),
+    }
+
+
+def _run_openclaw_cli(v1, namespace: str, pod_name: str, args: list[str]) -> dict:
+    command = shlex.join(["node", "/app/openclaw.mjs", *args])
+    return _exec_agent_shell_command(v1, namespace, pod_name, command)
 
 
 def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, pod, owner_username: str):
@@ -2181,6 +2323,118 @@ def agent_detail(request, pod_name: str):
             "logs": logs,
             "tail_lines": tail_lines_int,
             "error_message": error_message,
+        },
+    )
+
+
+@login_required
+def agent_dashboard(request, pod_name: str):
+    if request.user.account_type != User.HUMAN:
+        return redirect("identity:profile")
+
+    gui_context = _prepare_agent_gui_context(request, pod_name)
+    resolved_pod_name = gui_context.get("resolved_pod_name") or pod_name
+    if resolved_pod_name != pod_name and request.method == "GET" and not gui_context.get("error_message"):
+        return redirect("identity:agent_dashboard", pod_name=resolved_pod_name)
+
+    pod = gui_context.get("pod")
+    namespace = gui_context.get("namespace")
+    error_message = gui_context.get("error_message")
+    gui_path = gui_context.get("gui_path")
+    gui_wait_url = reverse("identity:agent_gui", args=[resolved_pod_name])
+    channel_rows = []
+    channels_raw = ""
+    status_raw = ""
+    capabilities_raw = ""
+    channel_choices = None
+    create_form = AgentChannelCreateForm(channel_choices=channel_choices)
+
+    if pod and not error_message:
+        try:
+            from kubernetes import client
+
+            load_kube_config()
+            v1 = client.CoreV1Api()
+
+            capabilities_result = _run_openclaw_cli(v1, namespace, resolved_pod_name, ["channels", "capabilities", "--json"])
+            capabilities_raw = capabilities_result["output"]
+            capabilities_payload = _coerce_openclaw_json(capabilities_result["output"]) if capabilities_result["ok"] else None
+            channel_choices = _normalize_channel_choices(capabilities_payload)
+
+            if request.method == "POST" and request.POST.get("action") == "create_channel":
+                create_form = AgentChannelCreateForm(
+                    request.POST,
+                    channel_choices=channel_choices,
+                )
+                if create_form.is_valid():
+                    command_args = ["channels", "add", create_form.cleaned_data["channel_type"]]
+                    display_name = create_form.cleaned_data["display_name"].strip()
+                    account_id = create_form.cleaned_data["account_id"].strip()
+                    extra_args = create_form.cleaned_data["extra_args"].strip()
+                    if display_name:
+                        command_args.extend(["--name", display_name])
+                    if account_id:
+                        command_args.extend(["--account-id", account_id])
+                    if extra_args:
+                        try:
+                            command_args.extend(shlex.split(extra_args))
+                        except ValueError as exc:
+                            create_form.add_error("extra_args", f"Could not parse extra CLI args: {exc}")
+                    if not create_form.errors:
+                        create_result = _run_openclaw_cli(v1, namespace, resolved_pod_name, command_args)
+                        if create_result["ok"]:
+                            messages.success(request, "Channel created in the agent container.")
+                            return redirect("identity:agent_dashboard", pod_name=resolved_pod_name)
+                        messages.error(
+                            request,
+                            f"Channel creation failed: {create_result['output'] or 'OpenClaw returned a non-zero exit code.'}",
+                        )
+            else:
+                create_form = AgentChannelCreateForm(channel_choices=channel_choices)
+
+            channels_result = _run_openclaw_cli(v1, namespace, resolved_pod_name, ["channels", "list", "--json"])
+            status_result = _run_openclaw_cli(v1, namespace, resolved_pod_name, ["channels", "status", "--json"])
+            channels_raw = channels_result["output"]
+            status_raw = status_result["output"]
+            channels_payload = _coerce_openclaw_json(channels_result["output"]) if channels_result["ok"] else None
+            status_payload = _coerce_openclaw_json(status_result["output"]) if status_result["ok"] else None
+            channel_rows = _normalize_channels(channels_payload, status_payload)
+
+            if not channels_result["ok"] and not error_message:
+                error_message = channels_result["output"] or "Could not fetch channels from the agent."
+            elif not status_result["ok"] and not error_message:
+                error_message = status_result["output"] or "Could not fetch channel status from the agent."
+        except Exception as exc:  # pragma: no cover - depends on kube setup
+            logger.exception("Failed to load OpenClaw dashboard data for pod %s", resolved_pod_name)
+            error_message = str(exc)
+
+    deployment_name = ""
+    if pod and pod.metadata and pod.metadata.labels:
+        deployment_name = pod.metadata.labels.get("deployment") or ""
+    deployment_record = AgentDeployment.objects.filter(
+        user=request.user,
+        deployment_name=deployment_name,
+        namespace=namespace,
+    ).first()
+
+    can_embed_gui = bool(gui_path) and not bool(getattr(settings, "AGENT_GUI_HOST_SUFFIX", "").strip())
+
+    return render(
+        request,
+        "identity/agent_dashboard.html",
+        {
+            "namespace": namespace,
+            "pod": pod,
+            "deployment_record": deployment_record,
+            "error_message": error_message,
+            "gui_path": gui_path,
+            "gui_wait_url": gui_wait_url,
+            "can_embed_gui": can_embed_gui,
+            "channel_rows": channel_rows,
+            "channels_raw": channels_raw,
+            "status_raw": status_raw,
+            "capabilities_raw": capabilities_raw,
+            "create_form": create_form,
         },
     )
 

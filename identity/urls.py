@@ -23,6 +23,11 @@ urlpatterns = [
     path("agents/manager/", views.agent_manager, name="agent_manager"),
     path("agents/manager/<str:pod_name>/", views.agent_detail, name="agent_detail"),
     path(
+        "agents/manager/<str:pod_name>/dashboard/",
+        views.agent_dashboard,
+        name="agent_dashboard",
+    ),
+    path(
         "agents/manager/<str:pod_name>/terminal/",
         views.agent_terminal,
         name="agent_terminal",

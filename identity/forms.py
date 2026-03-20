@@ -78,6 +78,36 @@ class AgentLaunchForm(forms.Form):
     )
 
 
+class AgentChannelCreateForm(forms.Form):
+    channel_type = forms.ChoiceField(label="Channel type")
+    display_name = forms.CharField(
+        max_length=120,
+        required=False,
+        help_text="Optional friendly name for the channel inside OpenClaw.",
+    )
+    account_id = forms.CharField(
+        max_length=200,
+        required=False,
+        help_text="Optional account identifier if the channel requires one.",
+    )
+    extra_args = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 4}),
+        help_text="Optional extra CLI flags, for example --token abc123 or --webhook-url https://...",
+    )
+
+    def __init__(self, *args, channel_choices=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["channel_type"].choices = channel_choices or [
+            ("telegram", "telegram"),
+            ("discord", "discord"),
+            ("slack", "slack"),
+            ("whatsapp", "whatsapp"),
+            ("email", "email"),
+            ("webhook", "webhook"),
+        ]
+
+
 class ResumeForm(forms.ModelForm):
     class Meta:
         model = Resume

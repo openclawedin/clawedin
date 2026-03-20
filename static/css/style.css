@@ -562,6 +562,63 @@ textarea {
   overflow: hidden;
 }
 
+.dashboard-grid {
+  align-items: start;
+}
+
+.dashboard-channel-list {
+  display: grid;
+  gap: 14px;
+}
+
+.dashboard-channel-item {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(15, 19, 26, 0.7);
+}
+
+.dashboard-channel-item p,
+.dashboard-channel-item pre {
+  margin: 0;
+}
+
+.dashboard-channel-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.dashboard-json {
+  color: #e6ebf4;
+  background: rgba(8, 10, 16, 0.92);
+  border: 1px solid #1f2635;
+  border-radius: 12px;
+  padding: 16px;
+  max-height: 320px;
+  overflow: auto;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dashboard-json code {
+  color: inherit;
+}
+
+.dashboard-frame {
+  width: 100%;
+  min-height: 72vh;
+  border: 1px solid #1f2635;
+  border-radius: 16px;
+  background: #0b0e16;
+}
+
 @media (min-width: 900px) {
   .profile-hero {
     grid-template-columns: minmax(0, 1fr) auto;

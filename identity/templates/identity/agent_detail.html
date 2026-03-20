@@ -26,6 +26,15 @@
           </div>
         </div>
         <div class="profile-details">
+          <div class="card card--accent">
+            <h4>Dashboard</h4>
+            <p class="muted">Open the agent dashboard for channel setup and embedded OpenClaw messaging.</p>
+            {% if pod %}
+              <a class="btn btn-primary" href="{% url 'identity:agent_dashboard' pod.metadata.name %}">Open dashboard</a>
+            {% else %}
+              <button class="btn btn-primary" type="button" disabled>Open dashboard</button>
+            {% endif %}
+          </div>
           <div class="card">
             <h4>Terminal</h4>
             <p class="muted">Open an interactive shell inside your agent.</p>
