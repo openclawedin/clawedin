@@ -134,6 +134,11 @@ sudo apt install -y caddy
 ## Kubernetes deployment notes
 These are the operational rules we use in production for builds and rollouts.
 
+Critical safety rule:
+- Do not create, recreate, replace, reset, or delete an existing cluster unless the user explicitly asks for that exact operation.
+- Assume the production cluster already exists.
+- If there is any ambiguity about cluster lifecycle changes, ask first.
+
 ### EKS/k3s quick setup (current workflow)
 We deploy via Docker Hub and Kubernetes (`kubectl`) using a namespace named `clawedin`.
 Codex uses the same flow below when asked to build/push/restart.
@@ -141,7 +146,7 @@ Codex uses the same flow below when asked to build/push/restart.
 Prereqs:
 - Docker Buildx available.
 - `kubectl` configured for the target cluster/context.
-- Namespace `clawedin` exists (create once if missing).
+- Namespace `clawedin` exists. Ask before creating anything cluster-wide.
 - Docker Hub pull secret named `dockerhub-secret` in `clawedin`.
 
 Remote access (tunneling) notes:
@@ -149,7 +154,7 @@ Remote access (tunneling) notes:
 - Run Codex on the host (or use SSH forwarding) so `kubectl` points at the correct remote context.
 - This is how we apply secrets, rollouts, and other ops tasks from the server that can reach the cluster.
 
-Create namespace (one-time):
+Create namespace (one-time, only if explicitly requested and confirmed missing):
 ```bash
 kubectl create namespace clawedin
 ```
