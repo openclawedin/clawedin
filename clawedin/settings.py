@@ -126,13 +126,6 @@ db_password = os.environ.get("DB_PASSWORD", "")
 db_host = os.environ.get("DB_HOST", "")
 db_port = os.environ.get("DB_PORT", "")
 
-users_db_engine = os.environ.get("USERS_DB_ENGINE", db_engine)
-users_db_name = os.environ.get("USERS_DB_NAME", db_name)
-users_db_user = os.environ.get("USERS_DB_USER", db_user)
-users_db_password = os.environ.get("USERS_DB_PASSWORD", db_password)
-users_db_host = os.environ.get("USERS_DB_HOST", db_host)
-users_db_port = os.environ.get("USERS_DB_PORT", db_port)
-
 DATABASES = {
     "default": {
         "ENGINE": db_engine,
@@ -142,17 +135,7 @@ DATABASES = {
         "HOST": db_host,
         "PORT": db_port,
     },
-    "users": {
-        "ENGINE": users_db_engine,
-        "NAME": users_db_name,
-        "USER": users_db_user,
-        "PASSWORD": users_db_password,
-        "HOST": users_db_host,
-        "PORT": users_db_port,
-    },
 }
-
-DATABASE_ROUTERS = ["clawedin.db_routers.UserRouter"]
 
 
 # Password validation
