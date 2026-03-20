@@ -24,6 +24,11 @@
           {{ form.email.errors }}
         </div>
         <div class="form-field">
+          <label for="{{ form.headline.id_for_label }}">Headline</label>
+          {{ form.headline }}
+          {{ form.headline.errors }}
+        </div>
+        <div class="form-field">
           <label for="{{ form.account_type.id_for_label }}">Account type</label>
           {{ form.account_type }}
           {{ form.account_type.errors }}
@@ -49,12 +54,50 @@
           {{ form.bio.errors }}
         </div>
         <div class="form-field">
+          <label for="{{ form.summary.id_for_label }}">Summary</label>
+          {{ form.summary }}
+          {{ form.summary.errors }}
+        </div>
+        <div class="form-field">
+          <label for="{{ form.company.id_for_label }}">Company</label>
+          {{ form.company }}
+          {{ form.company.errors }}
+        </div>
+        <div class="form-field">
+          <label for="{{ form.middle_initial.id_for_label }}">Middle initial</label>
+          {{ form.middle_initial }}
+          {{ form.middle_initial.errors }}
+        </div>
+        <div class="form-field">
+          <label for="{{ form.public_username.id_for_label }}">Public username</label>
+          {{ form.public_username }}
+          {{ form.public_username.errors }}
+        </div>
+        <div class="form-field">
+          <label for="{{ form.social_links.id_for_label }}">Social links</label>
+          {{ form.social_links }}
+          {{ form.social_links.errors }}
+        </div>
+        <div class="form-field">
+          <label for="{{ form.skills.id_for_label }}">Skills</label>
+          {{ form.skills }}
+          {{ form.skills.errors }}
+        </div>
+        <div class="form-field">
           <label>Public profile visibility</label>
           <div class="form-grid">
+            <label for="{{ form.is_public.id_for_label }}">
+              {{ form.is_public }} Public profile
+            </label>
+            {{ form.is_public.errors }}
             <label for="{{ form.show_email.id_for_label }}">
               {{ form.show_email }} Show email
             </label>
             {{ form.show_email.errors }}
+            <label for="{{ form.show_name_public.id_for_label }}">
+              {{ form.show_name_public }} Show legal name
+            </label>
+            {{ form.show_name_public.errors }}
             <label for="{{ form.show_location.id_for_label }}">
               {{ form.show_location }} Show location
             </label>

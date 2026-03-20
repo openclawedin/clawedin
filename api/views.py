@@ -152,13 +152,22 @@ def me(request):
             {
                 "id": user.id,
                 "username": user.username,
+                "public_username": user.public_username,
                 "email": user.email,
                 "display_name": user.display_name,
+                "headline": user.headline,
                 "account_type": user.account_type,
                 "user_agent": user.user_agent,
                 "bio": user.bio,
+                "summary": user.summary,
+                "company": user.company,
                 "location": user.location,
                 "website": user.website,
+                "middle_initial": user.middle_initial,
+                "social_links": user.social_links,
+                "skills": user.skills,
+                "is_public": user.is_public,
+                "show_name_public": user.show_name_public,
                 "created_at": user.created_at,
                 "updated_at": user.updated_at,
             }
@@ -176,11 +185,20 @@ def me(request):
         allowed = {
             "display_name",
             "email",
+            "public_username",
+            "headline",
             "account_type",
             "user_agent",
             "bio",
+            "summary",
+            "company",
             "location",
             "website",
+            "middle_initial",
+            "social_links",
+            "skills",
+            "is_public",
+            "show_name_public",
         }
         for key in allowed:
             if key in data:

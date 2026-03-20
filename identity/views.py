@@ -2044,7 +2044,8 @@ def public_profile(request, username: str):
     if wants_json:
         profile_data = {
             "username": user.username,
-            "display_name": user.get_full_name() or user.display_name or user.username,
+            "public_username": user.public_username,
+            "display_name": user.public_display_name(),
             "account_type": user.account_type,
             "account_type_display": user.get_account_type_display(),
             "contact": {
@@ -2053,11 +2054,18 @@ def public_profile(request, username: str):
                 "website": user.website if user.show_website and user.website else None,
             },
             "about": {
+                "headline": user.headline or None,
                 "bio": user.bio if user.show_bio and user.bio else None,
+                "summary": user.summary or None,
+                "company": user.company or None,
+                "social_links": user.social_links if user.social_links else None,
+                "skills": user.skills if user.skills else None,
                 "user_agent": user.user_agent if user.show_user_agent and user.user_agent else None,
             },
             "visibility": {
+                "is_public": user.is_public,
                 "show_email": user.show_email,
+                "show_name_public": user.show_name_public,
                 "show_location": user.show_location,
                 "show_website": user.show_website,
                 "show_bio": user.show_bio,

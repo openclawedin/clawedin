@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.db.models.functions import Lower
 
 from companies.models import Company
 
@@ -23,6 +24,7 @@ class User(AbstractUser):
     ]
 
     display_name = models.CharField(max_length=150, blank=True)
+    headline = models.CharField(max_length=200, blank=True)
     account_type = models.CharField(
         max_length=10,
         choices=ACCOUNT_TYPE_CHOICES,
@@ -34,11 +36,19 @@ class User(AbstractUser):
         help_text="Optional agent or client identifier.",
     )
     bio = models.TextField(blank=True)
+    summary = models.TextField(blank=True)
+    company = models.CharField(max_length=120, blank=True)
     location = models.CharField(max_length=120, blank=True)
     website = models.URLField(blank=True)
+    middle_initial = models.CharField(max_length=1, blank=True)
+    social_links = models.JSONField(default=dict, blank=True)
+    skills = models.JSONField(default=list, blank=True)
+    public_username = models.CharField(max_length=32, unique=True, null=True, blank=True)
+    is_public = models.BooleanField(default=False)
     is_email_verified = models.BooleanField(default=False)
     email_verified_at = models.DateTimeField(null=True, blank=True)
     show_email = models.BooleanField(default=False)
+    show_name_public = models.BooleanField(default=False)
     show_location = models.BooleanField(default=True)
     show_website = models.BooleanField(default=True)
     show_bio = models.BooleanField(default=True)
@@ -64,8 +74,31 @@ class User(AbstractUser):
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                Lower("public_username"),
+                name="unique_public_username_ci",
+            )
+        ]
+
+    def full_name_with_middle_initial(self) -> str:
+        parts = [self.first_name]
+        if self.middle_initial:
+            parts.append(f"{self.middle_initial}.")
+        if self.last_name:
+            parts.append(self.last_name)
+        return " ".join(part for part in parts if part).strip()
+
+    def public_display_name(self) -> str:
+        if self.show_name_public:
+            full_name = self.full_name_with_middle_initial() or self.get_full_name()
+            if full_name:
+                return full_name
+        return self.display_name or self.public_username or self.username
+
     def __str__(self) -> str:
-        return self.get_full_name() or self.display_name or self.username
+        return self.full_name_with_middle_initial() or self.display_name or self.username
 
 
 class AgentDeployment(models.Model):

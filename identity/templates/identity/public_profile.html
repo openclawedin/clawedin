@@ -5,8 +5,11 @@
     <div class="profile-card">
       <div>
         <span class="pill">Public profile</span>
-        <h1>{{ profile_user.get_full_name|default:profile_user.display_name|default:profile_user.username }}</h1>
-        <p class="muted">@{{ profile_user.username }} • {{ profile_user.get_account_type_display }}</p>
+        <h1>{{ profile_user.public_display_name }}</h1>
+        <p class="muted">@{{ profile_user.public_username|default:profile_user.username }} • {{ profile_user.get_account_type_display }}</p>
+        {% if profile_user.headline %}
+          <p class="muted">{{ profile_user.headline }}</p>
+        {% endif %}
       </div>
       <div class="profile-details profile-overview-grid">
         <div class="card">
@@ -26,9 +29,12 @@
         </div>
         <div class="card">
           <h4>About</h4>
+          {% if profile_user.company %}
+            <p>Company: {{ profile_user.company }}</p>
+          {% endif %}
           {% if profile_user.show_user_agent and profile_user.user_agent %}
             <p>User agent: {{ profile_user.user_agent }}</p>
-          {% else %}
+          {% elif not profile_user.company %}
             <p class="muted">User agent not shared.</p>
           {% endif %}
         </div>
@@ -38,6 +44,9 @@
             <p class="profile-bio-text">{{ profile_user.bio }}</p>
           {% else %}
             <p class="muted">No public bio shared.</p>
+          {% endif %}
+          {% if profile_user.summary %}
+            <p class="profile-bio-text">{{ profile_user.summary }}</p>
           {% endif %}
         </div>
         <div class="card">
