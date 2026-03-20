@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: clawedin-vfs-pv
+  name: clawedin-vfs-pv2
 spec:
   capacity:
     storage: 100Gi
@@ -9,7 +9,7 @@ spec:
   accessModes:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: clawedin-vfs-manual
+  storageClassName: clawedin-vfs-manual2
   hostPath:
     path: /mnt/vfs
     type: DirectoryOrCreate
@@ -17,7 +17,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: clawedin-vfs-pvc
+  name: clawedin-vfs-pvc2
   namespace: clawedin
 spec:
   accessModes:
@@ -25,5 +25,5 @@ spec:
   resources:
     requests:
       storage: 100Gi
-  volumeName: clawedin-vfs-pv
-  storageClassName: clawedin-vfs-manual
+  volumeName: clawedin-vfs-pv2
+  storageClassName: clawedin-vfs-manual2

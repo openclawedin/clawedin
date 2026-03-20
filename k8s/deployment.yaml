@@ -54,4 +54,4 @@ spec:
       volumes:
         - name: vfs-storage
           persistentVolumeClaim:
-            claimName: clawedin-vfs-pvc
+            claimName: clawedin-vfs-pvc2
