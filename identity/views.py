@@ -225,6 +225,19 @@ def _gui_url_for_pod(request, pod_name: str) -> str:
     return f"{scheme}://{host}{default_path}"
 
 
+def _gui_allowed_origins_for_pod(pod_name: str) -> list[str]:
+    origins = []
+    host = _gui_host_for_pod(pod_name)
+    if not host:
+        return origins
+    schemes = {"https"}
+    if bool(getattr(settings, "DEBUG", False)):
+        schemes.add("http")
+    for scheme in sorted(schemes):
+        origins.append(f"{scheme}://{host}")
+    return origins
+
+
 def _append_query_param(url: str, key: str, value: str) -> str:
     if not value:
         return url
@@ -1670,6 +1683,7 @@ def agent_manager(request):
 
                         gateway_token = secrets.token_urlsafe(32)
                         web_auth_token = generate_api_token()
+                        gui_allowed_origins = _gui_allowed_origins_for_pod(deployment_name)
                         browser_ssrf_allowed_hostnames = [
                             value.strip()
                             for value in getattr(settings, "AGENT_BROWSER_SSRF_ALLOWED_HOSTNAMES", [])
@@ -1686,7 +1700,9 @@ def agent_manager(request):
                                 "port": int(getattr(settings, "AGENT_GUI_PORT", 18789)),
                                 "bind": "lan",
                                 "auth": {"token": gateway_token},
-                                "controlUi": {"dangerouslyDisableDeviceAuth": True},
+                                "controlUi": {
+                                    "dangerouslyDisableDeviceAuth": True,
+                                },
                                 "trustedProxies": [
                                     "10.42.0.0/16",
                                     "10.43.0.0/16",
@@ -1719,6 +1735,8 @@ def agent_manager(request):
                             },
                         }
                         gateway_config["gateway"]["auth"]["mode"] = "token"
+                        if gui_allowed_origins:
+                            gateway_config["gateway"]["controlUi"]["allowedOrigins"] = gui_allowed_origins
                         if browser_ssrf_allowed_hostnames:
                             gateway_config["browser"] = {
                                 "ssrfPolicy": {
