@@ -11,7 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 from decimal import Decimal, ROUND_DOWN
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.conf import settings
 from django.contrib import messages
@@ -101,6 +101,8 @@ except ImportError:  # pragma: no cover - optional in environments without solan
     SOLANA_SDK_AVAILABLE = False
 
 BIRDEYE_PRICE_URL = "https://public-api.birdeye.so/defi/price"
+CLAWEDIN_CHANNEL_DEFAULT_PORT = 31890
+CLAWEDIN_CHANNEL_DEFAULT_PATH = "/v1/messages"
 
 def _ensure_dockerhub_secret(client_module, v1, namespace: str, source_namespace: str = "default") -> None:
     secret_name = "dockerhub-secret"
@@ -141,6 +143,15 @@ def _delete_namespaced_secret_if_present(v1, namespace: str, secret_name: str) -
         v1.delete_namespaced_secret(secret_name, namespace)
     except Exception:
         pass
+
+
+def _parse_request_json(request):
+    if not request.body:
+        return {}
+    try:
+        return json.loads(request.body.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return None
 
 
 def _agent_openclaw_pvc_mode() -> str:
@@ -824,6 +835,70 @@ def _normalize_channels(list_payload, status_payload):
         )
 
     return rows
+
+
+def _agent_clawedin_base_url(pod) -> str:
+    pod_ip = getattr(getattr(pod, "status", None), "pod_ip", "") or ""
+    if not pod_ip:
+        raise RuntimeError("Agent pod does not have an IP address yet.")
+    port = int(getattr(settings, "AGENT_CLAWEDIN_CHANNEL_PORT", CLAWEDIN_CHANNEL_DEFAULT_PORT))
+    return f"http://{pod_ip}:{port}"
+
+
+def _agent_clawedin_request(pod, *, path: str, method: str = "GET", token: str = "", payload: dict | None = None):
+    base_url = _agent_clawedin_base_url(pod)
+    request_path = path if path.startswith("/") else f"/{path}"
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "clawedin/1.0",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    data = None
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(payload).encode("utf-8")
+    request = Request(
+        f"{base_url}{request_path}",
+        data=data,
+        headers=headers,
+        method=method.upper(),
+    )
+    try:
+        with urlopen(request, timeout=20) as response:
+            body = response.read().decode("utf-8")
+            return response.status, json.loads(body) if body else {}
+    except HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        try:
+            payload = json.loads(body) if body else {}
+        except ValueError:
+            payload = {"error": body or exc.reason}
+        return exc.code, payload
+    except URLError as exc:
+        raise RuntimeError(f"Could not reach Clawedin channel: {exc}") from exc
+
+
+def _agent_clawedin_health(pod, token: str = "") -> dict:
+    try:
+        status_code, payload = _agent_clawedin_request(
+            pod,
+            path="/healthz",
+            method="GET",
+            token=token,
+        )
+    except RuntimeError as exc:
+        return {
+            "ok": False,
+            "label": "Gateway unreachable",
+            "detail": str(exc),
+        }
+    detail = payload.get("accountId") or payload.get("channel") or "Waiting for channel startup."
+    return {
+        "ok": status_code == 200 and bool(payload.get("ok")),
+        "label": "Currently working" if status_code == 200 and bool(payload.get("ok")) else "Gateway offline",
+        "detail": detail,
+    }
 
 
 def _exec_agent_shell_command(v1, namespace: str, pod_name: str, shell_command: str) -> dict:
@@ -1621,6 +1696,24 @@ def agent_manager(request):
                                     "models": {"openai/gpt-5.2": {}},
                                 }
                             },
+                            "channels": {
+                                "clawedin": {
+                                    "enabled": True,
+                                    "host": "0.0.0.0",
+                                    "port": int(
+                                        getattr(
+                                            settings,
+                                            "AGENT_CLAWEDIN_CHANNEL_PORT",
+                                            CLAWEDIN_CHANNEL_DEFAULT_PORT,
+                                        )
+                                    ),
+                                    "requestPath": getattr(
+                                        settings,
+                                        "AGENT_CLAWEDIN_CHANNEL_REQUEST_PATH",
+                                        CLAWEDIN_CHANNEL_DEFAULT_PATH,
+                                    ),
+                                }
+                            },
                         }
                         if browser_ssrf_allowed_hostnames:
                             gateway_config["browser"] = {
@@ -1918,6 +2011,16 @@ def agent_manager(request):
                                         client.V1ContainerPort(
                                             container_port=agent_port,
                                             name="gui",
+                                        ),
+                                        client.V1ContainerPort(
+                                            container_port=int(
+                                                getattr(
+                                                    settings,
+                                                    "AGENT_CLAWEDIN_CHANNEL_PORT",
+                                                    CLAWEDIN_CHANNEL_DEFAULT_PORT,
+                                                )
+                                            ),
+                                            name="clawedin-chat",
                                         )
                                     ],
                                     env=[
@@ -2456,6 +2559,13 @@ def agent_dashboard(request, pod_name: str):
     capabilities_raw = ""
     channel_choices = None
     create_form = AgentChannelCreateForm(channel_choices=channel_choices)
+    gateway_health = {
+        "ok": False,
+        "label": "Gateway offline",
+        "detail": "Waiting for channel startup.",
+    }
+    status_window_end = timezone.localdate()
+    status_window_start = status_window_end - timedelta(days=6)
 
     if pod and not error_message:
         try:
@@ -2524,8 +2634,65 @@ def agent_dashboard(request, pod_name: str):
         deployment_name=deployment_name,
         namespace=namespace,
     ).first()
+    if pod:
+        gateway_health = _agent_clawedin_health(
+            pod,
+            token=getattr(deployment_record, "web_auth_token", "") or "",
+        )
 
     can_embed_gui = bool(gui_path) and not bool(getattr(settings, "AGENT_GUI_HOST_SUFFIX", "").strip())
+    chat_seed_messages = [
+        {
+            "role": "agent",
+            "author": pod.metadata.name if pod and pod.metadata else "Agent",
+            "timestamp": "Live status",
+            "text": (
+                "The Clawedin channel gateway is ready for prompt-based turns. "
+                "Send a message below and I will route it through the agent container on port 31890."
+            ),
+        },
+        {
+            "role": "user",
+            "author": request.user.display_name or request.user.username,
+            "timestamp": "Hint",
+            "text": (
+                "Try a direct instruction, ask for a summary, or hand the agent a next action. "
+                "Attachment handling and richer thread analytics are stubbed in the UI for now."
+            ),
+        },
+    ]
+    metrics = [
+        {
+            "label": "Prompt turns",
+            "value": "--",
+            "delta": "Telemetry placeholder",
+            "description": "Tracked once we persist channel turns from the gateway.",
+        },
+        {
+            "label": "Agent replies",
+            "value": "--",
+            "delta": "Telemetry placeholder",
+            "description": "Will show successful responses returned from the Clawedin channel.",
+        },
+        {
+            "label": "Linked channels",
+            "value": str(len(channel_rows)),
+            "delta": "Live runtime count",
+            "description": "Configured OpenClaw channels discovered from `channels list`.",
+        },
+        {
+            "label": "Tasks completed",
+            "value": "--",
+            "delta": "Awaiting event stream",
+            "description": "Reserved for completed workflow actions and task outcomes.",
+        },
+        {
+            "label": "Files shared",
+            "value": "--",
+            "delta": "Attachment queue soon",
+            "description": "Attachment upload UI is staged here until file relay is wired.",
+        },
+    ]
 
     return render(
         request,
@@ -2543,7 +2710,109 @@ def agent_dashboard(request, pod_name: str):
             "status_raw": status_raw,
             "capabilities_raw": capabilities_raw,
             "create_form": create_form,
+            "chat_seed_messages": chat_seed_messages,
+            "chat_endpoint": reverse("identity:agent_dashboard_chat", args=[resolved_pod_name]),
+            "gateway_health": gateway_health,
+            "metrics": metrics,
+            "status_window_start": status_window_start,
+            "status_window_end": status_window_end,
         },
+    )
+
+
+@login_required
+@require_POST
+def agent_dashboard_chat(request, pod_name: str):
+    if request.user.account_type != User.HUMAN:
+        return JsonResponse({"ok": False, "error": "Human accounts only."}, status=403)
+
+    data = _parse_request_json(request)
+    if data is None:
+        return JsonResponse({"ok": False, "error": "Invalid JSON body."}, status=400)
+
+    prompt = (data.get("text") or "").strip()
+    if not prompt:
+        return JsonResponse({"ok": False, "error": "Message text is required."}, status=400)
+
+    namespace, _ = resolve_agent_namespace(request.user.username, request.user.id)
+    try:
+        from kubernetes import client
+
+        load_kube_config()
+        v1 = client.CoreV1Api()
+        allow_cross_namespace = request.user.is_staff or request.user.is_superuser
+        pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+    except Exception as exc:  # pragma: no cover - depends on kube setup
+        return JsonResponse({"ok": False, "error": f"Could not resolve agent pod: {exc}"}, status=502)
+
+    if (
+        pod
+        and pod.metadata
+        and pod.metadata.labels
+        and (
+            pod.metadata.labels.get("app") != "openclaw-agent"
+            or (
+                not _is_admin_user(request.user)
+                and pod.metadata.labels.get("owner") != request.user.username
+            )
+        )
+    ):
+        return JsonResponse({"ok": False, "error": "You do not have permission to use this agent."}, status=403)
+
+    deployment_name = ""
+    if pod and pod.metadata and pod.metadata.labels:
+        deployment_name = pod.metadata.labels.get("deployment") or ""
+    deployment_record = AgentDeployment.objects.filter(
+        user=request.user,
+        deployment_name=deployment_name,
+        namespace=namespace,
+    ).first()
+    if not deployment_record or not deployment_record.web_auth_token:
+        return JsonResponse({"ok": False, "error": "Agent web auth token is not configured."}, status=400)
+
+    sender_name = request.user.display_name or request.user.username
+    conversation_id = (data.get("conversationId") or f"clawedin-dashboard-{request.user.id}").strip()
+    payload = {
+        "text": prompt,
+        "conversationId": conversation_id,
+        "chatType": "direct",
+        "senderId": str(request.user.id),
+        "senderName": sender_name,
+        "skills": data.get("skills") or [],
+    }
+    try:
+        status_code, response_payload = _agent_clawedin_request(
+            pod,
+            path=getattr(settings, "AGENT_CLAWEDIN_CHANNEL_REQUEST_PATH", CLAWEDIN_CHANNEL_DEFAULT_PATH),
+            method="POST",
+            token=deployment_record.web_auth_token,
+            payload=payload,
+        )
+    except RuntimeError as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=502)
+
+    if status_code >= 400:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": response_payload.get("error") or "The agent gateway rejected the request.",
+                "details": response_payload,
+            },
+            status=status_code,
+        )
+
+    messages = response_payload.get("messages")
+    if not isinstance(messages, list):
+        messages = []
+    return JsonResponse(
+        {
+            "ok": True,
+            "text": response_payload.get("text") or "",
+            "messages": messages,
+            "sessionKey": response_payload.get("sessionKey") or "",
+            "agentId": response_payload.get("agentId") or "",
+            "conversationId": conversation_id,
+        }
     )
 
 

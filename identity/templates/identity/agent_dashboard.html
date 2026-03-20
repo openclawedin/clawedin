@@ -1,77 +1,137 @@
 {% extends "identity/base.html" %}
 {% block title %}Agent Dashboard · Clawedin{% endblock %}
 {% block content %}
-  <section class="section">
-    <div class="profile-card">
-      <div class="section-header">
-        <div>
-          <span class="pill">Agent dashboard</span>
-          <h1>{{ pod.metadata.name|default:"OpenClaw agent" }}</h1>
-          <p class="muted">Manage channels, inspect runtime status, and open the Control UI for send/receive messaging.</p>
+  <section class="section agent-workspace">
+    <div class="agent-layout">
+      <aside class="agent-sidebar card">
+        <div class="agent-sidebar-brand">
+          <span class="agent-sidebar-title">Clawedin AI</span>
+          <span class="agent-sidebar-badge">Channel gateway</span>
         </div>
-        {% if pod %}
-          <div class="profile-actions">
-            <a class="btn btn-primary" href="{% url 'identity:agent_gui' pod.metadata.name %}">Open web GUI</a>
-            <a class="btn btn-outline-primary" href="{% url 'identity:agent_terminal' pod.metadata.name %}">Open terminal</a>
-            <a class="btn" href="{% url 'identity:agent_detail' pod.metadata.name %}">Back to details</a>
+
+        <div class="agent-current card card--accent">
+          <p class="agent-sidebar-label">Current agent</p>
+          <h3>{{ pod.metadata.name|default:"OpenClaw agent" }}</h3>
+          <p class="muted mb-0">
+            {{ deployment_record.deployment_name|default:"Deployment pending" }}.
+            Gateway auth is {% if deployment_record.web_auth_token %}configured{% else %}waiting{% endif %}.
+          </p>
+        </div>
+
+        <label class="agent-search">
+          <span class="visually-hidden">Search navigation</span>
+          <input type="search" placeholder="Search" disabled />
+        </label>
+
+        <nav class="agent-sidebar-nav">
+          <a class="agent-nav-item" href="/">Home</a>
+          <a class="agent-nav-item" href="{% url 'identity:agent_manager' %}">Create Agent</a>
+          <a class="agent-nav-item agent-nav-item--active" href="{% url 'identity:agent_manager' %}">Agent Manager</a>
+          <a class="agent-nav-item" href="#agent-chat">Chats</a>
+          <a class="agent-nav-item" href="#agent-status">Dashboards</a>
+          <a class="agent-nav-item" href="#agent-ops">Tasks</a>
+        </nav>
+
+        <div class="agent-sidebar-footer">
+          <div>
+            <strong>{{ user.display_name|default:user.username }}</strong>
+            <p class="muted mb-0">Workspace settings live in your profile.</p>
+          </div>
+          <a class="btn" href="{% url 'identity:profile' %}">Settings</a>
+        </div>
+      </aside>
+
+      <div class="agent-main">
+        {% if error_message %}
+          <div class="card">
+            <h4>Dashboard status</h4>
+            <pre class="text-danger mb-0">{{ error_message }}</pre>
           </div>
         {% endif %}
-      </div>
 
-      {% if error_message %}
-        <div class="card">
-          <h4>Dashboard status</h4>
-          <pre class="text-danger mb-0">{{ error_message }}</pre>
-        </div>
-      {% endif %}
+        <section id="agent-status" class="agent-status-shell card">
+          <div class="agent-status-head">
+            <div>
+              <div class="agent-status-line">
+                <span class="agent-status-dot {% if gateway_health.ok %}agent-status-dot--ok{% else %}agent-status-dot--off{% endif %}"></span>
+                <strong>{{ gateway_health.label }}</strong>
+                <span class="agent-status-range">{{ status_window_start|date:"M j" }}–{{ status_window_end|date:"j" }}</span>
+              </div>
+              <h2>Talk to your agent through the Clawedin channel gateway.</h2>
+              <p class="muted mb-0">
+                The prompt composer below proxies to the agent container on port <code>31890</code>.
+                {{ gateway_health.detail }}
+              </p>
+            </div>
+            <div class="agent-status-actions">
+              <a class="btn btn-primary" href="{% url 'identity:agent_gui' pod.metadata.name %}">Open web GUI</a>
+              <a class="btn" href="{% url 'identity:agent_terminal' pod.metadata.name %}">Terminal</a>
+            </div>
+          </div>
 
-      <div class="section-block">
-        <div class="section-header">
-          <div>
-            <h3>Overview</h3>
-            <p class="muted">Current pod and deployment information for this OpenClaw runtime.</p>
+          <div class="agent-metric-grid">
+            {% for metric in metrics %}
+              <article class="agent-metric-card">
+                <p class="agent-metric-label">{{ metric.label }}</p>
+                <strong class="agent-metric-value">{{ metric.value }}</strong>
+                <p class="agent-metric-delta">{{ metric.delta }}</p>
+                <p class="agent-metric-description">{{ metric.description }}</p>
+              </article>
+            {% endfor %}
           </div>
-        </div>
-        <div class="profile-details">
-          <div class="card">
-            <h4>Runtime</h4>
-            <p>Status: {{ pod.status.phase|default:"Unknown" }}</p>
-            <p>Namespace: {{ namespace|default:"Unknown" }}</p>
-            <p>Node: {{ pod.spec.node_name|default:"Pending" }}</p>
-            <p>Pod IP: {{ pod.status.pod_ip|default:"Pending" }}</p>
-          </div>
-          <div class="card">
-            <h4>Deployment</h4>
-            <p>Name: {{ deployment_record.deployment_name|default:pod.metadata.labels.deployment|default:"Unknown" }}</p>
-            <p>Started: {{ pod.status.start_time|default:"Pending" }}</p>
-            <p>Gateway token: {% if deployment_record %}Configured{% else %}Unknown{% endif %}</p>
-            <p>Web auth token: {% if deployment_record.web_auth_token %}Configured{% else %}Unknown{% endif %}</p>
-            <p>Web auth secret: <code>{{ deployment_record.web_auth_secret_name|default:"Pending" }}</code></p>
-            <p>Mounted file: <code>/var/run/secrets/clawedin-agent-auth/token</code></p>
-            <p>GUI route: {% if gui_path %}<code>{{ gui_path }}</code>{% else %}Preparing{% endif %}</p>
-          </div>
-          <div class="card card--accent">
-            <h4>Messaging</h4>
-            <p class="muted">Create channels below, then use the OpenClaw UI to send and receive messages through the configured accounts.</p>
-            {% if gui_path %}
-              <a class="btn btn-primary" href="{{ gui_wait_url }}">Open messaging UI</a>
-            {% else %}
-              <button class="btn btn-primary" type="button" disabled>Waiting for GUI</button>
-            {% endif %}
-          </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="section-block">
-        <div class="section-header">
-          <div>
-            <h3>Channels</h3>
-            <p class="muted">This form runs the OpenClaw CLI inside the agent container using `channels add`.</p>
+        <section id="agent-chat" class="agent-chat-shell">
+          <div class="agent-chat-surface card">
+            <div class="agent-chat-header">
+              <div>
+                <h3>Prompt channel</h3>
+                <p class="muted mb-0">Send direct turns into the active OpenClaw runtime and review the replies here.</p>
+              </div>
+              <div class="agent-chat-header-meta">
+                <span class="pill">Direct thread</span>
+                <span class="pill">Model: GPT-5.2</span>
+              </div>
+            </div>
+
+            <div class="agent-message-stream" id="agent-message-stream"></div>
+
+            <div class="agent-attachment-placeholder">
+              <p class="agent-attachment-label">Attachment placeholder</p>
+              <strong>Job_description_file_updated.pdf</strong>
+              <p class="muted mb-0">File relay is not wired yet. This card marks where uploaded documents will appear.</p>
+            </div>
+
+            <form id="agent-chat-form" class="agent-composer">
+              {% csrf_token %}
+              <label class="visually-hidden" for="agent-chat-input">Type your response</label>
+              <textarea
+                id="agent-chat-input"
+                name="text"
+                rows="3"
+                placeholder="Type your response..."
+              ></textarea>
+              <div class="agent-composer-bar">
+                <button class="agent-icon-button" type="button" id="agent-attach-button" aria-label="Attachments coming soon">+</button>
+                <div class="agent-composer-meta">
+                  <span class="agent-model-pill">Clawedin gateway</span>
+                  <span class="agent-model-pill">Attachments soon</span>
+                </div>
+                <button class="btn btn-primary" type="submit">Send</button>
+              </div>
+              <p class="agent-composer-note mb-0" id="agent-chat-status">Prompts are sent server-side with the agent web auth token.</p>
+            </form>
           </div>
-        </div>
-        <div class="profile-details dashboard-grid">
+        </section>
+
+        <section id="agent-ops" class="agent-ops-grid">
           <div class="card">
-            <h4>Create channel</h4>
+            <div class="section-header">
+              <div>
+                <h3>Channel setup</h3>
+                <p class="muted">Keep the existing OpenClaw channel controls available while the chat-first UI matures.</p>
+              </div>
+            </div>
             <form method="post" class="form">
               {% csrf_token %}
               <input type="hidden" name="action" value="create_channel" />
@@ -79,40 +139,30 @@
                 <label class="form-label" for="{{ create_form.channel_type.id_for_label }}">Channel type</label>
                 {{ create_form.channel_type }}
                 <p class="help-text">{{ create_form.channel_type.help_text }}</p>
-                {% if create_form.channel_type.errors %}
-                  <p class="text-danger">{{ create_form.channel_type.errors|striptags }}</p>
-                {% endif %}
               </div>
               <div class="form-group mb-3">
                 <label class="form-label" for="{{ create_form.display_name.id_for_label }}">Display name</label>
                 {{ create_form.display_name }}
-                <p class="help-text">{{ create_form.display_name.help_text }}</p>
-                {% if create_form.display_name.errors %}
-                  <p class="text-danger">{{ create_form.display_name.errors|striptags }}</p>
-                {% endif %}
               </div>
               <div class="form-group mb-3">
                 <label class="form-label" for="{{ create_form.account_id.id_for_label }}">Account ID</label>
                 {{ create_form.account_id }}
-                <p class="help-text">{{ create_form.account_id.help_text }}</p>
-                {% if create_form.account_id.errors %}
-                  <p class="text-danger">{{ create_form.account_id.errors|striptags }}</p>
-                {% endif %}
               </div>
               <div class="form-group mb-3">
                 <label class="form-label" for="{{ create_form.extra_args.id_for_label }}">Extra CLI args</label>
                 {{ create_form.extra_args }}
-                <p class="help-text">{{ create_form.extra_args.help_text }}</p>
-                {% if create_form.extra_args.errors %}
-                  <p class="text-danger">{{ create_form.extra_args.errors|striptags }}</p>
-                {% endif %}
               </div>
               <button class="btn btn-primary" type="submit">Create channel</button>
             </form>
           </div>
 
           <div class="card">
-            <h4>Configured channels</h4>
+            <div class="section-header">
+              <div>
+                <h3>Configured channels</h3>
+                <p class="muted">Live runtime inventory pulled from the agent container.</p>
+              </div>
+            </div>
             {% if channel_rows %}
               <div class="dashboard-channel-list">
                 {% for channel in channel_rows %}
@@ -132,45 +182,12 @@
                 {% endfor %}
               </div>
             {% else %}
-              <p class="muted mb-0">No channel inventory returned yet. Create one above or check the raw CLI output below.</p>
+              <p class="muted mb-0">No channel inventory returned yet. Create one here or in the embedded OpenClaw GUI.</p>
             {% endif %}
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="section-block">
-        <div class="section-header">
-          <div>
-            <h3>Messaging UI</h3>
-            <p class="muted">Use the embedded OpenClaw Control UI to work with live conversations once channels are connected.</p>
-          </div>
-        </div>
-        <div class="card">
-          {% if can_embed_gui and gui_path %}
-            <iframe
-              class="dashboard-frame"
-              src="{{ gui_path }}"
-              title="OpenClaw dashboard"
-              loading="lazy"
-              referrerpolicy="same-origin"
-            ></iframe>
-          {% elif gui_path %}
-            <p class="muted">This deployment serves the GUI on a separate host, so we open it in a full page instead of an iframe.</p>
-            <a class="btn btn-primary" href="{{ gui_wait_url }}">Open Control UI</a>
-          {% else %}
-            <p class="muted">The web GUI is still preparing. Use the button above once the container is ready.</p>
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="section-block">
-        <div class="section-header">
-          <div>
-            <h3>CLI output</h3>
-            <p class="muted">Raw OpenClaw command results from the running container for troubleshooting.</p>
-          </div>
-        </div>
-        <div class="profile-details dashboard-grid">
+        <section class="agent-ops-grid">
           <div class="card">
             <h4>`channels capabilities --json`</h4>
             <pre class="dashboard-json mb-0"><code>{{ capabilities_raw|default:"No output." }}</code></pre>
@@ -183,8 +200,111 @@
             <h4>`channels status --json`</h4>
             <pre class="dashboard-json mb-0"><code>{{ status_raw|default:"No output." }}</code></pre>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   </section>
+
+  {{ chat_seed_messages|json_script:"agent-chat-seed" }}
+  <script>
+    (() => {
+      const form = document.getElementById("agent-chat-form");
+      const stream = document.getElementById("agent-message-stream");
+      const input = document.getElementById("agent-chat-input");
+      const statusEl = document.getElementById("agent-chat-status");
+      const attachButton = document.getElementById("agent-attach-button");
+      const csrfInput = form.querySelector("input[name=csrfmiddlewaretoken]");
+      const seed = JSON.parse(document.getElementById("agent-chat-seed").textContent);
+      const endpoint = "{{ chat_endpoint|escapejs }}";
+      const conversationId = "{{ deployment_record.deployment_name|default:pod.metadata.name|escapejs }}-{{ user.id }}";
+
+      function renderMessage(message) {
+        const article = document.createElement("article");
+        article.className = `agent-message agent-message--${message.role}`;
+
+        const meta = document.createElement("div");
+        meta.className = "agent-message-meta";
+        meta.textContent = `${message.role === "agent" ? "Agent" : "You"}${message.author ? ` · ${message.author}` : ""}${message.timestamp ? ` · ${message.timestamp}` : ""}`;
+
+        const bubble = document.createElement("div");
+        bubble.className = "agent-message-bubble";
+        bubble.textContent = message.text;
+
+        article.appendChild(meta);
+        article.appendChild(bubble);
+        stream.appendChild(article);
+        stream.scrollTop = stream.scrollHeight;
+      }
+
+      seed.forEach(renderMessage);
+
+      attachButton.addEventListener("click", () => {
+        statusEl.textContent = "Attachment upload is queued for the next pass. The placeholder card above marks the future drop zone.";
+      });
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const text = input.value.trim();
+        if (!text) {
+          statusEl.textContent = "Enter a prompt before sending.";
+          return;
+        }
+
+        renderMessage({
+          role: "user",
+          author: "{{ user.display_name|default:user.username|escapejs }}",
+          timestamp: "Just now",
+          text,
+        });
+
+        input.value = "";
+        input.disabled = true;
+        statusEl.textContent = "Waiting for the agent gateway reply...";
+
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": csrfInput.value,
+            },
+            body: JSON.stringify({
+              text,
+              conversationId,
+            }),
+          });
+          const payload = await response.json();
+          if (!response.ok || !payload.ok) {
+            throw new Error(payload.error || "The agent gateway returned an error.");
+          }
+
+          const replyText = payload.text || (payload.messages || [])
+            .map((message) => message.text || "")
+            .filter(Boolean)
+            .join("\n\n");
+
+          renderMessage({
+            role: "agent",
+            author: payload.agentId || "{{ pod.metadata.name|default:'Agent'|escapejs }}",
+            timestamp: "Live reply",
+            text: replyText || "The gateway accepted the turn, but no text reply was returned.",
+          });
+          statusEl.textContent = payload.sessionKey
+            ? `Connected through session ${payload.sessionKey}.`
+            : "Reply received.";
+        } catch (error) {
+          statusEl.textContent = error.message;
+          renderMessage({
+            role: "agent",
+            author: "Gateway",
+            timestamp: "Error",
+            text: `Could not complete the turn: ${error.message}`,
+          });
+        } finally {
+          input.disabled = false;
+          input.focus();
+        }
+      });
+    })();
+  </script>
 {% endblock %}
