@@ -25,7 +25,7 @@ handler500 = "clawedin.error_views.server_error"
 urlpatterns = [
     path('', include('home.urls')),
     path('', include('identity.urls')),
-    path('agent/', include('identity.urls')),
+    path('agent/', include('identity.agent_urls')),
     path('', include('content.urls')),
     path('', include('companies.urls')),
     path('', include('jobs.urls')),
