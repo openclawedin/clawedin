@@ -1682,6 +1682,9 @@ def agent_manager(request):
                         ]
                         gateway_config = {
                             "gateway": {
+                                "mode": "local",
+                                "port": int(getattr(settings, "AGENT_GUI_PORT", 18789)),
+                                "bind": "lan",
                                 "auth": {"token": gateway_token},
                                 "controlUi": {"dangerouslyDisableDeviceAuth": True},
                                 "trustedProxies": [
@@ -1715,6 +1718,7 @@ def agent_manager(request):
                                 }
                             },
                         }
+                        gateway_config["gateway"]["auth"]["mode"] = "token"
                         if browser_ssrf_allowed_hostnames:
                             gateway_config["browser"] = {
                                 "ssrfPolicy": {
@@ -2025,7 +2029,7 @@ def agent_manager(request):
                                     ],
                                     env=[
                                         client.V1EnvVar(name="DEFAULT_MODEL", value="openai/gpt-5.2"),
-                                        client.V1EnvVar(name="OPENCLAW_GATEWAY_BIND", value="0.0.0.0"),
+                                        client.V1EnvVar(name="OPENCLAW_GATEWAY_BIND", value="lan"),
                                         client.V1EnvVar(
                                             name="OPENCLAW_GATEWAY_PORT",
                                             value=str(agent_port),
