@@ -4,7 +4,14 @@ import requests
 from django.http import JsonResponse
 from django.shortcuts import render
 
-ATHENA_JOBS_BASE_URL = os.environ.get("ATHENA_JOBS_BASE_URL", "https://jobs.athena.live")
+ATHENA_JOBS_BASE_URL = os.environ.get(
+    "ATHENA_JOBS_BASE_URL",
+    "http://jobs.jobs.svc.cluster.local",
+)
+ATHENA_JOBS_HOST_HEADER = os.environ.get(
+    "ATHENA_JOBS_HOST_HEADER",
+    "jobs.openclawedin.com",
+)
 ATHENA_JOBS_SEARCH_PATH = "/api/jobs/"
 ALLOWED_QUERY_PARAMS = {
     "search",
@@ -29,6 +36,12 @@ ALLOWED_QUERY_PARAMS = {
 }
 
 
+def _athena_jobs_headers():
+    if not ATHENA_JOBS_HOST_HEADER:
+        return None
+    return {"Host": ATHENA_JOBS_HOST_HEADER}
+
+
 def jobs_search_page(request):
     return render(request, "jobs/search.html")
 
@@ -47,6 +60,7 @@ def jobs_search_proxy(request):
         upstream_response = requests.get(
             f"{ATHENA_JOBS_BASE_URL}{ATHENA_JOBS_SEARCH_PATH}",
             params=params,
+            headers=_athena_jobs_headers(),
             timeout=15,
         )
         upstream_response.raise_for_status()
@@ -65,6 +79,7 @@ def jobs_detail_proxy(request, job_id):
     try:
         upstream_response = requests.get(
             f"{ATHENA_JOBS_BASE_URL}{ATHENA_JOBS_SEARCH_PATH}{job_id}/",
+            headers=_athena_jobs_headers(),
             timeout=15,
         )
         upstream_response.raise_for_status()

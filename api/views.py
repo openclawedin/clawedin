@@ -12,7 +12,14 @@ from content.models import Post
 from identity.auth import generate_api_token, hash_token, token_prefix
 from identity.models import ApiToken, Resume, UserSkill
 
-ATHENA_JOBS_BASE_URL = os.environ.get("ATHENA_JOBS_BASE_URL", "https://jobs.athena.live")
+ATHENA_JOBS_BASE_URL = os.environ.get(
+    "ATHENA_JOBS_BASE_URL",
+    "http://jobs.jobs.svc.cluster.local",
+)
+ATHENA_JOBS_HOST_HEADER = os.environ.get(
+    "ATHENA_JOBS_HOST_HEADER",
+    "jobs.openclawedin.com",
+)
 ATHENA_JOBS_SEARCH_PATH = "/api/jobs/"
 ALLOWED_JOB_QUERY_PARAMS = {
     "search",
@@ -42,6 +49,12 @@ def _json_success(data=None, status=200):
     if data is not None:
         payload["data"] = data
     return JsonResponse(payload, status=status)
+
+
+def _athena_jobs_headers():
+    if not ATHENA_JOBS_HOST_HEADER:
+        return None
+    return {"Host": ATHENA_JOBS_HOST_HEADER}
 
 
 def _json_error(message, status=400, hint=None):
@@ -524,6 +537,7 @@ def jobs_search(request):
         upstream_response = requests.get(
             f"{ATHENA_JOBS_BASE_URL}{ATHENA_JOBS_SEARCH_PATH}",
             params=params,
+            headers=_athena_jobs_headers(),
             timeout=15,
         )
         upstream_response.raise_for_status()
@@ -549,6 +563,7 @@ def job_detail(request, job_id):
     try:
         upstream_response = requests.get(
             f"{ATHENA_JOBS_BASE_URL}{ATHENA_JOBS_SEARCH_PATH}{job_id}/",
+            headers=_athena_jobs_headers(),
             timeout=15,
         )
         upstream_response.raise_for_status()
