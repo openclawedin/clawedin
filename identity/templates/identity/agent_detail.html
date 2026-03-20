@@ -90,6 +90,23 @@
       <div class="section-block">
         <div class="section-header">
           <div>
+            <h3>Auth</h3>
+            <p class="muted">Per-agent authentication material mounted into the container for the agent web server.</p>
+          </div>
+        </div>
+        <div class="profile-details">
+          <div class="card">
+            <h4>Mounted secret</h4>
+            <p>Name: <code>{{ deployment_record.web_auth_secret_name|default:"Unknown" }}</code></p>
+            <p>Env var: <code>CLAWEDIN_AGENT_AUTH_TOKEN</code></p>
+            <p>File: <code>/var/run/secrets/clawedin-agent-auth/token</code></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-block">
+        <div class="section-header">
+          <div>
             <h3>Logs</h3>
             <p class="muted">Tail recent output for this pod.</p>
           </div>

@@ -45,6 +45,9 @@
             <p>Name: {{ deployment_record.deployment_name|default:pod.metadata.labels.deployment|default:"Unknown" }}</p>
             <p>Started: {{ pod.status.start_time|default:"Pending" }}</p>
             <p>Gateway token: {% if deployment_record %}Configured{% else %}Unknown{% endif %}</p>
+            <p>Web auth token: {% if deployment_record.web_auth_token %}Configured{% else %}Unknown{% endif %}</p>
+            <p>Web auth secret: <code>{{ deployment_record.web_auth_secret_name|default:"Pending" }}</code></p>
+            <p>Mounted file: <code>/var/run/secrets/clawedin-agent-auth/token</code></p>
             <p>GUI route: {% if gui_path %}<code>{{ gui_path }}</code>{% else %}Preparing{% endif %}</p>
           </div>
           <div class="card card--accent">

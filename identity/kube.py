@@ -75,3 +75,10 @@ def openai_secret_name_for_deployment(deployment_name: str, user_id: int) -> str
         f"openai-key-{deployment_name}",
         f"openai-key-{user_id}",
     )
+
+
+def agent_web_auth_secret_name_for_deployment(deployment_name: str, user_id: int) -> str:
+    return normalize_k8s_name(
+        f"agent-web-auth-{deployment_name}",
+        f"agent-web-auth-{user_id}",
+    )

@@ -112,6 +112,8 @@ class AgentDeployment(models.Model):
     pod_name = models.CharField(max_length=120, blank=True)
     gateway_token = models.TextField()
     secret_name = models.CharField(max_length=120)
+    web_auth_token = models.TextField(blank=True)
+    web_auth_secret_name = models.CharField(max_length=120, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

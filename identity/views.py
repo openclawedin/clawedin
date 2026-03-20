@@ -52,6 +52,7 @@ from .forms import (
 )
 from .auth import generate_api_token, hash_token, token_prefix
 from .kube import (
+    agent_web_auth_secret_name_for_deployment,
     gui_ingress_name,
     gui_middleware_name,
     gui_service_name,
@@ -120,6 +121,26 @@ def _ensure_dockerhub_secret(client_module, v1, namespace: str, source_namespace
         data=source_secret.data,
     )
     v1.create_namespaced_secret(namespace, secret_body)
+
+
+def _upsert_namespaced_secret(v1, namespace: str, secret_name: str, secret_body, api_exception_cls) -> None:
+    try:
+        v1.read_namespaced_secret(secret_name, namespace)
+        v1.patch_namespaced_secret(secret_name, namespace, secret_body)
+    except api_exception_cls as exc:
+        if exc.status == 404:
+            v1.create_namespaced_secret(namespace, secret_body)
+        else:
+            raise
+
+
+def _delete_namespaced_secret_if_present(v1, namespace: str, secret_name: str) -> None:
+    if not secret_name:
+        return
+    try:
+        v1.delete_namespaced_secret(secret_name, namespace)
+    except Exception:
+        pass
 
 
 def _agent_openclaw_pvc_mode() -> str:
@@ -1564,16 +1585,16 @@ def agent_manager(request):
                             type="Opaque",
                             string_data={"OPENAI_API_KEY": openai_key},
                         )
-                        try:
-                            v1.read_namespaced_secret(secret_name, namespace)
-                            v1.patch_namespaced_secret(secret_name, namespace, secret_body)
-                        except client.exceptions.ApiException as exc:
-                            if exc.status == 404:
-                                v1.create_namespaced_secret(namespace, secret_body)
-                            else:
-                                raise
+                        _upsert_namespaced_secret(
+                            v1,
+                            namespace,
+                            secret_name,
+                            secret_body,
+                            client.exceptions.ApiException,
+                        )
 
                         gateway_token = secrets.token_urlsafe(32)
+                        web_auth_token = generate_api_token()
                         browser_ssrf_allowed_hostnames = [
                             value.strip()
                             for value in getattr(settings, "AGENT_BROWSER_SSRF_ALLOWED_HOSTNAMES", [])
@@ -1622,14 +1643,31 @@ def agent_manager(request):
                                 "openclaw.json": json.dumps(gateway_config),
                             },
                         )
-                        try:
-                            v1.read_namespaced_secret(gateway_secret, namespace)
-                            v1.patch_namespaced_secret(gateway_secret, namespace, gateway_secret_body)
-                        except client.exceptions.ApiException as exc:
-                            if exc.status == 404:
-                                v1.create_namespaced_secret(namespace, gateway_secret_body)
-                            else:
-                                raise
+                        _upsert_namespaced_secret(
+                            v1,
+                            namespace,
+                            gateway_secret,
+                            gateway_secret_body,
+                            client.exceptions.ApiException,
+                        )
+                        web_auth_secret = agent_web_auth_secret_name_for_deployment(
+                            deployment_name,
+                            request.user.id,
+                        )
+                        web_auth_secret_body = client.V1Secret(
+                            metadata=client.V1ObjectMeta(name=web_auth_secret),
+                            type="Opaque",
+                            string_data={
+                                "AGENT_AUTH_TOKEN": web_auth_token,
+                            },
+                        )
+                        _upsert_namespaced_secret(
+                            v1,
+                            namespace,
+                            web_auth_secret,
+                            web_auth_secret_body,
+                            client.exceptions.ApiException,
+                        )
 
                         agent_port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
                         proxy_port = int(getattr(settings, "AGENT_GUI_PROXY_PORT", 18790))
@@ -1757,6 +1795,11 @@ def agent_manager(request):
                                 name="openclaw-config",
                                 mount_path="/etc/openclaw",
                                 read_only=True,
+                            ),
+                            client.V1VolumeMount(
+                                name="agent-web-auth",
+                                mount_path="/var/run/secrets/clawedin-agent-auth",
+                                read_only=True,
                             )
                         ]
                         if agent_openclaw_pvc_name:
@@ -1783,6 +1826,18 @@ def agent_manager(request):
                                         client.V1KeyToPath(
                                             key="openclaw.json",
                                             path="openclaw.json",
+                                        )
+                                    ],
+                                ),
+                            ),
+                            client.V1Volume(
+                                name="agent-web-auth",
+                                secret=client.V1SecretVolumeSource(
+                                    secret_name=web_auth_secret,
+                                    items=[
+                                        client.V1KeyToPath(
+                                            key="AGENT_AUTH_TOKEN",
+                                            path="token",
                                         )
                                     ],
                                 ),
@@ -1894,6 +1949,27 @@ def agent_manager(request):
                                             name="OPENCLAW_CONFIG_PATH",
                                             value="/etc/openclaw/openclaw.json",
                                         ),
+                                        client.V1EnvVar(
+                                            name="CLAWEDIN_AGENT_AUTH_TOKEN",
+                                            value_from=client.V1EnvVarSource(
+                                                secret_key_ref=client.V1SecretKeySelector(
+                                                    name=web_auth_secret,
+                                                    key="AGENT_AUTH_TOKEN",
+                                                ),
+                                            ),
+                                        ),
+                                        client.V1EnvVar(
+                                            name="CLAWEDIN_AGENT_AUTH_TOKEN_FILE",
+                                            value="/var/run/secrets/clawedin-agent-auth/token",
+                                        ),
+                                        client.V1EnvVar(
+                                            name="CLAWEDIN_AGENT_AUTH_USER_ID",
+                                            value=str(request.user.id),
+                                        ),
+                                        client.V1EnvVar(
+                                            name="CLAWEDIN_AGENT_AUTH_USERNAME",
+                                            value=request.user.username,
+                                        ),
                                     ],
                                     volume_mounts=agent_volume_mounts,
                                 ),
@@ -1974,6 +2050,8 @@ def agent_manager(request):
                             defaults={
                                 "gateway_token": gateway_token,
                                 "secret_name": gateway_secret,
+                                "web_auth_token": web_auth_token,
+                                "web_auth_secret_name": web_auth_secret,
                                 "pod_name": pod_name,
                             },
                         )
@@ -2149,10 +2227,16 @@ def agent_detail(request, pod_name: str):
                         namespace=resolved_namespace,
                     ).first()
                     if deployment_record:
-                        try:
-                            v1.delete_namespaced_secret(deployment_record.secret_name, resolved_namespace)
-                        except Exception:
-                            pass
+                        _delete_namespaced_secret_if_present(
+                            v1,
+                            resolved_namespace,
+                            deployment_record.secret_name,
+                        )
+                        _delete_namespaced_secret_if_present(
+                            v1,
+                            resolved_namespace,
+                            deployment_record.web_auth_secret_name,
+                        )
                         deployment_record.delete()
                     v1.delete_namespaced_pod(name=pod_name, namespace=resolved_namespace)
                     messages.success(request, "Pod deleted.")
@@ -2261,10 +2345,16 @@ def agent_detail(request, pod_name: str):
                         namespace=resolved_namespace,
                     ).first()
                     if deployment_record:
-                        try:
-                            v1.delete_namespaced_secret(deployment_record.secret_name, resolved_namespace)
-                        except Exception:
-                            pass
+                        _delete_namespaced_secret_if_present(
+                            v1,
+                            resolved_namespace,
+                            deployment_record.secret_name,
+                        )
+                        _delete_namespaced_secret_if_present(
+                            v1,
+                            resolved_namespace,
+                            deployment_record.web_auth_secret_name,
+                        )
                         deployment_record.delete()
                     messages.success(request, "Deployment deleted. The agent will not respawn.")
                     return redirect("identity:agent_manager")
@@ -2322,12 +2412,22 @@ def agent_detail(request, pod_name: str):
         except Exception as exc:  # pragma: no cover - depends on kube setup
             error_message = str(exc)
 
+    deployment_name = ""
+    if pod and pod.metadata and pod.metadata.labels:
+        deployment_name = pod.metadata.labels.get("deployment") or ""
+    deployment_record = AgentDeployment.objects.filter(
+        user=request.user,
+        deployment_name=deployment_name,
+        namespace=namespace,
+    ).first()
+
     return render(
         request,
         "identity/agent_detail.html",
         {
             "namespace": namespace,
             "pod": pod,
+            "deployment_record": deployment_record,
             "logs": logs,
             "tail_lines": tail_lines_int,
             "error_message": error_message,

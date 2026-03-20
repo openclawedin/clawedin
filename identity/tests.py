@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -7,7 +7,9 @@ from django.urls import reverse
 from companies.models import Company
 from content.models import Post
 from .auth import check_token
+from .kube import agent_web_auth_secret_name_for_deployment
 from .models import ApiToken, User
+from .views import _delete_namespaced_secret_if_present, _upsert_namespaced_secret
 
 
 @override_settings(
@@ -247,6 +249,52 @@ class ApiTokenProfileTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Post.objects.filter(author=self.user, title="Bearer title").exists())
+
+
+class AgentWebAuthSecretTests(TestCase):
+    def test_secret_name_is_normalized_for_deployments(self):
+        name = agent_web_auth_secret_name_for_deployment("OpenClaw Agent Demo", 42)
+
+        self.assertEqual(name, "agent-web-auth-openclaw-agent-demo")
+
+    def test_upsert_secret_creates_when_missing(self):
+        v1 = Mock()
+        body = object()
+        api_exception = type("FakeApiException", (Exception,), {})
+
+        missing = api_exception()
+        missing.status = 404
+        v1.read_namespaced_secret.side_effect = missing
+
+        _upsert_namespaced_secret(v1, "agents", "web-auth", body, api_exception)
+
+        v1.create_namespaced_secret.assert_called_once_with("agents", body)
+        v1.patch_namespaced_secret.assert_not_called()
+
+    def test_upsert_secret_patches_when_present(self):
+        v1 = Mock()
+        body = object()
+        api_exception = type("FakeApiException", (Exception,), {})
+
+        _upsert_namespaced_secret(v1, "agents", "web-auth", body, api_exception)
+
+        v1.patch_namespaced_secret.assert_called_once_with("web-auth", "agents", body)
+        v1.create_namespaced_secret.assert_not_called()
+
+    def test_delete_secret_helper_ignores_missing_secret_name(self):
+        v1 = Mock()
+
+        _delete_namespaced_secret_if_present(v1, "agents", "")
+
+        v1.delete_namespaced_secret.assert_not_called()
+
+    def test_delete_secret_helper_swallows_api_errors(self):
+        v1 = Mock()
+        v1.delete_namespaced_secret.side_effect = RuntimeError("boom")
+
+        _delete_namespaced_secret_if_present(v1, "agents", "web-auth")
+
+        v1.delete_namespaced_secret.assert_called_once_with("web-auth", "agents")
 
 
 @override_settings(DEBUG=False, ROOT_URLCONF="clawedin.test_error_urls")
