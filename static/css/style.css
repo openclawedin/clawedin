@@ -6,6 +6,108 @@
   --accent: #31c48d;
   --accent-dark: #249a6c;
   --line: #262935;
+  --agent-sidebar-bg:
+    linear-gradient(180deg, rgba(16, 18, 25, 0.96), rgba(16, 18, 25, 0.82)),
+    radial-gradient(360px 260px at 10% 0%, rgba(49, 196, 141, 0.2), transparent);
+  --agent-sidebar-item-bg: rgba(255, 255, 255, 0.02);
+  --agent-sidebar-item-text: rgba(245, 247, 251, 0.92);
+  --agent-sidebar-search-bg: rgba(255, 255, 255, 0.03);
+  --agent-sidebar-footer-line: rgba(255, 255, 255, 0.08);
+  --agent-status-bg:
+    linear-gradient(180deg, rgba(248, 245, 237, 0.96), rgba(238, 233, 221, 0.92)),
+    radial-gradient(520px 220px at 5% 0%, rgba(49, 196, 141, 0.16), transparent);
+  --agent-status-text: #1c2431;
+  --agent-status-muted: rgba(28, 36, 49, 0.72);
+  --agent-status-line-text: #264047;
+  --agent-status-range-text: rgba(28, 36, 49, 0.65);
+  --agent-metric-card-bg: rgba(255, 255, 255, 0.72);
+  --agent-metric-card-border: rgba(28, 36, 49, 0.08);
+  --agent-metric-label-text: rgba(28, 36, 49, 0.72);
+  --agent-metric-value-text: #2236a8;
+  --agent-metric-delta-text: #17824d;
+  --agent-metric-description-text: rgba(28, 36, 49, 0.66);
+  --agent-chat-bg:
+    linear-gradient(180deg, rgba(250, 247, 240, 0.98), rgba(245, 240, 231, 0.96)),
+    radial-gradient(640px 380px at 70% -10%, rgba(83, 110, 255, 0.07), transparent);
+  --agent-chat-text: #1e2229;
+  --agent-chat-muted: rgba(30, 34, 41, 0.66);
+  --agent-chat-meta: rgba(30, 34, 41, 0.6);
+  --agent-message-bg: rgba(255, 255, 255, 0.88);
+  --agent-message-border: rgba(30, 34, 41, 0.08);
+  --agent-message-user-bg: linear-gradient(180deg, rgba(227, 225, 255, 0.96), rgba(205, 210, 255, 0.96));
+  --agent-attachment-bg: linear-gradient(180deg, rgba(214, 213, 255, 0.95), rgba(191, 196, 255, 0.95));
+  --agent-attachment-border: rgba(82, 88, 185, 0.18);
+  --agent-attachment-text: #24284a;
+  --agent-attachment-label: rgba(36, 40, 74, 0.62);
+  --agent-composer-bg: #2d2a24;
+  --agent-composer-text: #f8f6ef;
+  --agent-composer-placeholder: rgba(248, 246, 239, 0.68);
+  --agent-composer-note: rgba(248, 246, 239, 0.72);
+  --agent-composer-button-bg: rgba(255, 255, 255, 0.04);
+  --agent-composer-button-border: rgba(255, 255, 255, 0.12);
+  --agent-composer-pill-bg: rgba(255, 255, 255, 0.09);
+  --agent-composer-pill-text: rgba(248, 246, 239, 0.94);
+  --dashboard-item-bg: rgba(15, 19, 26, 0.7);
+  --dashboard-code-bg: rgba(8, 10, 16, 0.92);
+  --dashboard-code-text: #e6ebf4;
+  --dashboard-code-border: #1f2635;
+  --dashboard-frame-bg: #0b0e16;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f3f5f8;
+    --panel: #ffffff;
+    --text: #16202d;
+    --muted: #627081;
+    --line: #d7dee8;
+    --agent-sidebar-bg:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 248, 252, 0.94)),
+      radial-gradient(360px 260px at 10% 0%, rgba(49, 196, 141, 0.14), transparent);
+    --agent-sidebar-item-bg: rgba(22, 32, 45, 0.03);
+    --agent-sidebar-item-text: #16202d;
+    --agent-sidebar-search-bg: rgba(22, 32, 45, 0.04);
+    --agent-sidebar-footer-line: rgba(22, 32, 45, 0.08);
+    --agent-status-bg:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 248, 252, 0.96)),
+      radial-gradient(520px 220px at 5% 0%, rgba(49, 196, 141, 0.12), transparent);
+    --agent-status-text: #16202d;
+    --agent-status-muted: rgba(22, 32, 45, 0.72);
+    --agent-status-line-text: #23414a;
+    --agent-status-range-text: rgba(22, 32, 45, 0.62);
+    --agent-metric-card-bg: rgba(255, 255, 255, 0.92);
+    --agent-metric-card-border: rgba(22, 32, 45, 0.08);
+    --agent-metric-label-text: rgba(22, 32, 45, 0.7);
+    --agent-metric-value-text: #1e3a8a;
+    --agent-metric-delta-text: #18794e;
+    --agent-metric-description-text: rgba(22, 32, 45, 0.66);
+    --agent-chat-bg:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 249, 252, 0.98)),
+      radial-gradient(640px 380px at 70% -10%, rgba(83, 110, 255, 0.08), transparent);
+    --agent-chat-text: #16202d;
+    --agent-chat-muted: rgba(22, 32, 45, 0.66);
+    --agent-chat-meta: rgba(22, 32, 45, 0.6);
+    --agent-message-bg: rgba(255, 255, 255, 0.98);
+    --agent-message-border: rgba(22, 32, 45, 0.08);
+    --agent-message-user-bg: linear-gradient(180deg, rgba(227, 235, 255, 0.96), rgba(211, 221, 255, 0.96));
+    --agent-attachment-bg: linear-gradient(180deg, rgba(235, 237, 255, 0.98), rgba(220, 226, 255, 0.98));
+    --agent-attachment-border: rgba(82, 88, 185, 0.16);
+    --agent-attachment-text: #253154;
+    --agent-attachment-label: rgba(37, 49, 84, 0.62);
+    --agent-composer-bg: #f5efe5;
+    --agent-composer-text: #2a241b;
+    --agent-composer-placeholder: rgba(42, 36, 27, 0.56);
+    --agent-composer-note: rgba(42, 36, 27, 0.68);
+    --agent-composer-button-bg: rgba(42, 36, 27, 0.06);
+    --agent-composer-button-border: rgba(42, 36, 27, 0.12);
+    --agent-composer-pill-bg: rgba(42, 36, 27, 0.08);
+    --agent-composer-pill-text: rgba(42, 36, 27, 0.88);
+    --dashboard-item-bg: rgba(247, 249, 252, 0.98);
+    --dashboard-code-bg: rgba(245, 248, 252, 0.98);
+    --dashboard-code-text: #16202d;
+    --dashboard-code-border: #d7dee8;
+    --dashboard-frame-bg: #f5f8fc;
+  }
 }
 
 * {
@@ -577,7 +679,7 @@ textarea {
   padding: 16px;
   border-radius: 14px;
   border: 1px solid var(--line);
-  background: rgba(15, 19, 26, 0.7);
+  background: var(--dashboard-item-bg);
 }
 
 .dashboard-channel-item p,
@@ -594,9 +696,9 @@ textarea {
 }
 
 .dashboard-json {
-  color: #e6ebf4;
-  background: rgba(8, 10, 16, 0.92);
-  border: 1px solid #1f2635;
+  color: var(--dashboard-code-text);
+  background: var(--dashboard-code-bg);
+  border: 1px solid var(--dashboard-code-border);
   border-radius: 12px;
   padding: 16px;
   max-height: 320px;
@@ -614,9 +716,9 @@ textarea {
 .dashboard-frame {
   width: 100%;
   min-height: 72vh;
-  border: 1px solid #1f2635;
+  border: 1px solid var(--dashboard-code-border);
   border-radius: 16px;
-  background: #0b0e16;
+  background: var(--dashboard-frame-bg);
 }
 
 .agent-workspace {
@@ -632,9 +734,7 @@ textarea {
   display: grid;
   gap: 18px;
   align-content: start;
-  background:
-    linear-gradient(180deg, rgba(16, 18, 25, 0.96), rgba(16, 18, 25, 0.82)),
-    radial-gradient(360px 260px at 10% 0%, rgba(49, 196, 141, 0.2), transparent);
+  background: var(--agent-sidebar-bg);
 }
 
 .agent-sidebar-brand {
@@ -671,8 +771,8 @@ textarea {
 .agent-search input {
   width: 100%;
   border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  background: var(--agent-sidebar-search-bg);
   color: var(--text);
   padding: 14px 16px;
 }
@@ -689,8 +789,8 @@ textarea {
   padding: 0 16px;
   border-radius: 16px;
   border: 1px solid transparent;
-  color: rgba(245, 247, 251, 0.92);
-  background: rgba(255, 255, 255, 0.02);
+  color: var(--agent-sidebar-item-text);
+  background: var(--agent-sidebar-item-bg);
 }
 
 .agent-nav-item:hover,
@@ -706,7 +806,7 @@ textarea {
   gap: 16px;
   margin-top: auto;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--agent-sidebar-footer-line);
 }
 
 .agent-main {
@@ -717,16 +817,14 @@ textarea {
 .agent-status-shell {
   display: grid;
   gap: 22px;
-  background:
-    linear-gradient(180deg, rgba(248, 245, 237, 0.96), rgba(238, 233, 221, 0.92)),
-    radial-gradient(520px 220px at 5% 0%, rgba(49, 196, 141, 0.16), transparent);
-  color: #1c2431;
+  background: var(--agent-status-bg);
+  color: var(--agent-status-text);
   box-shadow: 0 24px 54px rgba(0, 0, 0, 0.28);
 }
 
 .agent-status-shell .muted,
 .agent-status-shell code {
-  color: rgba(28, 36, 49, 0.72);
+  color: var(--agent-status-muted);
 }
 
 .agent-status-head {
@@ -747,7 +845,7 @@ textarea {
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
-  color: #264047;
+  color: var(--agent-status-line-text);
 }
 
 .agent-status-dot {
@@ -769,7 +867,7 @@ textarea {
 }
 
 .agent-status-range {
-  color: rgba(28, 36, 49, 0.65);
+  color: var(--agent-status-range-text);
 }
 
 .agent-status-actions {
@@ -787,8 +885,8 @@ textarea {
 .agent-metric-card {
   padding: 22px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(28, 36, 49, 0.08);
+  background: var(--agent-metric-card-bg);
+  border: 1px solid var(--agent-metric-card-border);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
@@ -799,7 +897,7 @@ textarea {
 }
 
 .agent-metric-label {
-  color: rgba(28, 36, 49, 0.72);
+  color: var(--agent-metric-label-text);
 }
 
 .agent-metric-value {
@@ -807,18 +905,18 @@ textarea {
   margin-top: 12px;
   font-size: clamp(2rem, 3vw, 3.1rem);
   line-height: 1;
-  color: #2236a8;
+  color: var(--agent-metric-value-text);
 }
 
 .agent-metric-delta {
   margin-top: 12px;
   font-weight: 600;
-  color: #17824d;
+  color: var(--agent-metric-delta-text);
 }
 
 .agent-metric-description {
   margin-top: 10px;
-  color: rgba(28, 36, 49, 0.66);
+  color: var(--agent-metric-description-text);
   font-size: 0.92rem;
 }
 
@@ -832,10 +930,8 @@ textarea {
   display: grid;
   gap: 20px;
   min-height: 880px;
-  background:
-    linear-gradient(180deg, rgba(250, 247, 240, 0.98), rgba(245, 240, 231, 0.96)),
-    radial-gradient(640px 380px at 70% -10%, rgba(83, 110, 255, 0.07), transparent);
-  color: #1e2229;
+  background: var(--agent-chat-bg);
+  color: var(--agent-chat-text);
 }
 
 .agent-chat-header {
@@ -851,7 +947,7 @@ textarea {
 }
 
 .agent-chat-header .muted {
-  color: rgba(30, 34, 41, 0.66);
+  color: var(--agent-chat-muted);
 }
 
 .agent-chat-header-meta {
@@ -881,30 +977,30 @@ textarea {
 
 .agent-message-meta {
   font-size: 0.85rem;
-  color: rgba(30, 34, 41, 0.6);
+  color: var(--agent-chat-meta);
 }
 
 .agent-message-bubble {
   max-width: min(760px, 100%);
   padding: 20px 22px;
   border-radius: 26px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(30, 34, 41, 0.08);
+  background: var(--agent-message-bg);
+  border: 1px solid var(--agent-message-border);
   box-shadow: 0 14px 28px rgba(39, 50, 76, 0.08);
   white-space: pre-wrap;
 }
 
 .agent-message--user .agent-message-bubble {
-  background: linear-gradient(180deg, rgba(227, 225, 255, 0.96), rgba(205, 210, 255, 0.96));
+  background: var(--agent-message-user-bg);
 }
 
 .agent-attachment-placeholder {
   max-width: 420px;
   padding: 18px 20px;
   border-radius: 24px;
-  background: linear-gradient(180deg, rgba(214, 213, 255, 0.95), rgba(191, 196, 255, 0.95));
-  border: 1px solid rgba(82, 88, 185, 0.18);
-  color: #24284a;
+  background: var(--agent-attachment-bg);
+  border: 1px solid var(--agent-attachment-border);
+  color: var(--agent-attachment-text);
 }
 
 .agent-attachment-label {
@@ -912,7 +1008,7 @@ textarea {
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(36, 40, 74, 0.62);
+  color: var(--agent-attachment-label);
 }
 
 .agent-composer {
@@ -920,8 +1016,8 @@ textarea {
   gap: 12px;
   padding: 18px;
   border-radius: 24px;
-  background: #2d2a24;
-  color: #f8f6ef;
+  background: var(--agent-composer-bg);
+  color: var(--agent-composer-text);
 }
 
 .agent-composer textarea {
@@ -940,7 +1036,7 @@ textarea {
 }
 
 .agent-composer textarea::placeholder {
-  color: rgba(248, 246, 239, 0.68);
+  color: var(--agent-composer-placeholder);
 }
 
 .agent-composer-bar {
@@ -955,9 +1051,9 @@ textarea {
   width: 46px;
   height: 46px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: #f8f6ef;
+  border: 1px solid var(--agent-composer-button-border);
+  background: var(--agent-composer-button-bg);
+  color: var(--agent-composer-text);
   font-size: 2rem;
   line-height: 1;
 }
@@ -975,12 +1071,12 @@ textarea {
   min-height: 38px;
   padding: 0 14px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.09);
-  color: rgba(248, 246, 239, 0.94);
+  background: var(--agent-composer-pill-bg);
+  color: var(--agent-composer-pill-text);
 }
 
 .agent-composer-note {
-  color: rgba(248, 246, 239, 0.72);
+  color: var(--agent-composer-note);
   font-size: 0.92rem;
 }
 
