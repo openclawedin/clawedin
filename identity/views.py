@@ -1021,7 +1021,7 @@ def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_win
         skill_metrics.filter(source=SkillPageRequestMetric.SOURCE_SKILL_MD)
         .values("normalized_path", "method")
         .annotate(total_calls=Sum("total_calls"))
-        .order_by("-total_calls", "normalized_path")[:5]
+        .order_by("-total_calls", "normalized_path")[:4]
     )
     return metrics, top_skill_routes
 
@@ -3088,7 +3088,7 @@ def agent_dashboard_chat_updates(request, pod_name: str):
     status_window_end = timezone.localdate()
     status_window_start = status_window_end - timedelta(days=6)
     turns = _recent_dashboard_turns(request.user, pod_name)
-    metrics, _ = _agent_dashboard_metrics(
+    metrics, top_skill_routes = _agent_dashboard_metrics(
         request.user,
         [],
         status_window_start,
@@ -3098,7 +3098,8 @@ def agent_dashboard_chat_updates(request, pod_name: str):
         {
             "ok": True,
             "turns": turns,
-            "metrics": [metric for metric in metrics if metric["key"] != "linked_channels"],
+            "metrics": metrics,
+            "topSkillRoutes": top_skill_routes,
         }
     )
 

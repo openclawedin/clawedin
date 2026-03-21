@@ -69,12 +69,18 @@
             </div>
           </div>
 
-          <div class="agent-metric-grid">
-            {% for metric in metrics %}
-              <article class="agent-metric-card" data-metric-key="{{ metric.key }}">
-                <p class="agent-metric-label">{{ metric.label }}</p>
-                <strong class="agent-metric-value" data-metric-field="value">{{ metric.value }}</strong>
-                <p class="agent-metric-delta" data-metric-field="delta">{{ metric.delta }}</p>
+          <div class="agent-metric-grid agent-metric-grid--traffic">
+            {% for row in top_skill_routes %}
+              <article class="agent-metric-card" data-route-key="{{ row.normalized_path }}|{{ row.method }}">
+                <p class="agent-metric-label">{{ row.normalized_path }}</p>
+                <strong class="agent-metric-value">{{ row.method }}</strong>
+                <p class="agent-metric-delta" data-route-field="delta">{{ row.total_calls }} call{{ row.total_calls|pluralize }} in the current window.</p>
+              </article>
+            {% empty %}
+              <article class="agent-metric-card">
+                <p class="agent-metric-label">SKILL.md traffic</p>
+                <strong class="agent-metric-value">None</strong>
+                <p class="agent-metric-delta">No route calls in the current window.</p>
               </article>
             {% endfor %}
           </div>
@@ -188,22 +194,16 @@
 
         <section class="agent-ops-grid">
           <div class="card">
-            <h4>SKILL.md endpoint traffic</h4>
-            {% if top_skill_routes %}
-              <div class="dashboard-channel-list">
-                {% for row in top_skill_routes %}
-                  <article class="dashboard-channel-item">
-                    <div class="dashboard-channel-head">
-                      <strong>{{ row.normalized_path }}</strong>
-                      <span class="pill">{{ row.method }}</span>
-                    </div>
-                    <p class="mb-0">{{ row.total_calls }} call{{ row.total_calls|pluralize }} in the current window.</p>
-                  </article>
-                {% endfor %}
-              </div>
-            {% else %}
-              <p class="muted mb-0">No `SKILL.md` traffic recorded for this account in the current window.</p>
-            {% endif %}
+            <h4>Dashboard totals</h4>
+            <div class="agent-metric-grid agent-metric-grid--totals">
+              {% for metric in metrics %}
+                <article class="agent-metric-card" data-metric-key="{{ metric.key }}">
+                  <p class="agent-metric-label">{{ metric.label }}</p>
+                  <strong class="agent-metric-value" data-metric-field="value">{{ metric.value }}</strong>
+                  <p class="agent-metric-delta" data-metric-field="delta">{{ metric.delta }}</p>
+                </article>
+              {% endfor %}
+            </div>
           </div>
           <div class="card">
             <h4>`channels capabilities --json`</h4>
@@ -328,17 +328,29 @@
 
       function updateMetrics(metrics) {
         (metrics || []).forEach((metric) => {
-          const card = document.querySelector(`[data-metric-key="${metric.key}"]`);
+          document.querySelectorAll(`[data-metric-key="${metric.key}"]`).forEach((card) => {
+            const value = card.querySelector('[data-metric-field="value"]');
+            const delta = card.querySelector('[data-metric-field="delta"]');
+            if (value) {
+              value.textContent = metric.value;
+            }
+            if (delta) {
+              delta.textContent = metric.delta;
+            }
+          });
+        });
+      }
+
+      function updateTopRoutes(routes) {
+        (routes || []).forEach((route) => {
+          const key = `${route.normalized_path}|${route.method}`;
+          const card = document.querySelector(`[data-route-key="${CSS.escape(key)}"]`);
           if (!card) {
             return;
           }
-          const value = card.querySelector('[data-metric-field="value"]');
-          const delta = card.querySelector('[data-metric-field="delta"]');
-          if (value) {
-            value.textContent = metric.value;
-          }
+          const delta = card.querySelector('[data-route-field="delta"]');
           if (delta) {
-            delta.textContent = metric.delta;
+            delta.textContent = `${route.total_calls} call${route.total_calls === 1 ? "" : "s"} in the current window.`;
           }
         });
       }
@@ -370,6 +382,7 @@
           }
           (payload.turns || []).forEach(renderTurn);
           updateMetrics(payload.metrics || []);
+          updateTopRoutes(payload.topSkillRoutes || []);
           syncPolling(payload.turns || []);
           if (activeTurnCount === 0) {
             statusEl.textContent = "Ready for the next prompt.";
