@@ -73,8 +73,8 @@
             {% for row in top_skill_routes %}
               <article class="agent-metric-card" data-route-key="{{ row.normalized_path }}|{{ row.method }}">
                 <p class="agent-metric-label">{{ row.normalized_path }}</p>
-                <strong class="agent-metric-value">{{ row.method }}</strong>
-                <p class="agent-metric-delta" data-route-field="delta">{{ row.total_calls }} call{{ row.total_calls|pluralize }} in the current window.</p>
+                <strong class="agent-metric-value" data-route-field="value">{{ row.total_calls }}</strong>
+                <p class="agent-metric-delta" data-route-field="delta">{{ row.method }} · current window</p>
               </article>
             {% empty %}
               <article class="agent-metric-card">
@@ -342,9 +342,13 @@
           if (!card) {
             return;
           }
+          const value = card.querySelector('[data-route-field="value"]');
           const delta = card.querySelector('[data-route-field="delta"]');
+          if (value) {
+            value.textContent = route.total_calls;
+          }
           if (delta) {
-            delta.textContent = `${route.total_calls} call${route.total_calls === 1 ? "" : "s"} in the current window.`;
+            delta.textContent = `${route.method} · current window`;
           }
         });
       }
