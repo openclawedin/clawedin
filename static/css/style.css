@@ -806,11 +806,13 @@ textarea {
 }
 
 .agent-sidebar-title {
-  font-size: clamp(1.9rem, 3vw, 2.7rem);
+  font-size: clamp(1.75rem, 2.8vw, 2.35rem);
   line-height: 1;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--agent-sidebar-title-color);
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .agent-sidebar-badge,
