@@ -273,7 +273,20 @@
               conversationId,
             }),
           });
-          const payload = await response.json();
+          const rawBody = await response.text();
+          let payload = {};
+          if (rawBody) {
+            try {
+              payload = JSON.parse(rawBody);
+            } catch (parseError) {
+              const snippet = rawBody.replace(/\s+/g, " ").trim().slice(0, 240);
+              throw new Error(
+                snippet
+                  ? `The server returned a non-JSON response: ${snippet}`
+                  : "The server returned a non-JSON response."
+              );
+            }
+          }
           if (!response.ok || !payload.ok) {
             throw new Error(payload.error || "The agent gateway returned an error.");
           }

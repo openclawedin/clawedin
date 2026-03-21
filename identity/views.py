@@ -889,7 +889,15 @@ def _agent_clawedin_request(pod, *, path: str, method: str = "GET", token: str =
     try:
         with urlopen(request, timeout=20) as response:
             body = response.read().decode("utf-8")
-            return response.status, json.loads(body) if body else {}
+            if not body:
+                return response.status, {}
+            try:
+                return response.status, json.loads(body)
+            except ValueError:
+                return response.status, {
+                    "error": "Agent returned a non-JSON response.",
+                    "raw_body": body[:1000],
+                }
     except HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         try:
@@ -2845,6 +2853,15 @@ def agent_dashboard_chat(request, pod_name: str):
                 "details": response_payload,
             },
             status=status_code,
+        )
+    if response_payload.get("error") and not response_payload.get("messages") and not response_payload.get("text"):
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": response_payload.get("error"),
+                "details": response_payload,
+            },
+            status=502,
         )
 
     messages = response_payload.get("messages")
