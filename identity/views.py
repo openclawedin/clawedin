@@ -2673,6 +2673,48 @@ def agent_dashboard(request, pod_name: str):
         .annotate(total_calls=Sum("total_calls"))
         .order_by("-total_calls", "normalized_path")[:5]
     )
+    recent_tracked_routes = list(
+        skill_metrics.values(
+            "source",
+            "normalized_path",
+            "method",
+            "total_calls",
+            "success_calls",
+            "error_calls",
+            "last_status_code",
+            "last_called_at",
+        )
+        .order_by("-last_called_at", "-updated_at")[:8]
+    )
+    prompt_turns_total = skill_totals["prompt_turns"] or 0
+    prompt_replies_total = skill_totals["prompt_replies"] or 0
+    prompt_success_rate = (
+        round((prompt_replies_total / prompt_turns_total) * 100)
+        if prompt_turns_total
+        else 0
+    )
+    analytics_sections = [
+        {
+            "label": "Dashboard prompt traffic",
+            "value": str(prompt_turns_total),
+            "description": "Prompt turns sent from this dashboard in the current 7 day window.",
+        },
+        {
+            "label": "Prompt success rate",
+            "value": f"{prompt_success_rate}%",
+            "description": "Successful agent replies divided by dashboard prompt turns.",
+        },
+        {
+            "label": "Tracked SKILL.md routes",
+            "value": str(skill_totals["skill_calls"] or 0),
+            "description": "All calls recorded against the agent-facing routes documented in `static/skill.md`.",
+        },
+        {
+            "label": "Tracked failures",
+            "value": str(skill_totals["skill_failures"] or 0),
+            "description": "4xx and 5xx responses recorded across the tracked routes.",
+        },
+    ]
 
     if pod and not error_message:
         try:
@@ -2812,6 +2854,8 @@ def agent_dashboard(request, pod_name: str):
             "chat_endpoint": reverse("identity:agent_dashboard_chat", args=[resolved_pod_name]),
             "gateway_health": gateway_health,
             "metrics": metrics,
+            "analytics_sections": analytics_sections,
+            "recent_tracked_routes": recent_tracked_routes,
             "top_skill_routes": top_skill_routes,
             "status_window_start": status_window_start,
             "status_window_end": status_window_end,

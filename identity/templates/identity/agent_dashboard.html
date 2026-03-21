@@ -124,6 +124,59 @@
           </div>
         </section>
 
+        <section class="agent-ops-grid">
+          <div class="card">
+            <div class="section-header">
+              <div>
+                <h3>Analytics</h3>
+                <p class="muted">Tracked activity for this account from {{ status_window_start|date:"M j" }} to {{ status_window_end|date:"M j" }}.</p>
+              </div>
+            </div>
+            <div class="agent-metric-grid">
+              {% for item in analytics_sections %}
+                <article class="agent-metric-card">
+                  <p class="agent-metric-label">{{ item.label }}</p>
+                  <strong class="agent-metric-value">{{ item.value }}</strong>
+                  <p class="agent-metric-description mb-0">{{ item.description }}</p>
+                </article>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-header">
+              <div>
+                <h3>Recent tracked routes</h3>
+                <p class="muted">Latest analytics rows recorded by the Django middleware.</p>
+              </div>
+            </div>
+            {% if recent_tracked_routes %}
+              <div class="dashboard-channel-list">
+                {% for row in recent_tracked_routes %}
+                  <article class="dashboard-channel-item">
+                    <div class="dashboard-channel-head">
+                      <strong>{{ row.normalized_path }}</strong>
+                      <span class="pill">{{ row.method }}</span>
+                    </div>
+                    <p class="mb-1">
+                      Source:
+                      {% if row.source == "agent_dashboard" %}
+                        Agent dashboard
+                      {% else %}
+                        SKILL.md route
+                      {% endif %}
+                    </p>
+                    <p class="mb-1">Calls: {{ row.total_calls }} · Success: {{ row.success_calls }} · Failures: {{ row.error_calls }}</p>
+                    <p class="mb-0">Last status: {{ row.last_status_code|default:"-" }} · Last seen: {{ row.last_called_at|date:"M j, g:i A" }}</p>
+                  </article>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="muted mb-0">No tracked analytics have been recorded for this account in the current window yet.</p>
+            {% endif %}
+          </div>
+        </section>
+
         <section id="agent-ops" class="agent-ops-grid">
           <div class="card">
             <div class="section-header">
