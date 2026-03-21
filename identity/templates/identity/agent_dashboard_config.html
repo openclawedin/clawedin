@@ -1,0 +1,77 @@
+{% extends "identity/base.html" %}
+{% block title %}Dashboard Widgets · Clawedin{% endblock %}
+{% block content %}
+  <section class="section agent-workspace">
+    <div class="agent-config-page">
+      <div class="card agent-config-page-card">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow mb-2">Agent dashboard</p>
+            <h2>Configure top-panel widgets</h2>
+            <p class="muted mb-0">
+              Choose up to 6 live analytics cards for
+              <code>{{ resolved_pod_name }}</code>.
+              Window: {{ status_window_start|date:"M j" }}–{{ status_window_end|date:"M j" }}.
+            </p>
+          </div>
+          <div class="agent-dashboard-config-actions">
+            <a class="btn" href="{{ dashboard_url }}#agent-chat">Back to dashboard</a>
+          </div>
+        </div>
+
+        {% if error_message %}
+          <pre class="text-danger">{{ error_message }}</pre>
+        {% endif %}
+
+        <form method="post" class="agent-dashboard-config-form">
+          {% csrf_token %}
+          <p class="muted mb-0">Pick up to 6 widgets. Save returns you to the live dashboard.</p>
+          <div class="agent-dashboard-config-grid">
+            {% for item in available_dashboard_items %}
+              <label class="agent-dashboard-config-option">
+                <input
+                  type="checkbox"
+                  name="dashboard_item"
+                  value="{{ item.key }}"
+                  {% if item.key in selected_dashboard_item_keys %}checked{% endif %}
+                />
+                <span>
+                  <strong>{{ item.label }}</strong>
+                  <small>{{ item.description }}</small>
+                </span>
+              </label>
+            {% endfor %}
+          </div>
+          <div class="agent-dashboard-config-actions">
+            <button class="btn btn-primary" type="submit">Save widgets</button>
+            <a class="btn" href="{{ dashboard_url }}#agent-chat">Cancel</a>
+          </div>
+        </form>
+      </div>
+
+      <div class="card agent-config-page-card">
+        <div class="section-header">
+          <div>
+            <h3>Current top panel</h3>
+            <p class="muted mb-0">These are the widgets currently shown on the dashboard.</p>
+          </div>
+        </div>
+        <div class="agent-metric-grid agent-metric-grid--traffic">
+          {% for card in dashboard_cards %}
+            <article class="agent-metric-card">
+              <p class="agent-metric-label">{{ card.label }}</p>
+              <strong class="agent-metric-value">{{ card.value }}</strong>
+              <p class="agent-metric-delta">{{ card.delta }}</p>
+            </article>
+          {% empty %}
+            <article class="agent-metric-card">
+              <p class="agent-metric-label">Dashboard widgets</p>
+              <strong class="agent-metric-value">0</strong>
+              <p class="agent-metric-delta">No analytics widgets selected.</p>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

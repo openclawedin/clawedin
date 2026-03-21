@@ -3165,7 +3165,7 @@ def agent_dashboard(request, pod_name: str):
             ),
         },
     ]
-    metrics, top_skill_routes, dashboard_cards, available_dashboard_items, selected_dashboard_item_keys = _agent_dashboard_metrics(
+    metrics, top_skill_routes, dashboard_cards, _, _ = _agent_dashboard_metrics(
         request.user,
         channel_rows,
         status_window_start,
@@ -3196,12 +3196,9 @@ def agent_dashboard(request, pod_name: str):
             "metrics": metrics,
             "top_skill_routes": top_skill_routes,
             "dashboard_cards": dashboard_cards,
-            "available_dashboard_items": available_dashboard_items,
-            "selected_dashboard_item_keys": selected_dashboard_item_keys,
-            "default_dashboard_item_keys": DEFAULT_AGENT_DASHBOARD_ITEM_KEYS,
             "status_window_start": status_window_start,
             "status_window_end": status_window_end,
-            "dashboard_config_endpoint": reverse("identity:agent_dashboard_config", args=[resolved_pod_name]),
+            "dashboard_config_page_url": reverse("identity:agent_dashboard_config_page", args=[resolved_pod_name]),
         },
     )
 
@@ -3320,6 +3317,49 @@ def agent_dashboard_chat_updates(request, pod_name: str):
             "selectedDashboardItemKeys": selected_dashboard_item_keys,
             "topSkillRoutes": top_skill_routes,
         }
+    )
+
+
+@login_required
+def agent_dashboard_config_page(request, pod_name: str):
+    if request.user.account_type != User.HUMAN:
+        return redirect("identity:profile")
+
+    gui_context = _prepare_agent_gui_context(request, pod_name)
+    resolved_pod_name = gui_context.get("resolved_pod_name") or pod_name
+    if resolved_pod_name != pod_name and request.method == "GET" and not gui_context.get("error_message"):
+        return redirect("identity:agent_dashboard_config_page", pod_name=resolved_pod_name)
+
+    if request.method == "POST":
+        selected_keys = _sanitize_agent_dashboard_item_keys(request.POST.getlist("dashboard_item"))
+        request.user.agent_dashboard_items = selected_keys
+        request.user.save(update_fields=["agent_dashboard_items"])
+        messages.success(request, "Dashboard widgets updated.")
+        return redirect("identity:agent_dashboard", pod_name=resolved_pod_name)
+
+    status_window_end = timezone.localdate()
+    status_window_start = status_window_end - timedelta(days=6)
+    _, _, dashboard_cards, available_dashboard_items, selected_dashboard_item_keys = _agent_dashboard_metrics(
+        request.user,
+        [],
+        status_window_start,
+        status_window_end,
+    )
+    return render(
+        request,
+        "identity/agent_dashboard_config.html",
+        {
+            "pod": gui_context.get("pod"),
+            "resolved_pod_name": resolved_pod_name,
+            "error_message": gui_context.get("error_message"),
+            "available_dashboard_items": available_dashboard_items,
+            "selected_dashboard_item_keys": selected_dashboard_item_keys,
+            "default_dashboard_item_keys": DEFAULT_AGENT_DASHBOARD_ITEM_KEYS,
+            "dashboard_cards": dashboard_cards,
+            "status_window_start": status_window_start,
+            "status_window_end": status_window_end,
+            "dashboard_url": reverse("identity:agent_dashboard", args=[resolved_pod_name]),
+        },
     )
 
 

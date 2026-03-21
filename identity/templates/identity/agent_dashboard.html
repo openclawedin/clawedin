@@ -64,50 +64,13 @@
               </p>
             </div>
             <div class="agent-status-actions">
-              <button
-                class="btn agent-config-trigger"
-                type="button"
-                id="agent-dashboard-config-toggle"
-                aria-expanded="false"
-                aria-controls="agent-dashboard-config"
-              >
+              <a class="btn agent-config-trigger" href="{{ dashboard_config_page_url }}">
                 <span aria-hidden="true">&#9881;</span>
                 Configure
-              </button>
+              </a>
               <a class="btn btn-primary" href="{% url 'identity:agent_gui' pod.metadata.name %}">Open web GUI</a>
               <a class="btn" href="{% url 'identity:agent_terminal' pod.metadata.name %}">Terminal</a>
             </div>
-          </div>
-
-          <div class="agent-dashboard-config card" id="agent-dashboard-config" hidden>
-            <div class="section-header">
-              <div>
-                <h4>Dashboard widgets</h4>
-                <p class="muted mb-0">Choose up to 6 live analytics cards for the top panel.</p>
-              </div>
-            </div>
-            <form id="agent-dashboard-config-form" class="agent-dashboard-config-form">
-              <div class="agent-dashboard-config-grid">
-                {% for item in available_dashboard_items %}
-                  <label class="agent-dashboard-config-option">
-                    <input
-                      type="checkbox"
-                      name="dashboard_item"
-                      value="{{ item.key }}"
-                      {% if item.key in selected_dashboard_item_keys %}checked{% endif %}
-                    />
-                    <span>
-                      <strong>{{ item.label }}</strong>
-                      <small>{{ item.description }}</small>
-                    </span>
-                  </label>
-                {% endfor %}
-              </div>
-              <div class="agent-dashboard-config-actions">
-                <button class="btn btn-primary" type="submit">Save layout</button>
-                <button class="btn" type="button" id="agent-dashboard-config-reset">Reset</button>
-              </div>
-            </form>
           </div>
 
           <div class="agent-metric-grid agent-metric-grid--traffic" id="agent-top-routes">
@@ -259,7 +222,6 @@
 
   {{ chat_seed_messages|json_script:"agent-chat-seed" }}
   {{ dashboard_turns|json_script:"agent-dashboard-turns" }}
-  {{ default_dashboard_item_keys|json_script:"agent-dashboard-default-items" }}
   <script>
     (() => {
       const form = document.getElementById("agent-chat-form");
@@ -268,17 +230,11 @@
       const statusEl = document.getElementById("agent-chat-status");
       const attachButton = document.getElementById("agent-attach-button");
       const topRoutesEl = document.getElementById("agent-top-routes");
-      const configToggle = document.getElementById("agent-dashboard-config-toggle");
-      const configPanel = document.getElementById("agent-dashboard-config");
-      const configForm = document.getElementById("agent-dashboard-config-form");
-      const configResetButton = document.getElementById("agent-dashboard-config-reset");
       const csrfInput = form.querySelector("input[name=csrfmiddlewaretoken]");
       const seed = JSON.parse(document.getElementById("agent-chat-seed").textContent);
       const turnSeed = JSON.parse(document.getElementById("agent-dashboard-turns").textContent);
-      const defaultDashboardItemKeys = JSON.parse(document.getElementById("agent-dashboard-default-items").textContent);
       const endpoint = "{{ chat_endpoint|escapejs }}";
       const updatesEndpoint = "{{ chat_updates_endpoint|escapejs }}";
-      const configEndpoint = "{{ dashboard_config_endpoint|escapejs }}";
       const conversationId = "{{ deployment_record.deployment_name|default:pod.metadata.name|escapejs }}-{{ user.id }}";
       const turnNodes = new Map();
       let pollTimer = null;
@@ -462,31 +418,6 @@
         });
       }
 
-      function getSelectedDashboardItems() {
-        return Array.from(configForm.querySelectorAll('input[name="dashboard_item"]:checked'))
-          .map((inputEl) => inputEl.value)
-          .slice(0, 6);
-      }
-
-      function getCheckedDashboardItemCount() {
-        return configForm.querySelectorAll('input[name="dashboard_item"]:checked').length;
-      }
-
-      function applySelectedDashboardItems(selectedKeys) {
-        const selected = new Set(selectedKeys || []);
-        configForm.querySelectorAll('input[name="dashboard_item"]').forEach((inputEl) => {
-          inputEl.checked = selected.has(inputEl.value);
-        });
-      }
-
-      function setConfigOpen(isOpen) {
-        if (!configPanel || !configToggle) {
-          return;
-        }
-        configPanel.hidden = !isOpen;
-        configToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
-      }
-
       function syncPolling(turns) {
         activeTurnCount = (turns || []).filter((turn) => turn.status === "queued" || turn.status === "running").length;
         if (activeTurnCount === 0) {
@@ -511,7 +442,6 @@
           (payload.turns || []).forEach(renderTurn);
           updateMetrics(payload.metrics || []);
           updateDashboardCards(payload.dashboardCards || []);
-          applySelectedDashboardItems(payload.selectedDashboardItemKeys || []);
           syncPolling(payload.turns || []);
         } catch (error) {
           statusEl.textContent = "Live updates paused. Retrying...";
@@ -526,51 +456,6 @@
 
       stream.addEventListener("scroll", () => {
         shouldStickToBottom = isNearBottom();
-      });
-
-      configToggle.addEventListener("click", () => {
-        setConfigOpen(configPanel.hidden);
-      });
-
-      configResetButton.addEventListener("click", () => {
-        applySelectedDashboardItems(defaultDashboardItemKeys);
-      });
-
-      configForm.addEventListener("change", (event) => {
-        if (event.target.name !== "dashboard_item") {
-          return;
-        }
-        if (getCheckedDashboardItemCount() > 6) {
-          event.target.checked = false;
-          statusEl.textContent = "Select up to 6 dashboard widgets.";
-        }
-      });
-
-      configForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const items = getSelectedDashboardItems();
-        statusEl.textContent = "Saving dashboard layout...";
-        try {
-          const response = await fetch(configEndpoint, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-CSRFToken": csrfInput.value,
-            },
-            body: JSON.stringify({ items }),
-          });
-          const payload = await response.json();
-          if (!response.ok || !payload.ok) {
-            throw new Error(payload.error || "Could not save dashboard layout.");
-          }
-          updateMetrics(payload.metrics || []);
-          updateDashboardCards(payload.dashboardCards || []);
-          applySelectedDashboardItems(payload.selectedDashboardItemKeys || []);
-          setConfigOpen(false);
-          statusEl.textContent = "Dashboard layout saved.";
-        } catch (error) {
-          statusEl.textContent = error.message || "Could not save dashboard layout.";
-        }
       });
 
       attachButton.addEventListener("click", () => {

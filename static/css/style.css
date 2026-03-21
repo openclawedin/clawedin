@@ -1017,6 +1017,17 @@ textarea {
   flex-wrap: wrap;
 }
 
+.agent-config-page {
+  display: grid;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.agent-config-page-card {
+  padding: 24px;
+}
+
 .agent-metric-grid {
   display: grid;
   gap: 14px;
