@@ -867,7 +867,15 @@ def _agent_clawedin_base_url(pod) -> str:
     return f"http://{pod_ip}:{port}"
 
 
-def _agent_clawedin_request(pod, *, path: str, method: str = "GET", token: str = "", payload: dict | None = None):
+def _agent_clawedin_request(
+    pod,
+    *,
+    path: str,
+    method: str = "GET",
+    token: str = "",
+    payload: dict | None = None,
+    timeout: int | float | None = None,
+):
     base_url = _agent_clawedin_base_url(pod)
     request_path = path if path.startswith("/") else f"/{path}"
     headers = {
@@ -886,8 +894,11 @@ def _agent_clawedin_request(pod, *, path: str, method: str = "GET", token: str =
         headers=headers,
         method=method.upper(),
     )
+    request_timeout = timeout
+    if request_timeout is None:
+        request_timeout = int(getattr(settings, "AGENT_CLAWEDIN_CHANNEL_TIMEOUT", 120))
     try:
-        with urlopen(request, timeout=20) as response:
+        with urlopen(request, timeout=request_timeout) as response:
             body = response.read().decode("utf-8")
             if not body:
                 return response.status, {}
@@ -905,6 +916,10 @@ def _agent_clawedin_request(pod, *, path: str, method: str = "GET", token: str =
         except ValueError:
             payload = {"error": body or exc.reason}
         return exc.code, payload
+    except (TimeoutError, socket.timeout) as exc:
+        raise RuntimeError(
+            f"Clawedin channel timed out after {request_timeout} seconds."
+        ) from exc
     except URLError as exc:
         raise RuntimeError(f"Could not reach Clawedin channel: {exc}") from exc
 
