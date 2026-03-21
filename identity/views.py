@@ -107,6 +107,101 @@ except ImportError:  # pragma: no cover - optional in environments without solan
 BIRDEYE_PRICE_URL = "https://public-api.birdeye.so/defi/price"
 CLAWEDIN_CHANNEL_DEFAULT_PORT = 31890
 CLAWEDIN_CHANNEL_DEFAULT_PATH = "/v1/messages"
+DEFAULT_AGENT_DASHBOARD_ITEM_KEYS = [
+    "top_route_1",
+    "top_route_2",
+    "top_route_3",
+    "top_route_4",
+]
+MAX_AGENT_DASHBOARD_ITEMS = 6
+AGENT_DASHBOARD_ITEM_OPTIONS = [
+    {
+        "key": "top_route_1",
+        "label": "Top route #1",
+        "description": "Highest-traffic API route in the current window.",
+    },
+    {
+        "key": "top_route_2",
+        "label": "Top route #2",
+        "description": "Second highest-traffic API route in the current window.",
+    },
+    {
+        "key": "top_route_3",
+        "label": "Top route #3",
+        "description": "Third highest-traffic API route in the current window.",
+    },
+    {
+        "key": "top_route_4",
+        "label": "Top route #4",
+        "description": "Fourth highest-traffic API route in the current window.",
+    },
+    {
+        "key": "tracked_api_calls",
+        "label": "Tracked API calls",
+        "description": "All SKILL.md route calls in the current window.",
+    },
+    {
+        "key": "successful_api_calls",
+        "label": "Successful API calls",
+        "description": "2xx and 3xx responses across tracked API routes.",
+    },
+    {
+        "key": "failed_api_calls",
+        "label": "Failed API calls",
+        "description": "4xx and 5xx responses across tracked API routes.",
+    },
+    {
+        "key": "get_calls",
+        "label": "GET calls",
+        "description": "Tracked GET traffic in the current window.",
+    },
+    {
+        "key": "post_calls",
+        "label": "POST calls",
+        "description": "Tracked POST traffic in the current window.",
+    },
+    {
+        "key": "tracked_endpoints",
+        "label": "Tracked endpoints",
+        "description": "Distinct path and method combinations seen in the current window.",
+    },
+    {
+        "key": "prompt_turns",
+        "label": "Prompt turns",
+        "description": "Dashboard prompt requests sent to the agent gateway.",
+    },
+    {
+        "key": "agent_replies",
+        "label": "Agent replies",
+        "description": "Successful replies returned by the dashboard gateway.",
+    },
+    {
+        "key": "linked_channels",
+        "label": "Linked channels",
+        "description": "Current configured OpenClaw channels discovered from the runtime.",
+    },
+]
+
+
+def _sanitize_agent_dashboard_item_keys(item_keys):
+    allowed_keys = {item["key"] for item in AGENT_DASHBOARD_ITEM_OPTIONS}
+    cleaned = []
+    for item_key in item_keys or []:
+        if item_key in allowed_keys and item_key not in cleaned:
+            cleaned.append(item_key)
+        if len(cleaned) >= MAX_AGENT_DASHBOARD_ITEMS:
+            break
+    return cleaned or list(DEFAULT_AGENT_DASHBOARD_ITEM_KEYS)
+
+
+def _dashboard_card(label, value, delta, description, key):
+    return {
+        "key": key,
+        "label": label,
+        "value": str(value),
+        "delta": delta,
+        "description": description,
+    }
 
 def _ensure_dockerhub_secret(client_module, v1, namespace: str, source_namespace: str = "default") -> None:
     secret_name = "dockerhub-secret"
@@ -960,9 +1055,21 @@ def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_win
             "total_calls",
             filter=Q(source=SkillPageRequestMetric.SOURCE_SKILL_MD),
         ),
+        skill_successes=Sum(
+            "success_calls",
+            filter=Q(source=SkillPageRequestMetric.SOURCE_SKILL_MD),
+        ),
         skill_failures=Sum(
             "error_calls",
             filter=Q(source=SkillPageRequestMetric.SOURCE_SKILL_MD),
+        ),
+        get_calls=Sum(
+            "total_calls",
+            filter=Q(source=SkillPageRequestMetric.SOURCE_SKILL_MD, method="GET"),
+        ),
+        post_calls=Sum(
+            "total_calls",
+            filter=Q(source=SkillPageRequestMetric.SOURCE_SKILL_MD, method="POST"),
         ),
         prompt_turns=Sum(
             "total_calls",
@@ -979,6 +1086,12 @@ def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_win
         round((prompt_replies_total / prompt_turns_total) * 100)
         if prompt_turns_total
         else 0
+    )
+    tracked_endpoints_total = (
+        skill_metrics.filter(source=SkillPageRequestMetric.SOURCE_SKILL_MD)
+        .values("normalized_path", "method")
+        .distinct()
+        .count()
     )
     metrics = [
         {
@@ -1023,7 +1136,105 @@ def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_win
         .annotate(total_calls=Sum("total_calls"))
         .order_by("-total_calls", "normalized_path")[:4]
     )
-    return metrics, top_skill_routes
+    metric_lookup = {
+        "tracked_api_calls": _dashboard_card(
+            "Tracked API calls",
+            skill_totals["skill_calls"] or 0,
+            "Current window",
+            "All SKILL.md route calls in the current window.",
+            "tracked_api_calls",
+        ),
+        "successful_api_calls": _dashboard_card(
+            "Successful API calls",
+            skill_totals["skill_successes"] or 0,
+            "HTTP 2xx/3xx",
+            "Successful tracked API responses.",
+            "successful_api_calls",
+        ),
+        "failed_api_calls": _dashboard_card(
+            "Failed API calls",
+            skill_totals["skill_failures"] or 0,
+            "HTTP 4xx/5xx",
+            "Failed tracked API responses.",
+            "failed_api_calls",
+        ),
+        "get_calls": _dashboard_card(
+            "GET calls",
+            skill_totals["get_calls"] or 0,
+            "Current window",
+            "Tracked GET requests.",
+            "get_calls",
+        ),
+        "post_calls": _dashboard_card(
+            "POST calls",
+            skill_totals["post_calls"] or 0,
+            "Current window",
+            "Tracked POST requests.",
+            "post_calls",
+        ),
+        "tracked_endpoints": _dashboard_card(
+            "Tracked endpoints",
+            tracked_endpoints_total,
+            "Current window",
+            "Distinct tracked path and method combinations.",
+            "tracked_endpoints",
+        ),
+        "prompt_turns": _dashboard_card(
+            "Prompt turns",
+            prompt_turns_total,
+            "Past 7 days",
+            "Prompt requests sent from this dashboard.",
+            "prompt_turns",
+        ),
+        "agent_replies": _dashboard_card(
+            "Agent replies",
+            prompt_replies_total,
+            f"{prompt_success_rate}% success rate",
+            "Successful dashboard replies.",
+            "agent_replies",
+        ),
+        "linked_channels": _dashboard_card(
+            "Linked channels",
+            len(channel_rows),
+            "Live runtime count",
+            "Configured OpenClaw channels discovered from the runtime.",
+            "linked_channels",
+        ),
+    }
+    selected_item_keys = _sanitize_agent_dashboard_item_keys(getattr(user, "agent_dashboard_items", []))
+    dashboard_cards = []
+    for item_key in selected_item_keys:
+        if item_key.startswith("top_route_"):
+            try:
+                route_index = int(item_key.rsplit("_", 1)[-1]) - 1
+            except (TypeError, ValueError):
+                route_index = -1
+            route = top_skill_routes[route_index] if 0 <= route_index < len(top_skill_routes) else None
+            if route:
+                dashboard_cards.append(
+                    _dashboard_card(
+                        route["normalized_path"],
+                        route["total_calls"],
+                        f'{route["method"]} · current window',
+                        f"Route rank #{route_index + 1} by call volume.",
+                        item_key,
+                    )
+                )
+            else:
+                dashboard_cards.append(
+                    _dashboard_card(
+                        f"Top route #{route_index + 1}",
+                        0,
+                        "No traffic yet",
+                        "No tracked API calls have been recorded for this slot.",
+                        item_key,
+                    )
+                )
+            continue
+        card = metric_lookup.get(item_key)
+        if card:
+            dashboard_cards.append(card)
+    return metrics, top_skill_routes, dashboard_cards, AGENT_DASHBOARD_ITEM_OPTIONS, selected_item_keys
 
 
 def _serialize_dashboard_turn(turn: AgentDashboardTurn) -> dict:
@@ -2954,7 +3165,7 @@ def agent_dashboard(request, pod_name: str):
             ),
         },
     ]
-    metrics, top_skill_routes = _agent_dashboard_metrics(
+    metrics, top_skill_routes, dashboard_cards, available_dashboard_items, selected_dashboard_item_keys = _agent_dashboard_metrics(
         request.user,
         channel_rows,
         status_window_start,
@@ -2984,8 +3195,13 @@ def agent_dashboard(request, pod_name: str):
             "gateway_health": gateway_health,
             "metrics": metrics,
             "top_skill_routes": top_skill_routes,
+            "dashboard_cards": dashboard_cards,
+            "available_dashboard_items": available_dashboard_items,
+            "selected_dashboard_item_keys": selected_dashboard_item_keys,
+            "default_dashboard_item_keys": DEFAULT_AGENT_DASHBOARD_ITEM_KEYS,
             "status_window_start": status_window_start,
             "status_window_end": status_window_end,
+            "dashboard_config_endpoint": reverse("identity:agent_dashboard_config", args=[resolved_pod_name]),
         },
     )
 
@@ -3088,7 +3304,7 @@ def agent_dashboard_chat_updates(request, pod_name: str):
     status_window_end = timezone.localdate()
     status_window_start = status_window_end - timedelta(days=6)
     turns = _recent_dashboard_turns(request.user, pod_name)
-    metrics, top_skill_routes = _agent_dashboard_metrics(
+    metrics, top_skill_routes, dashboard_cards, available_dashboard_items, selected_dashboard_item_keys = _agent_dashboard_metrics(
         request.user,
         [],
         status_window_start,
@@ -3099,6 +3315,43 @@ def agent_dashboard_chat_updates(request, pod_name: str):
             "ok": True,
             "turns": turns,
             "metrics": metrics,
+            "dashboardCards": dashboard_cards,
+            "availableDashboardItems": available_dashboard_items,
+            "selectedDashboardItemKeys": selected_dashboard_item_keys,
+            "topSkillRoutes": top_skill_routes,
+        }
+    )
+
+
+@login_required
+@require_POST
+def agent_dashboard_config(request, pod_name: str):
+    if request.user.account_type != User.HUMAN:
+        return JsonResponse({"ok": False, "error": "Human accounts only."}, status=403)
+
+    data = _parse_request_json(request)
+    if data is None:
+        return JsonResponse({"ok": False, "error": "Invalid JSON body."}, status=400)
+
+    selected_keys = _sanitize_agent_dashboard_item_keys(data.get("items") or [])
+    request.user.agent_dashboard_items = selected_keys
+    request.user.save(update_fields=["agent_dashboard_items"])
+
+    status_window_end = timezone.localdate()
+    status_window_start = status_window_end - timedelta(days=6)
+    metrics, top_skill_routes, dashboard_cards, available_dashboard_items, selected_dashboard_item_keys = _agent_dashboard_metrics(
+        request.user,
+        [],
+        status_window_start,
+        status_window_end,
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "metrics": metrics,
+            "dashboardCards": dashboard_cards,
+            "availableDashboardItems": available_dashboard_items,
+            "selectedDashboardItemKeys": selected_dashboard_item_keys,
             "topSkillRoutes": top_skill_routes,
         }
     )

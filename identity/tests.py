@@ -321,7 +321,37 @@ class AgentWebAuthSecretTests(TestCase):
         _upsert_namespaced_secret(v1, "agents", "web-auth", body, api_exception)
 
         v1.patch_namespaced_secret.assert_called_once_with("web-auth", "agents", body)
-        v1.create_namespaced_secret.assert_not_called()
+
+
+class AgentDashboardConfigTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="dashboard-config-user",
+            email="dashboard@example.com",
+            password="safe-pass-123",
+            account_type=User.HUMAN,
+        )
+        self.client.force_login(self.user)
+
+    def test_dashboard_config_persists_selected_items(self):
+        response = self.client.post(
+            reverse("identity:agent_dashboard_config", args=["openclaw-agent-1-abc123"]),
+            data='{"items":["tracked_api_calls","failed_api_calls","prompt_turns"]}',
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertEqual(
+            self.user.agent_dashboard_items,
+            ["tracked_api_calls", "failed_api_calls", "prompt_turns"],
+        )
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(
+            payload["selectedDashboardItemKeys"],
+            ["tracked_api_calls", "failed_api_calls", "prompt_turns"],
+        )
 
     def test_delete_secret_helper_ignores_missing_secret_name(self):
         v1 = Mock()

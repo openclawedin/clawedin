@@ -960,6 +960,63 @@ textarea {
   align-items: center;
 }
 
+.agent-config-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-dashboard-config {
+  margin: 18px 0 18px;
+  padding: 18px 20px;
+}
+
+.agent-dashboard-config-form {
+  display: grid;
+  gap: 16px;
+}
+
+.agent-dashboard-config-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.agent-dashboard-config-option {
+  display: flex;
+  gap: 10px;
+  align-items: start;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--agent-metric-card-border);
+  background: var(--agent-metric-card-bg);
+  cursor: pointer;
+}
+
+.agent-dashboard-config-option input {
+  margin-top: 4px;
+}
+
+.agent-dashboard-config-option span {
+  display: grid;
+  gap: 4px;
+}
+
+.agent-dashboard-config-option strong {
+  font-size: 0.95rem;
+}
+
+.agent-dashboard-config-option small {
+  color: var(--agent-description-text);
+  line-height: 1.4;
+}
+
+.agent-dashboard-config-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .agent-metric-grid {
   display: grid;
   gap: 14px;
