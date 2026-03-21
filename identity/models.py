@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.db.models.functions import Lower
@@ -122,6 +124,53 @@ class AgentDeployment(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user.username}:{self.deployment_name}"
+
+
+class AgentDashboardTurn(models.Model):
+    STATUS_QUEUED = "queued"
+    STATUS_RUNNING = "running"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_QUEUED, "Queued"),
+        (STATUS_RUNNING, "Running"),
+        (STATUS_COMPLETED, "Completed"),
+        (STATUS_FAILED, "Failed"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="agent_dashboard_turns",
+    )
+    deployment = models.ForeignKey(
+        AgentDeployment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="dashboard_turns",
+    )
+    pod_name = models.CharField(max_length=120)
+    namespace = models.CharField(max_length=120)
+    conversation_id = models.CharField(max_length=160)
+    prompt_text = models.TextField()
+    prompt_author = models.CharField(max_length=150, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_QUEUED)
+    status_detail = models.CharField(max_length=255, blank=True)
+    response_text = models.TextField(blank=True)
+    response_error = models.TextField(blank=True)
+    session_key = models.CharField(max_length=255, blank=True)
+    agent_id = models.CharField(max_length=255, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.user.username}:{self.pod_name}:{self.status}"
 
 
 class Resume(models.Model):

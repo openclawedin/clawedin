@@ -6,6 +6,7 @@ import secrets
 import shlex
 import socket
 import ssl
+import threading
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -22,6 +23,7 @@ from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.http import HttpResponse, StreamingHttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.db import close_old_connections
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -75,6 +77,7 @@ from .models import (
     ResumeProject,
     ResumeSkill,
     AgentDeployment,
+    AgentDashboardTurn,
     User,
     UserSkill,
 )
@@ -945,6 +948,226 @@ def _agent_clawedin_health(pod, token: str = "") -> dict:
         "label": "Currently working" if status_code == 200 and bool(payload.get("ok")) else "Gateway offline",
         "detail": detail,
     }
+
+
+def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_window_end):
+    skill_metrics = SkillPageRequestMetric.objects.filter(
+        user=user,
+        date__range=(status_window_start, status_window_end),
+    )
+    skill_totals = skill_metrics.aggregate(
+        skill_calls=Sum(
+            "total_calls",
+            filter=Q(source=SkillPageRequestMetric.SOURCE_SKILL_MD),
+        ),
+        skill_failures=Sum(
+            "error_calls",
+            filter=Q(source=SkillPageRequestMetric.SOURCE_SKILL_MD),
+        ),
+        prompt_turns=Sum(
+            "total_calls",
+            filter=Q(source=SkillPageRequestMetric.SOURCE_AGENT_DASHBOARD),
+        ),
+        prompt_replies=Sum(
+            "success_calls",
+            filter=Q(source=SkillPageRequestMetric.SOURCE_AGENT_DASHBOARD),
+        ),
+    )
+    prompt_turns_total = skill_totals["prompt_turns"] or 0
+    prompt_replies_total = skill_totals["prompt_replies"] or 0
+    prompt_success_rate = (
+        round((prompt_replies_total / prompt_turns_total) * 100)
+        if prompt_turns_total
+        else 0
+    )
+    metrics = [
+        {
+            "key": "prompt_turns",
+            "label": "Prompt turns",
+            "value": str(prompt_turns_total),
+            "delta": "Past 7 days",
+            "description": "Prompt requests sent from this dashboard into the agent gateway.",
+        },
+        {
+            "key": "agent_replies",
+            "label": "Agent replies",
+            "value": str(prompt_replies_total),
+            "delta": f"{prompt_success_rate}% success rate",
+            "description": "Successful responses returned by the Clawedin channel gateway.",
+        },
+        {
+            "key": "linked_channels",
+            "label": "Linked channels",
+            "value": str(len(channel_rows)),
+            "delta": "Live runtime count",
+            "description": "Configured OpenClaw channels discovered from `channels list`.",
+        },
+        {
+            "key": "tracked_api_calls",
+            "label": "Tracked API calls",
+            "value": str(skill_totals["skill_calls"] or 0),
+            "delta": "Past 7 days",
+            "description": "Requests made to routes documented for agents in `static/skill.md`.",
+        },
+        {
+            "key": "skill_failures",
+            "label": "SKILL.md failures",
+            "value": str(skill_totals["skill_failures"] or 0),
+            "delta": "HTTP 4xx/5xx",
+            "description": "Recorded failed requests against the documented agent-facing routes.",
+        },
+    ]
+    top_skill_routes = list(
+        skill_metrics.filter(source=SkillPageRequestMetric.SOURCE_SKILL_MD)
+        .values("normalized_path", "method")
+        .annotate(total_calls=Sum("total_calls"))
+        .order_by("-total_calls", "normalized_path")[:5]
+    )
+    return metrics, top_skill_routes
+
+
+def _serialize_dashboard_turn(turn: AgentDashboardTurn) -> dict:
+    return {
+        "id": str(turn.id),
+        "conversationId": turn.conversation_id,
+        "promptText": turn.prompt_text,
+        "promptAuthor": turn.prompt_author or turn.user.display_name or turn.user.username,
+        "status": turn.status,
+        "statusDetail": turn.status_detail or "",
+        "responseText": turn.response_text or "",
+        "responseError": turn.response_error or "",
+        "sessionKey": turn.session_key or "",
+        "agentId": turn.agent_id or "",
+        "createdAt": timezone.localtime(turn.created_at).strftime("%b %d, %I:%M %p"),
+        "updatedAt": turn.updated_at.isoformat(),
+    }
+
+
+def _recent_dashboard_turns(user, pod_name: str, limit: int = 25):
+    turns = list(
+        AgentDashboardTurn.objects.filter(user=user, pod_name=pod_name)
+        .select_related("user")
+        .order_by("-created_at")[:limit]
+    )
+    turns.reverse()
+    return [_serialize_dashboard_turn(turn) for turn in turns]
+
+
+def _run_agent_dashboard_turn(
+    *,
+    turn_id,
+    user_id: int,
+    username: str,
+    pod_name: str,
+    namespace: str,
+    deployment_record_id: int | None,
+    conversation_id: str,
+    prompt: str,
+    sender_name: str,
+):
+    close_old_connections()
+    try:
+        turn = AgentDashboardTurn.objects.select_related("user").get(pk=turn_id, user_id=user_id)
+    except AgentDashboardTurn.DoesNotExist:
+        close_old_connections()
+        return
+
+    try:
+        turn.status = AgentDashboardTurn.STATUS_RUNNING
+        turn.status_detail = "Connecting to the agent gateway..."
+        turn.save(update_fields=["status", "status_detail", "updated_at"])
+
+        from kubernetes import client
+
+        load_kube_config()
+        v1 = client.CoreV1Api()
+        pod, resolved_namespace = _resolve_pod(v1, pod_name, namespace, False)
+        if (
+            pod
+            and pod.metadata
+            and pod.metadata.labels
+            and (
+                pod.metadata.labels.get("app") != "openclaw-agent"
+                or pod.metadata.labels.get("owner") != username
+            )
+        ):
+            raise RuntimeError("You do not have permission to use this agent.")
+
+        deployment_record = (
+            AgentDeployment.objects.filter(pk=deployment_record_id, user_id=user_id).first()
+            if deployment_record_id
+            else None
+        )
+        if not deployment_record or not deployment_record.web_auth_token:
+            raise RuntimeError("Agent web auth token is not configured.")
+
+        turn.namespace = resolved_namespace
+        turn.status_detail = "Waiting for the agent reply..."
+        turn.save(update_fields=["namespace", "status_detail", "updated_at"])
+
+        status_code, response_payload = _agent_clawedin_request(
+            pod,
+            path=getattr(settings, "AGENT_CLAWEDIN_CHANNEL_REQUEST_PATH", CLAWEDIN_CHANNEL_DEFAULT_PATH),
+            method="POST",
+            token=deployment_record.web_auth_token,
+            payload={
+                "text": prompt,
+                "conversationId": conversation_id,
+                "chatType": "direct",
+                "senderId": str(user_id),
+                "senderName": sender_name,
+                "skills": [],
+            },
+        )
+        if status_code >= 400:
+            raise RuntimeError(response_payload.get("error") or "The agent gateway rejected the request.")
+
+        messages_payload = response_payload.get("messages")
+        if not isinstance(messages_payload, list):
+            messages_payload = []
+        reply_text = response_payload.get("text") or "\n\n".join(
+            message.get("text") or ""
+            for message in messages_payload
+            if isinstance(message, dict)
+        ).strip()
+        if not reply_text and response_payload.get("error"):
+            raise RuntimeError(response_payload.get("error"))
+
+        turn.status = AgentDashboardTurn.STATUS_COMPLETED
+        turn.status_detail = "Reply received."
+        turn.response_text = reply_text or "The gateway accepted the turn, but no text reply was returned."
+        turn.response_error = ""
+        turn.session_key = response_payload.get("sessionKey") or ""
+        turn.agent_id = response_payload.get("agentId") or ""
+        turn.completed_at = timezone.now()
+        turn.save(
+            update_fields=[
+                "status",
+                "status_detail",
+                "response_text",
+                "response_error",
+                "session_key",
+                "agent_id",
+                "completed_at",
+                "updated_at",
+            ]
+        )
+    except Exception as exc:
+        turn.status = AgentDashboardTurn.STATUS_FAILED
+        turn.status_detail = "Turn failed."
+        turn.response_error = str(exc)
+        turn.completed_at = timezone.now()
+        turn.save(
+            update_fields=[
+                "status",
+                "status_detail",
+                "response_error",
+                "completed_at",
+                "updated_at",
+            ]
+        )
+    finally:
+        close_old_connections()
 
 
 def _exec_agent_shell_command(v1, namespace: str, pod_name: str, shell_command: str) -> dict:
@@ -2645,41 +2868,6 @@ def agent_dashboard(request, pod_name: str):
     }
     status_window_end = timezone.localdate()
     status_window_start = status_window_end - timedelta(days=6)
-    skill_metrics = SkillPageRequestMetric.objects.filter(
-        user=request.user,
-        date__range=(status_window_start, status_window_end),
-    )
-    skill_totals = skill_metrics.aggregate(
-        skill_calls=Sum(
-            "total_calls",
-            filter=Q(source=SkillPageRequestMetric.SOURCE_SKILL_MD),
-        ),
-        skill_failures=Sum(
-            "error_calls",
-            filter=Q(source=SkillPageRequestMetric.SOURCE_SKILL_MD),
-        ),
-        prompt_turns=Sum(
-            "total_calls",
-            filter=Q(source=SkillPageRequestMetric.SOURCE_AGENT_DASHBOARD),
-        ),
-        prompt_replies=Sum(
-            "success_calls",
-            filter=Q(source=SkillPageRequestMetric.SOURCE_AGENT_DASHBOARD),
-        ),
-    )
-    top_skill_routes = list(
-        skill_metrics.filter(source=SkillPageRequestMetric.SOURCE_SKILL_MD)
-        .values("normalized_path", "method")
-        .annotate(total_calls=Sum("total_calls"))
-        .order_by("-total_calls", "normalized_path")[:5]
-    )
-    prompt_turns_total = skill_totals["prompt_turns"] or 0
-    prompt_replies_total = skill_totals["prompt_replies"] or 0
-    prompt_success_rate = (
-        round((prompt_replies_total / prompt_turns_total) * 100)
-        if prompt_turns_total
-        else 0
-    )
 
     if pod and not error_message:
         try:
@@ -2766,38 +2954,12 @@ def agent_dashboard(request, pod_name: str):
             ),
         },
     ]
-    metrics = [
-        {
-            "label": "Prompt turns",
-            "value": str(prompt_turns_total),
-            "delta": "Past 7 days",
-            "description": "Prompt requests sent from this dashboard into the agent gateway.",
-        },
-        {
-            "label": "Agent replies",
-            "value": str(prompt_replies_total),
-            "delta": f"{prompt_success_rate}% success rate",
-            "description": "Successful responses returned by the Clawedin channel gateway.",
-        },
-        {
-            "label": "Linked channels",
-            "value": str(len(channel_rows)),
-            "delta": "Live runtime count",
-            "description": "Configured OpenClaw channels discovered from `channels list`.",
-        },
-        {
-            "label": "Tracked API calls",
-            "value": str(skill_totals["skill_calls"] or 0),
-            "delta": "Past 7 days",
-            "description": "Requests made to routes documented for agents in `static/skill.md`.",
-        },
-        {
-            "label": "SKILL.md failures",
-            "value": str(skill_totals["skill_failures"] or 0),
-            "delta": "HTTP 4xx/5xx",
-            "description": "Recorded failed requests against the documented agent-facing routes.",
-        },
-    ]
+    metrics, top_skill_routes = _agent_dashboard_metrics(
+        request.user,
+        channel_rows,
+        status_window_start,
+        status_window_end,
+    )
 
     return render(
         request,
@@ -2816,7 +2978,9 @@ def agent_dashboard(request, pod_name: str):
             "capabilities_raw": capabilities_raw,
             "create_form": create_form,
             "chat_seed_messages": chat_seed_messages,
+            "dashboard_turns": _recent_dashboard_turns(request.user, resolved_pod_name),
             "chat_endpoint": reverse("identity:agent_dashboard_chat", args=[resolved_pod_name]),
+            "chat_updates_endpoint": reverse("identity:agent_dashboard_chat_updates", args=[resolved_pod_name]),
             "gateway_health": gateway_health,
             "metrics": metrics,
             "top_skill_routes": top_skill_routes,
@@ -2878,55 +3042,63 @@ def agent_dashboard_chat(request, pod_name: str):
 
     sender_name = request.user.display_name or request.user.username
     conversation_id = (data.get("conversationId") or f"clawedin-dashboard-{request.user.id}").strip()
-    payload = {
-        "text": prompt,
-        "conversationId": conversation_id,
-        "chatType": "direct",
-        "senderId": str(request.user.id),
-        "senderName": sender_name,
-        "skills": data.get("skills") or [],
-    }
-    try:
-        status_code, response_payload = _agent_clawedin_request(
-            pod,
-            path=getattr(settings, "AGENT_CLAWEDIN_CHANNEL_REQUEST_PATH", CLAWEDIN_CHANNEL_DEFAULT_PATH),
-            method="POST",
-            token=deployment_record.web_auth_token,
-            payload=payload,
-        )
-    except RuntimeError as exc:
-        return JsonResponse({"ok": False, "error": str(exc)}, status=502)
+    turn = AgentDashboardTurn.objects.create(
+        user=request.user,
+        deployment=deployment_record,
+        pod_name=pod_name,
+        namespace=namespace,
+        conversation_id=conversation_id,
+        prompt_text=prompt,
+        prompt_author=sender_name,
+        status=AgentDashboardTurn.STATUS_QUEUED,
+        status_detail="Queued for delivery.",
+    )
+    worker = threading.Thread(
+        target=_run_agent_dashboard_turn,
+        kwargs={
+            "turn_id": turn.id,
+            "user_id": request.user.id,
+            "username": request.user.username,
+            "pod_name": pod_name,
+            "namespace": namespace,
+            "deployment_record_id": deployment_record.id,
+            "conversation_id": conversation_id,
+            "prompt": prompt,
+            "sender_name": sender_name,
+        },
+        daemon=True,
+    )
+    worker.start()
 
-    if status_code >= 400:
-        return JsonResponse(
-            {
-                "ok": False,
-                "error": response_payload.get("error") or "The agent gateway rejected the request.",
-                "details": response_payload,
-            },
-            status=status_code,
-        )
-    if response_payload.get("error") and not response_payload.get("messages") and not response_payload.get("text"):
-        return JsonResponse(
-            {
-                "ok": False,
-                "error": response_payload.get("error"),
-                "details": response_payload,
-            },
-            status=502,
-        )
-
-    messages = response_payload.get("messages")
-    if not isinstance(messages, list):
-        messages = []
     return JsonResponse(
         {
             "ok": True,
-            "text": response_payload.get("text") or "",
-            "messages": messages,
-            "sessionKey": response_payload.get("sessionKey") or "",
-            "agentId": response_payload.get("agentId") or "",
+            "turn": _serialize_dashboard_turn(turn),
             "conversationId": conversation_id,
+        }
+    )
+
+
+@login_required
+@require_GET
+def agent_dashboard_chat_updates(request, pod_name: str):
+    if request.user.account_type != User.HUMAN:
+        return JsonResponse({"ok": False, "error": "Human accounts only."}, status=403)
+
+    status_window_end = timezone.localdate()
+    status_window_start = status_window_end - timedelta(days=6)
+    turns = _recent_dashboard_turns(request.user, pod_name)
+    metrics, _ = _agent_dashboard_metrics(
+        request.user,
+        [],
+        status_window_start,
+        status_window_end,
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "turns": turns,
+            "metrics": [metric for metric in metrics if metric["key"] != "linked_channels"],
         }
     )
 

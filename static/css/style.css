@@ -858,6 +858,7 @@ textarea {
 .agent-main {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .agent-status-shell {
@@ -931,11 +932,12 @@ textarea {
 .agent-metric-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .agent-metric-card {
-  padding: 22px 20px 18px;
+  min-width: 0;
+  padding: 18px 16px 16px;
   border-radius: 20px;
   background: var(--agent-metric-card-bg);
   border: 1px solid var(--agent-metric-card-border);
@@ -955,14 +957,14 @@ textarea {
 
 .agent-metric-value {
   display: block;
-  margin-top: 10px;
-  font-size: clamp(2.25rem, 3vw, 3.4rem);
+  margin-top: 14px;
+  font-size: clamp(2rem, 2.4vw, 3rem);
   line-height: 1;
   color: var(--agent-metric-value-text);
 }
 
 .agent-metric-delta {
-  margin-top: 16px;
+  margin-top: 18px;
   font-weight: 500;
   color: var(--agent-metric-delta-text);
   font-size: 0.92rem;
@@ -1148,7 +1150,11 @@ textarea {
 
 @media (min-width: 1100px) {
   .agent-layout {
-    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+
+  .agent-metric-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .agent-ops-grid {
@@ -1157,6 +1163,12 @@ textarea {
 
   .agent-ops-grid:last-of-type {
     grid-template-columns: 1.1fr 1fr 1fr;
+  }
+}
+
+@media (min-width: 700px) and (max-width: 1099.98px) {
+  .agent-metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

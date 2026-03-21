@@ -71,11 +71,10 @@
 
           <div class="agent-metric-grid">
             {% for metric in metrics %}
-              <article class="agent-metric-card">
+              <article class="agent-metric-card" data-metric-key="{{ metric.key }}">
                 <p class="agent-metric-label">{{ metric.label }}</p>
-                <strong class="agent-metric-value">{{ metric.value }}</strong>
-                <p class="agent-metric-delta">{{ metric.delta }}</p>
-                <p class="agent-metric-description">{{ metric.description }}</p>
+                <strong class="agent-metric-value" data-metric-field="value">{{ metric.value }}</strong>
+                <p class="agent-metric-delta" data-metric-field="delta">{{ metric.delta }}</p>
               </article>
             {% endfor %}
           </div>
@@ -224,6 +223,7 @@
   </section>
 
   {{ chat_seed_messages|json_script:"agent-chat-seed" }}
+  {{ dashboard_turns|json_script:"agent-dashboard-turns" }}
   <script>
     (() => {
       const form = document.getElementById("agent-chat-form");
@@ -233,8 +233,13 @@
       const attachButton = document.getElementById("agent-attach-button");
       const csrfInput = form.querySelector("input[name=csrfmiddlewaretoken]");
       const seed = JSON.parse(document.getElementById("agent-chat-seed").textContent);
+      const turnSeed = JSON.parse(document.getElementById("agent-dashboard-turns").textContent);
       const endpoint = "{{ chat_endpoint|escapejs }}";
+      const updatesEndpoint = "{{ chat_updates_endpoint|escapejs }}";
       const conversationId = "{{ deployment_record.deployment_name|default:pod.metadata.name|escapejs }}-{{ user.id }}";
+      const turnNodes = new Map();
+      let pollTimer = null;
+      let activeTurnCount = 0;
 
       function renderMessage(message) {
         const article = document.createElement("article");
@@ -254,7 +259,130 @@
         stream.scrollTop = stream.scrollHeight;
       }
 
+      function scrollStream() {
+        stream.scrollTop = stream.scrollHeight;
+      }
+
+      function ensureTurnNode(turn) {
+        let nodes = turnNodes.get(turn.id);
+        if (nodes) {
+          return nodes;
+        }
+
+        const promptArticle = document.createElement("article");
+        promptArticle.className = "agent-message agent-message--user";
+        promptArticle.dataset.turnId = turn.id;
+
+        const promptMeta = document.createElement("div");
+        promptMeta.className = "agent-message-meta";
+        promptMeta.textContent = `You${turn.createdAt ? ` · ${turn.createdAt}` : ""}`;
+
+        const promptBubble = document.createElement("div");
+        promptBubble.className = "agent-message-bubble";
+        promptBubble.textContent = turn.promptText;
+
+        promptArticle.appendChild(promptMeta);
+        promptArticle.appendChild(promptBubble);
+        stream.appendChild(promptArticle);
+
+        const replyArticle = document.createElement("article");
+        replyArticle.className = "agent-message agent-message--agent";
+        replyArticle.dataset.turnReplyId = turn.id;
+
+        const replyMeta = document.createElement("div");
+        replyMeta.className = "agent-message-meta";
+
+        const replyBubble = document.createElement("div");
+        replyBubble.className = "agent-message-bubble";
+
+        replyArticle.appendChild(replyMeta);
+        replyArticle.appendChild(replyBubble);
+        stream.appendChild(replyArticle);
+
+        nodes = { promptMeta, promptBubble, replyMeta, replyBubble };
+        turnNodes.set(turn.id, nodes);
+        return nodes;
+      }
+
+      function renderTurn(turn) {
+        const nodes = ensureTurnNode(turn);
+        const agentLabel = turn.agentId || "Agent";
+        let replyText = turn.responseText || "";
+        let replyMeta = agentLabel;
+
+        if (turn.status === "queued" || turn.status === "running") {
+          replyMeta += " · Live status";
+          replyText = turn.statusDetail || "Working...";
+        } else if (turn.status === "failed") {
+          replyMeta = "Gateway · Error";
+          replyText = turn.responseError || turn.statusDetail || "The turn failed.";
+        } else {
+          replyMeta += turn.sessionKey ? ` · ${turn.sessionKey}` : " · Live reply";
+          replyText = replyText || "The gateway accepted the turn, but no text reply was returned.";
+        }
+
+        nodes.replyMeta.textContent = replyMeta;
+        nodes.replyBubble.textContent = replyText;
+        scrollStream();
+      }
+
+      function updateMetrics(metrics) {
+        (metrics || []).forEach((metric) => {
+          const card = document.querySelector(`[data-metric-key="${metric.key}"]`);
+          if (!card) {
+            return;
+          }
+          const value = card.querySelector('[data-metric-field="value"]');
+          const delta = card.querySelector('[data-metric-field="delta"]');
+          if (value) {
+            value.textContent = metric.value;
+          }
+          if (delta) {
+            delta.textContent = metric.delta;
+          }
+        });
+      }
+
+      function syncPolling(turns) {
+        activeTurnCount = (turns || []).filter((turn) => turn.status === "queued" || turn.status === "running").length;
+        if (activeTurnCount > 0 && !pollTimer) {
+          pollTimer = window.setInterval(fetchUpdates, 1500);
+        }
+        if (activeTurnCount === 0 && pollTimer) {
+          window.clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      }
+
+      async function fetchUpdates() {
+        try {
+          const response = await fetch(updatesEndpoint, {
+            headers: {
+              "Accept": "application/json",
+            },
+          });
+          if (!response.ok) {
+            return;
+          }
+          const payload = await response.json();
+          if (!payload.ok) {
+            return;
+          }
+          (payload.turns || []).forEach(renderTurn);
+          updateMetrics(payload.metrics || []);
+          syncPolling(payload.turns || []);
+          if (activeTurnCount === 0) {
+            statusEl.textContent = "Ready for the next prompt.";
+          }
+        } catch (error) {
+          statusEl.textContent = "Live updates paused. Retrying...";
+        }
+      }
+
       seed.forEach(renderMessage);
+      turnSeed.forEach(renderTurn);
+      syncPolling(turnSeed);
+      fetchUpdates();
 
       attachButton.addEventListener("click", () => {
         statusEl.textContent = "Attachment upload is queued for the next pass. The placeholder card above marks the future drop zone.";
@@ -268,16 +396,9 @@
           return;
         }
 
-        renderMessage({
-          role: "user",
-          author: "{{ user.display_name|default:user.username|escapejs }}",
-          timestamp: "Just now",
-          text,
-        });
-
         input.value = "";
-        input.disabled = true;
-        statusEl.textContent = "Waiting for the agent gateway reply...";
+        input.focus();
+        statusEl.textContent = "Submitting prompt...";
 
         try {
           const response = await fetch(endpoint, {
@@ -305,24 +426,15 @@
               );
             }
           }
-          if (!response.ok || !payload.ok) {
+          if (!response.ok || !payload.ok || !payload.turn) {
             throw new Error(payload.error || "The agent gateway returned an error.");
           }
-
-          const replyText = payload.text || (payload.messages || [])
-            .map((message) => message.text || "")
-            .filter(Boolean)
-            .join("\n\n");
-
-          renderMessage({
-            role: "agent",
-            author: payload.agentId || "{{ pod.metadata.name|default:'Agent'|escapejs }}",
-            timestamp: "Live reply",
-            text: replyText || "The gateway accepted the turn, but no text reply was returned.",
-          });
-          statusEl.textContent = payload.sessionKey
-            ? `Connected through session ${payload.sessionKey}.`
-            : "Reply received.";
+          renderTurn(payload.turn);
+          activeTurnCount += 1;
+          if (!pollTimer) {
+            pollTimer = window.setInterval(fetchUpdates, 1500);
+          }
+          statusEl.textContent = "Prompt sent. Live updates are running.";
         } catch (error) {
           statusEl.textContent = error.message;
           renderMessage({
@@ -331,9 +443,6 @@
             timestamp: "Error",
             text: `Could not complete the turn: ${error.message}`,
           });
-        } finally {
-          input.disabled = false;
-          input.focus();
         }
       });
     })();

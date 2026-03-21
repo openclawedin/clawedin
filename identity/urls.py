@@ -33,6 +33,11 @@ urlpatterns = [
         name="agent_dashboard_chat",
     ),
     path(
+        "agents/manager/<str:pod_name>/dashboard/chat/updates/",
+        views.agent_dashboard_chat_updates,
+        name="agent_dashboard_chat_updates",
+    ),
+    path(
         "agents/manager/<str:pod_name>/terminal/",
         views.agent_terminal,
         name="agent_terminal",
