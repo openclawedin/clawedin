@@ -1727,6 +1727,13 @@ def agent_manager(request):
                                     "models": {"openai/gpt-5.2": {}},
                                 }
                             },
+                            "plugins": {
+                                "entries": {
+                                    "clawedin": {
+                                        "enabled": True,
+                                    }
+                                }
+                            },
                             "channels": {
                                 "clawedin": {
                                     "enabled": True,
@@ -2697,15 +2704,6 @@ def agent_dashboard(request, pod_name: str):
             "text": (
                 "The Clawedin channel gateway is ready for prompt-based turns. "
                 "Send a message below and I will route it through the agent container on port 31890."
-            ),
-        },
-        {
-            "role": "user",
-            "author": request.user.display_name or request.user.username,
-            "timestamp": "Hint",
-            "text": (
-                "Try a direct instruction, ask for a summary, or hand the agent a next action. "
-                "Attachment handling and richer thread analytics are stubbed in the UI for now."
             ),
         },
     ]
