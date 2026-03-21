@@ -22,7 +22,7 @@ from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.http import HttpResponse, StreamingHttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
@@ -78,6 +78,7 @@ from .models import (
     User,
     UserSkill,
 )
+from analytics.models import SkillPageRequestMetric
 
 logger = logging.getLogger(__name__)
 
@@ -2644,6 +2645,34 @@ def agent_dashboard(request, pod_name: str):
     }
     status_window_end = timezone.localdate()
     status_window_start = status_window_end - timedelta(days=6)
+    skill_metrics = SkillPageRequestMetric.objects.filter(
+        user=request.user,
+        date__range=(status_window_start, status_window_end),
+    )
+    skill_totals = skill_metrics.aggregate(
+        skill_calls=Sum(
+            "total_calls",
+            filter=Q(source=SkillPageRequestMetric.SOURCE_SKILL_MD),
+        ),
+        skill_failures=Sum(
+            "error_calls",
+            filter=Q(source=SkillPageRequestMetric.SOURCE_SKILL_MD),
+        ),
+        prompt_turns=Sum(
+            "total_calls",
+            filter=Q(source=SkillPageRequestMetric.SOURCE_AGENT_DASHBOARD),
+        ),
+        prompt_replies=Sum(
+            "success_calls",
+            filter=Q(source=SkillPageRequestMetric.SOURCE_AGENT_DASHBOARD),
+        ),
+    )
+    top_skill_routes = list(
+        skill_metrics.filter(source=SkillPageRequestMetric.SOURCE_SKILL_MD)
+        .values("normalized_path", "method")
+        .annotate(total_calls=Sum("total_calls"))
+        .order_by("-total_calls", "normalized_path")[:5]
+    )
 
     if pod and not error_message:
         try:
@@ -2733,15 +2762,15 @@ def agent_dashboard(request, pod_name: str):
     metrics = [
         {
             "label": "Prompt turns",
-            "value": "--",
-            "delta": "Telemetry placeholder",
-            "description": "Tracked once we persist channel turns from the gateway.",
+            "value": str(skill_totals["prompt_turns"] or 0),
+            "delta": "Past 7 days",
+            "description": "Prompt requests sent from this dashboard into the agent gateway.",
         },
         {
             "label": "Agent replies",
-            "value": "--",
-            "delta": "Telemetry placeholder",
-            "description": "Will show successful responses returned from the Clawedin channel.",
+            "value": str(skill_totals["prompt_replies"] or 0),
+            "delta": "Successful dashboard turns",
+            "description": "Successful responses returned by the Clawedin channel gateway.",
         },
         {
             "label": "Linked channels",
@@ -2750,16 +2779,16 @@ def agent_dashboard(request, pod_name: str):
             "description": "Configured OpenClaw channels discovered from `channels list`.",
         },
         {
-            "label": "Tasks completed",
-            "value": "--",
-            "delta": "Awaiting event stream",
-            "description": "Reserved for completed workflow actions and task outcomes.",
+            "label": "SKILL.md API calls",
+            "value": str(skill_totals["skill_calls"] or 0),
+            "delta": "Past 7 days",
+            "description": "Requests made to routes documented for agents in `static/skill.md`.",
         },
         {
-            "label": "Files shared",
-            "value": "--",
-            "delta": "Attachment queue soon",
-            "description": "Attachment upload UI is staged here until file relay is wired.",
+            "label": "SKILL.md failures",
+            "value": str(skill_totals["skill_failures"] or 0),
+            "delta": "HTTP 4xx/5xx",
+            "description": "Recorded failed requests against the documented agent-facing routes.",
         },
     ]
 
@@ -2783,6 +2812,7 @@ def agent_dashboard(request, pod_name: str):
             "chat_endpoint": reverse("identity:agent_dashboard_chat", args=[resolved_pod_name]),
             "gateway_health": gateway_health,
             "metrics": metrics,
+            "top_skill_routes": top_skill_routes,
             "status_window_start": status_window_start,
             "status_window_end": status_window_end,
         },

@@ -189,6 +189,24 @@
 
         <section class="agent-ops-grid">
           <div class="card">
+            <h4>SKILL.md endpoint traffic</h4>
+            {% if top_skill_routes %}
+              <div class="dashboard-channel-list">
+                {% for row in top_skill_routes %}
+                  <article class="dashboard-channel-item">
+                    <div class="dashboard-channel-head">
+                      <strong>{{ row.normalized_path }}</strong>
+                      <span class="pill">{{ row.method }}</span>
+                    </div>
+                    <p class="mb-0">{{ row.total_calls }} call{{ row.total_calls|pluralize }} in the current window.</p>
+                  </article>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="muted mb-0">No `SKILL.md` traffic recorded for this account in the current window.</p>
+            {% endif %}
+          </div>
+          <div class="card">
             <h4>`channels capabilities --json`</h4>
             <pre class="dashboard-json mb-0"><code>{{ capabilities_raw|default:"No output." }}</code></pre>
           </div>
