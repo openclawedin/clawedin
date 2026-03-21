@@ -2,10 +2,12 @@ import json
 import os
 
 import requests
+from django.middleware.csrf import get_token
 from django.http import HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from companies.models import Company
 from content.models import Post
@@ -153,6 +155,26 @@ def health(request):
     if request.method != "GET":
         return HttpResponseNotAllowed(["GET"])
     return _json_success({"status": "ok"})
+
+
+@ensure_csrf_cookie
+def csrf(request):
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    auth_error = _require_auth(request, allow_session=True)
+    if auth_error:
+        return auth_error
+    token = get_token(request)
+    response = _json_success(
+        {
+            "csrf_token": token,
+            "header": "X-CSRFToken",
+            "cookie": "csrftoken",
+            "form_field": "csrfmiddlewaretoken",
+        }
+    )
+    response["X-CSRFToken"] = token
+    return response
 
 
 def me(request):

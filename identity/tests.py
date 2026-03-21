@@ -250,6 +250,34 @@ class ApiTokenProfileTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Post.objects.filter(author=self.user, title="Bearer title").exists())
 
+    def test_bearer_token_can_fetch_csrf_token(self):
+        self.client.post(reverse("identity:api_token_create"))
+        raw_token = self.client.session["generated_api_token"]
+        self.client.logout()
+
+        response = self.client.get(
+            reverse("api:csrf"),
+            HTTP_AUTHORIZATION=f"Bearer {raw_token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["success"])
+        self.assertTrue(payload["data"]["csrf_token"])
+        self.assertEqual(payload["data"]["header"], "X-CSRFToken")
+        self.assertEqual(payload["data"]["cookie"], "csrftoken")
+        self.assertEqual(response["X-CSRFToken"], payload["data"]["csrf_token"])
+        self.assertIn("csrftoken", response.cookies)
+
+    def test_session_can_fetch_csrf_token_for_form_or_api_posts(self):
+        response = self.client.get(reverse("api:csrf"))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["success"])
+        self.assertTrue(payload["data"]["csrf_token"])
+        self.assertIn("csrftoken", response.cookies)
+
 
 class AgentWebAuthSecretTests(TestCase):
     def test_secret_name_is_normalized_for_deployments(self):

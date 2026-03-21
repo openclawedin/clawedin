@@ -6,6 +6,7 @@ app_name = "api"
 
 urlpatterns = [
     path("health/", views.health, name="health"),
+    path("csrf/", views.csrf, name="csrf"),
     path("me/", views.me, name="me"),
     path("tokens/", views.tokens, name="tokens"),
     path("tokens/<int:token_id>/", views.token_detail, name="token_detail"),
