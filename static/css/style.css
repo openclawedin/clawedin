@@ -169,6 +169,10 @@ a {
   margin: 0 auto;
 }
 
+body:has(.agent-workspace) .container {
+  width: min(1450px, 96vw);
+}
+
 .app-navbar {
   background: var(--panel);
   border: 1px solid var(--line);
