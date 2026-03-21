@@ -236,8 +236,20 @@
       let pollTimer = null;
       let activeTurnCount = 0;
       const POLL_INTERVAL_MS = 2000;
+      const SCROLL_LOCK_THRESHOLD_PX = 48;
+      let shouldStickToBottom = true;
 
-      function renderMessage(message) {
+      function isNearBottom() {
+        return stream.scrollHeight - stream.scrollTop - stream.clientHeight <= SCROLL_LOCK_THRESHOLD_PX;
+      }
+
+      function scrollStream(force = false) {
+        if (force || shouldStickToBottom) {
+          stream.scrollTop = stream.scrollHeight;
+        }
+      }
+
+      function renderMessage(message, forceScroll = false) {
         const article = document.createElement("article");
         article.className = `agent-message agent-message--${message.role}`;
 
@@ -252,11 +264,7 @@
         article.appendChild(meta);
         article.appendChild(bubble);
         stream.appendChild(article);
-        stream.scrollTop = stream.scrollHeight;
-      }
-
-      function scrollStream() {
-        stream.scrollTop = stream.scrollHeight;
+        scrollStream(forceScroll);
       }
 
       function ensureTurnNode(turn) {
@@ -300,7 +308,8 @@
         return nodes;
       }
 
-      function renderTurn(turn) {
+      function renderTurn(turn, forceScroll = false) {
+        const wasNearBottom = isNearBottom();
         const nodes = ensureTurnNode(turn);
         const agentLabel = turn.agentId || "Agent";
         let replyText = turn.responseText || "";
@@ -319,7 +328,10 @@
 
         nodes.replyMeta.textContent = replyMeta;
         nodes.replyBubble.textContent = replyText;
-        scrollStream();
+        if (wasNearBottom) {
+          shouldStickToBottom = true;
+        }
+        scrollStream(forceScroll);
       }
 
       function updateMetrics(metrics) {
@@ -440,6 +452,10 @@
       fetchUpdates();
       pollTimer = window.setInterval(fetchUpdates, POLL_INTERVAL_MS);
 
+      stream.addEventListener("scroll", () => {
+        shouldStickToBottom = isNearBottom();
+      });
+
       attachButton.addEventListener("click", () => {
         statusEl.textContent = "Attachment upload is queued for the next pass. The placeholder card above marks the future drop zone.";
       });
@@ -485,17 +501,19 @@
           if (!response.ok || !payload.ok || !payload.turn) {
             throw new Error(payload.error || "The agent gateway returned an error.");
           }
-          renderTurn(payload.turn);
+          shouldStickToBottom = true;
+          renderTurn(payload.turn, true);
           activeTurnCount += 1;
           statusEl.textContent = "Prompt sent. Live updates are running.";
         } catch (error) {
           statusEl.textContent = error.message;
+          shouldStickToBottom = true;
           renderMessage({
             role: "agent",
             author: "Gateway",
             timestamp: "Error",
             text: `Could not complete the turn: ${error.message}`,
-          });
+          }, true);
         }
       });
     })();
