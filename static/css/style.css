@@ -1030,7 +1030,7 @@ textarea {
 .agent-chat-surface {
   display: grid;
   gap: 18px;
-  min-height: calc(100vh - 320px);
+  min-height: calc(100vh - 420px);
   background: var(--agent-chat-bg);
   color: var(--agent-chat-text);
   border: 1px solid var(--agent-chat-border);
@@ -1064,8 +1064,8 @@ textarea {
   display: grid;
   gap: 22px;
   align-content: start;
-  min-height: 520px;
-  max-height: 760px;
+  min-height: 300px;
+  max-height: 520px;
   overflow: auto;
   padding: 8px 6px 0;
 }
