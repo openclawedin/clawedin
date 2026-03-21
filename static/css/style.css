@@ -947,6 +947,10 @@ textarea {
   font-size: clamp(1.9rem, 2.1vw, 2.7rem);
 }
 
+.agent-metric-grid--totals {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .agent-metric-card {
   min-width: 0;
   padding: 18px 16px 16px;
@@ -1169,8 +1173,12 @@ textarea {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
-   .agent-metric-grid--traffic {
+  .agent-metric-grid--traffic {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .agent-metric-grid--totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .agent-ops-grid {
@@ -1188,6 +1196,10 @@ textarea {
   }
 
   .agent-metric-grid--traffic {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .agent-metric-grid--totals {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
