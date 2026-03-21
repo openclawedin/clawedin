@@ -9,36 +9,50 @@
   --agent-sidebar-bg:
     linear-gradient(180deg, rgba(16, 18, 25, 0.96), rgba(16, 18, 25, 0.82)),
     radial-gradient(360px 260px at 10% 0%, rgba(49, 196, 141, 0.2), transparent);
+  --agent-sidebar-border: rgba(255, 255, 255, 0.08);
+  --agent-sidebar-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+  --agent-sidebar-title-color: #f5f7fb;
   --agent-sidebar-item-bg: rgba(255, 255, 255, 0.02);
   --agent-sidebar-item-text: rgba(245, 247, 251, 0.92);
+  --agent-sidebar-item-hover-text: #f5f7fb;
   --agent-sidebar-search-bg: rgba(255, 255, 255, 0.03);
+  --agent-sidebar-search-border: rgba(255, 255, 255, 0.1);
+  --agent-sidebar-search-text: #f5f7fb;
   --agent-sidebar-footer-line: rgba(255, 255, 255, 0.08);
+  --agent-current-bg: linear-gradient(180deg, rgba(37, 120, 90, 0.94), rgba(29, 96, 72, 0.98));
+  --agent-current-text: #f6fbf7;
   --agent-status-bg:
-    linear-gradient(180deg, rgba(248, 245, 237, 0.96), rgba(238, 233, 221, 0.92)),
-    radial-gradient(520px 220px at 5% 0%, rgba(49, 196, 141, 0.16), transparent);
-  --agent-status-text: #1c2431;
-  --agent-status-muted: rgba(28, 36, 49, 0.72);
-  --agent-status-line-text: #264047;
-  --agent-status-range-text: rgba(28, 36, 49, 0.65);
-  --agent-metric-card-bg: rgba(255, 255, 255, 0.72);
-  --agent-metric-card-border: rgba(28, 36, 49, 0.08);
-  --agent-metric-label-text: rgba(28, 36, 49, 0.72);
-  --agent-metric-value-text: #2236a8;
-  --agent-metric-delta-text: #17824d;
-  --agent-metric-description-text: rgba(28, 36, 49, 0.66);
+    linear-gradient(180deg, rgba(18, 23, 33, 0.96), rgba(14, 19, 28, 0.94)),
+    radial-gradient(520px 220px at 5% 0%, rgba(49, 196, 141, 0.14), transparent);
+  --agent-status-text: #f2f5fb;
+  --agent-status-muted: rgba(226, 232, 244, 0.72);
+  --agent-status-line-text: #7adab3;
+  --agent-status-range-text: rgba(226, 232, 244, 0.62);
+  --agent-status-border: rgba(255, 255, 255, 0.08);
+  --agent-status-shadow: 0 16px 38px rgba(0, 0, 0, 0.22);
+  --agent-metric-card-bg: rgba(255, 255, 255, 0.04);
+  --agent-metric-card-border: rgba(255, 255, 255, 0.08);
+  --agent-metric-card-shadow: none;
+  --agent-metric-label-text: rgba(226, 232, 244, 0.72);
+  --agent-metric-value-text: #8ca4ff;
+  --agent-metric-delta-text: #66d4a4;
+  --agent-metric-description-text: rgba(226, 232, 244, 0.66);
   --agent-chat-bg:
-    linear-gradient(180deg, rgba(250, 247, 240, 0.98), rgba(245, 240, 231, 0.96)),
-    radial-gradient(640px 380px at 70% -10%, rgba(83, 110, 255, 0.07), transparent);
-  --agent-chat-text: #1e2229;
-  --agent-chat-muted: rgba(30, 34, 41, 0.66);
-  --agent-chat-meta: rgba(30, 34, 41, 0.6);
-  --agent-message-bg: rgba(255, 255, 255, 0.88);
-  --agent-message-border: rgba(30, 34, 41, 0.08);
-  --agent-message-user-bg: linear-gradient(180deg, rgba(227, 225, 255, 0.96), rgba(205, 210, 255, 0.96));
-  --agent-attachment-bg: linear-gradient(180deg, rgba(214, 213, 255, 0.95), rgba(191, 196, 255, 0.95));
-  --agent-attachment-border: rgba(82, 88, 185, 0.18);
-  --agent-attachment-text: #24284a;
-  --agent-attachment-label: rgba(36, 40, 74, 0.62);
+    linear-gradient(180deg, rgba(18, 23, 33, 0.98), rgba(14, 18, 27, 0.98)),
+    radial-gradient(640px 380px at 70% -10%, rgba(83, 110, 255, 0.12), transparent);
+  --agent-chat-text: #f2f5fb;
+  --agent-chat-muted: rgba(226, 232, 244, 0.66);
+  --agent-chat-meta: rgba(192, 202, 224, 0.76);
+  --agent-chat-border: rgba(255, 255, 255, 0.08);
+  --agent-chat-shadow: 0 16px 38px rgba(0, 0, 0, 0.22);
+  --agent-message-bg: rgba(255, 255, 255, 0.04);
+  --agent-message-border: rgba(255, 255, 255, 0.08);
+  --agent-message-user-bg: transparent;
+  --agent-message-user-border: rgba(192, 202, 224, 0.38);
+  --agent-attachment-bg: linear-gradient(180deg, rgba(95, 102, 164, 0.46), rgba(82, 88, 142, 0.42));
+  --agent-attachment-border: rgba(140, 151, 255, 0.2);
+  --agent-attachment-text: #eef2ff;
+  --agent-attachment-label: rgba(226, 232, 244, 0.68);
   --agent-composer-bg: #2d2a24;
   --agent-composer-text: #f8f6ef;
   --agent-composer-placeholder: rgba(248, 246, 239, 0.68);
@@ -64,10 +78,18 @@
     --agent-sidebar-bg:
       linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 248, 252, 0.94)),
       radial-gradient(360px 260px at 10% 0%, rgba(49, 196, 141, 0.14), transparent);
+    --agent-sidebar-border: rgba(22, 32, 45, 0.12);
+    --agent-sidebar-shadow: 0 10px 30px rgba(47, 62, 97, 0.08);
+    --agent-sidebar-title-color: #2236a8;
     --agent-sidebar-item-bg: rgba(22, 32, 45, 0.03);
     --agent-sidebar-item-text: #16202d;
+    --agent-sidebar-item-hover-text: #1d2b44;
     --agent-sidebar-search-bg: rgba(22, 32, 45, 0.04);
+    --agent-sidebar-search-border: rgba(86, 111, 214, 0.42);
+    --agent-sidebar-search-text: #25324a;
     --agent-sidebar-footer-line: rgba(22, 32, 45, 0.08);
+    --agent-current-bg: linear-gradient(180deg, #34946f, #318f6c);
+    --agent-current-text: #f6fbf7;
     --agent-status-bg:
       linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 248, 252, 0.96)),
       radial-gradient(520px 220px at 5% 0%, rgba(49, 196, 141, 0.12), transparent);
@@ -75,8 +97,11 @@
     --agent-status-muted: rgba(22, 32, 45, 0.72);
     --agent-status-line-text: #23414a;
     --agent-status-range-text: rgba(22, 32, 45, 0.62);
+    --agent-status-border: rgba(180, 191, 232, 0.42);
+    --agent-status-shadow: 0 14px 38px rgba(59, 83, 132, 0.12);
     --agent-metric-card-bg: rgba(255, 255, 255, 0.92);
     --agent-metric-card-border: rgba(22, 32, 45, 0.08);
+    --agent-metric-card-shadow: 0 8px 18px rgba(91, 110, 152, 0.07);
     --agent-metric-label-text: rgba(22, 32, 45, 0.7);
     --agent-metric-value-text: #1e3a8a;
     --agent-metric-delta-text: #18794e;
@@ -87,9 +112,12 @@
     --agent-chat-text: #16202d;
     --agent-chat-muted: rgba(22, 32, 45, 0.66);
     --agent-chat-meta: rgba(22, 32, 45, 0.6);
+    --agent-chat-border: rgba(226, 229, 238, 0.95);
+    --agent-chat-shadow: 0 14px 38px rgba(59, 83, 132, 0.1);
     --agent-message-bg: rgba(255, 255, 255, 0.98);
     --agent-message-border: rgba(22, 32, 45, 0.08);
     --agent-message-user-bg: linear-gradient(180deg, rgba(227, 235, 255, 0.96), rgba(211, 221, 255, 0.96));
+    --agent-message-user-border: rgba(120, 129, 153, 0.45);
     --agent-attachment-bg: linear-gradient(180deg, rgba(235, 237, 255, 0.98), rgba(220, 226, 255, 0.98));
     --agent-attachment-border: rgba(82, 88, 185, 0.16);
     --agent-attachment-text: #253154;
@@ -735,10 +763,10 @@ textarea {
   display: grid;
   gap: 16px;
   align-content: start;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(32, 41, 61, 0.12);
-  box-shadow: 0 10px 30px rgba(47, 62, 97, 0.08);
-  color: #25324a;
+  background: var(--agent-sidebar-bg);
+  border: 1px solid var(--agent-sidebar-border);
+  box-shadow: var(--agent-sidebar-shadow);
+  color: var(--agent-sidebar-item-text);
 }
 
 .agent-sidebar-brand {
@@ -747,7 +775,7 @@ textarea {
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 14px;
-  border-bottom: 1px solid rgba(32, 41, 61, 0.12);
+  border-bottom: 1px solid var(--agent-sidebar-footer-line);
 }
 
 .agent-sidebar-title {
@@ -755,7 +783,7 @@ textarea {
   line-height: 1;
   font-weight: 800;
   letter-spacing: -0.03em;
-  color: #2236a8;
+  color: var(--agent-sidebar-title-color);
 }
 
 .agent-sidebar-badge,
@@ -771,8 +799,8 @@ textarea {
   gap: 10px;
   padding: 16px 18px;
   border-radius: 18px;
-  background: linear-gradient(180deg, #34946f, #318f6c);
-  color: #f6fbf7;
+  background: var(--agent-current-bg);
+  color: var(--agent-current-text);
   border: 0;
   box-shadow: none;
 }
@@ -786,9 +814,9 @@ textarea {
 .agent-search input {
   width: 100%;
   border-radius: 18px;
-  border: 1.5px solid rgba(86, 111, 214, 0.42);
-  background: #fff;
-  color: #25324a;
+  border: 1.5px solid var(--agent-sidebar-search-border);
+  background: var(--agent-sidebar-search-bg);
+  color: var(--agent-sidebar-search-text);
   padding: 14px 18px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
@@ -805,8 +833,8 @@ textarea {
   padding: 0 14px;
   border-radius: 16px;
   border: 1px solid transparent;
-  color: #25324a;
-  background: transparent;
+  color: var(--agent-sidebar-item-text);
+  background: var(--agent-sidebar-item-bg);
   font-weight: 500;
 }
 
@@ -814,7 +842,7 @@ textarea {
 .agent-nav-item--active {
   border-color: rgba(49, 196, 141, 0.2);
   background: rgba(49, 196, 141, 0.11);
-  color: #1d2b44;
+  color: var(--agent-sidebar-item-hover-text);
 }
 
 .agent-sidebar-footer {
@@ -824,7 +852,7 @@ textarea {
   gap: 16px;
   margin-top: auto;
   padding-top: 16px;
-  border-top: 1px solid rgba(32, 41, 61, 0.12);
+  border-top: 1px solid var(--agent-sidebar-footer-line);
 }
 
 .agent-main {
@@ -835,16 +863,16 @@ textarea {
 .agent-status-shell {
   display: grid;
   gap: 18px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 246, 241, 0.96));
-  color: #26324a;
-  box-shadow: 0 14px 38px rgba(59, 83, 132, 0.12);
-  border: 1px solid rgba(180, 191, 232, 0.42);
+  background: var(--agent-status-bg);
+  color: var(--agent-status-text);
+  box-shadow: var(--agent-status-shadow);
+  border: 1px solid var(--agent-status-border);
   border-radius: 28px;
 }
 
 .agent-status-shell .muted,
 .agent-status-shell code {
-  color: rgba(38, 50, 74, 0.72);
+  color: var(--agent-status-muted);
 }
 
 .agent-status-head {
@@ -866,7 +894,7 @@ textarea {
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
-  color: #3d8a6e;
+  color: var(--agent-status-line-text);
   font-weight: 600;
 }
 
@@ -889,7 +917,7 @@ textarea {
 }
 
 .agent-status-range {
-  color: rgba(38, 50, 74, 0.56);
+  color: var(--agent-status-range-text);
   font-weight: 500;
 }
 
@@ -909,9 +937,9 @@ textarea {
 .agent-metric-card {
   padding: 22px 20px 18px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(226, 229, 238, 0.95);
-  box-shadow: 0 8px 18px rgba(91, 110, 152, 0.07);
+  background: var(--agent-metric-card-bg);
+  border: 1px solid var(--agent-metric-card-border);
+  box-shadow: var(--agent-metric-card-shadow);
 }
 
 .agent-metric-label,
@@ -921,7 +949,7 @@ textarea {
 }
 
 .agent-metric-label {
-  color: rgba(86, 97, 124, 0.8);
+  color: var(--agent-metric-label-text);
   font-size: 0.9rem;
 }
 
@@ -930,19 +958,19 @@ textarea {
   margin-top: 10px;
   font-size: clamp(2.25rem, 3vw, 3.4rem);
   line-height: 1;
-  color: #2339a1;
+  color: var(--agent-metric-value-text);
 }
 
 .agent-metric-delta {
   margin-top: 16px;
   font-weight: 500;
-  color: #328a69;
+  color: var(--agent-metric-delta-text);
   font-size: 0.92rem;
 }
 
 .agent-metric-description {
   margin-top: 8px;
-  color: rgba(97, 108, 134, 0.82);
+  color: var(--agent-metric-description-text);
   font-size: 0.9rem;
 }
 
@@ -956,11 +984,11 @@ textarea {
   display: grid;
   gap: 18px;
   min-height: 980px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 247, 243, 0.98));
-  color: #2a3145;
-  border: 1px solid rgba(226, 229, 238, 0.95);
+  background: var(--agent-chat-bg);
+  color: var(--agent-chat-text);
+  border: 1px solid var(--agent-chat-border);
   border-radius: 28px;
-  box-shadow: 0 14px 38px rgba(59, 83, 132, 0.1);
+  box-shadow: var(--agent-chat-shadow);
 }
 
 .agent-chat-header {
@@ -1006,15 +1034,15 @@ textarea {
 
 .agent-message-meta {
   font-size: 0.85rem;
-  color: rgba(107, 116, 144, 0.9);
+  color: var(--agent-chat-meta);
 }
 
 .agent-message-bubble {
   max-width: min(700px, 100%);
   padding: 22px 24px;
   border-radius: 26px;
-  background: rgba(247, 245, 240, 0.98);
-  border: 1px solid rgba(228, 231, 238, 0.9);
+  background: var(--agent-message-bg);
+  border: 1px solid var(--agent-message-border);
   box-shadow: none;
   white-space: pre-wrap;
   font-size: 1rem;
@@ -1022,9 +1050,9 @@ textarea {
 }
 
 .agent-message--user .agent-message-bubble {
-  background: transparent;
+  background: var(--agent-message-user-bg);
   border: 0;
-  border-bottom: 1px solid rgba(120, 129, 153, 0.45);
+  border-bottom: 1px solid var(--agent-message-user-border);
   border-radius: 0;
   padding: 0 0 14px;
   max-width: min(720px, 100%);
@@ -1034,9 +1062,9 @@ textarea {
   max-width: 420px;
   padding: 18px 20px;
   border-radius: 24px;
-  background: linear-gradient(180deg, rgba(194, 200, 255, 0.92), rgba(184, 191, 247, 0.92));
-  border: 0;
-  color: #33415f;
+  background: var(--agent-attachment-bg);
+  border: 1px solid var(--agent-attachment-border);
+  color: var(--agent-attachment-text);
 }
 
 .agent-attachment-label {
