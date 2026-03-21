@@ -225,6 +225,14 @@ def _gui_url_for_pod(request, pod_name: str) -> str:
     return f"{scheme}://{host}{default_path}"
 
 
+def _gui_resource_name_for_pod(pod) -> str:
+    if pod and pod.metadata and pod.metadata.labels:
+        deployment_name = (pod.metadata.labels.get("deployment") or "").strip()
+        if deployment_name and getattr(settings, "AGENT_GUI_HOST_SUFFIX", "").strip():
+            return deployment_name
+    return getattr(getattr(pod, "metadata", None), "name", "") or ""
+
+
 def _gui_allowed_origins_for_pod(pod_name: str) -> list[str]:
     origins = []
     host = _gui_host_for_pod(pod_name)
@@ -399,7 +407,8 @@ def _prepare_agent_gui_context(request, pod_name: str) -> dict:
 
             _ensure_agent_gui_resources(client, v1, networking, namespace, pod, request.user.username)
 
-            gui_path = _gui_url_for_pod(request, pod_name)
+            gui_resource_name = _gui_resource_name_for_pod(pod) or pod_name
+            gui_path = _gui_url_for_pod(request, gui_resource_name)
             if getattr(settings, "AGENT_GUI_HOST_SUFFIX", "").strip():
                 deployment_name = None
                 if pod and pod.metadata and pod.metadata.labels:
@@ -957,13 +966,15 @@ def _run_openclaw_cli(v1, namespace: str, pod_name: str, args: list[str]) -> dic
 def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, pod, owner_username: str):
     agent_port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
     proxy_port = int(getattr(settings, "AGENT_GUI_PROXY_PORT", 18790))
-    service_name = gui_service_name(pod.metadata.name)
-    ingress_name = gui_ingress_name(pod.metadata.name)
+    resource_name = _gui_resource_name_for_pod(pod) or pod.metadata.name
+    service_name = gui_service_name(resource_name)
+    ingress_name = gui_ingress_name(resource_name)
     ingress_class = getattr(settings, "AGENT_GUI_INGRESS_CLASS", "") or None
     labels = {
         "app": "openclaw-agent",
         "owner": owner_username,
         "pod": pod.metadata.name,
+        "gui-resource": resource_name,
     }
 
     service_body = client_module.V1Service(
@@ -1024,14 +1035,14 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
         except Exception as exc:
             raise RuntimeError(f"Failed to upsert endpoints for {service_name}: {exc}") from exc
 
-    host = _gui_host_for_pod(pod.metadata.name)
+    host = _gui_host_for_pod(resource_name)
     path_prefix = _gui_path_prefix()
     annotations = {}
-    path = f"{path_prefix}/{pod.metadata.name}(/|$)(.*)"
+    path = f"{path_prefix}/{resource_name}(/|$)(.*)"
     path_type = "ImplementationSpecific"
     subdomain_mode = bool(getattr(settings, "AGENT_GUI_HOST_SUFFIX", "").strip())
     if ingress_class == "traefik":
-        middleware_name = gui_middleware_name(pod.metadata.name)
+        middleware_name = gui_middleware_name(resource_name)
         if subdomain_mode:
             middleware_body = {
                 "apiVersion": "traefik.io/v1alpha1",
@@ -1070,7 +1081,7 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
                 },
                 "spec": {
                     "stripPrefix": {
-                        "prefixes": [f"{path_prefix}/{pod.metadata.name}"],
+                        "prefixes": [f"{path_prefix}/{resource_name}"],
                     }
                 },
             }
@@ -1107,7 +1118,7 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
             path = "/"
             path_type = "Prefix"
         else:
-            path = f"{path_prefix}/{pod.metadata.name}"
+            path = f"{path_prefix}/{resource_name}"
             path_type = "Prefix"
     else:
         annotations.update(
@@ -1157,11 +1168,12 @@ def _ensure_agent_gui_resources(client_module, v1, networking, namespace: str, p
         raise RuntimeError(f"Failed to upsert ingress {ingress_name}: {exc}") from exc
 
 
-def _delete_agent_gui_resources(client_module, v1, networking, namespace: str, pod_name: str):
-    service_name = gui_service_name(pod_name)
-    ingress_name = gui_ingress_name(pod_name)
+def _delete_agent_gui_resources(client_module, v1, networking, namespace: str, pod_name: str, resource_name: str | None = None):
+    target_name = resource_name or pod_name
+    service_name = gui_service_name(target_name)
+    ingress_name = gui_ingress_name(target_name)
     ingress_class = getattr(settings, "AGENT_GUI_INGRESS_CLASS", "") or None
-    middleware_name = gui_middleware_name(pod_name)
+    middleware_name = gui_middleware_name(target_name)
 
     for delete_fn, name in (
         (networking.delete_namespaced_ingress, ingress_name),
@@ -2341,11 +2353,18 @@ def agent_detail(request, pod_name: str):
                     return redirect("identity:agent_detail", pod_name=pod_name)
                 if action == "delete":
                     allow_cross_namespace = request.user.is_staff or request.user.is_superuser
-                    _, resolved_namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
-                    _delete_agent_gui_resources(client, v1, networking, resolved_namespace, pod_name)
+                    resolved_pod, resolved_namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
                     deployment_name = None
-                    if pod and pod.metadata and pod.metadata.labels:
-                        deployment_name = pod.metadata.labels.get("deployment")
+                    if resolved_pod and resolved_pod.metadata and resolved_pod.metadata.labels:
+                        deployment_name = resolved_pod.metadata.labels.get("deployment")
+                    _delete_agent_gui_resources(
+                        client,
+                        v1,
+                        networking,
+                        resolved_namespace,
+                        pod_name,
+                        resource_name=deployment_name or pod_name,
+                    )
                     deployment_record = AgentDeployment.objects.filter(
                         user=request.user,
                         deployment_name=deployment_name or "",
@@ -2419,7 +2438,14 @@ def agent_detail(request, pod_name: str):
                         )
                         return redirect("identity:agent_detail", pod_name=pod_name)
                     try:
-                        _delete_agent_gui_resources(client, v1, networking, resolved_namespace, pod_name)
+                        _delete_agent_gui_resources(
+                            client,
+                            v1,
+                            networking,
+                            resolved_namespace,
+                            pod_name,
+                            resource_name=deployment_name,
+                        )
                         apps = client.AppsV1Api()
                         deployment = apps.read_namespaced_deployment(
                             name=deployment_name,
