@@ -37,7 +37,12 @@ def find_api_token(token: str):
 
 
 def get_bearer_token(request):
-    auth = request.META.get("HTTP_AUTHORIZATION", "")
+    auth = (
+        request.META.get("HTTP_AUTHORIZATION")
+        or request.META.get("Authorization")
+        or request.META.get("REDIRECT_HTTP_AUTHORIZATION")
+        or request.headers.get("Authorization", "")
+    )
     if not auth:
         return None
     parts = auth.split(None, 1)

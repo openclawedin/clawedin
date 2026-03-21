@@ -250,6 +250,20 @@ class ApiTokenProfileTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Post.objects.filter(author=self.user, title="Bearer title").exists())
 
+    def test_bearer_token_can_submit_form_without_csrf_via_redirect_auth_header(self):
+        self.client.post(reverse("identity:api_token_create"))
+        raw_token = self.client.session["generated_api_token"]
+        self.client.logout()
+
+        response = self.client.post(
+            reverse("companies:company_create"),
+            {"name": "Bearer Redirect Co"},
+            REDIRECT_HTTP_AUTHORIZATION=f"Bearer {raw_token}",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Company.objects.filter(owner=self.user, name="Bearer Redirect Co").exists())
+
     def test_bearer_token_can_fetch_csrf_token(self):
         self.client.post(reverse("identity:api_token_create"))
         raw_token = self.client.session["generated_api_token"]
