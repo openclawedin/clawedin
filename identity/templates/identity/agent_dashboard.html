@@ -53,12 +53,15 @@
           <div class="agent-status-head">
             <div>
               <div class="agent-status-line">
-                <span class="agent-status-dot {% if gateway_health.ok %}agent-status-dot--ok{% else %}agent-status-dot--off{% endif %}"></span>
-                <strong>{{ gateway_health.label }}</strong>
+                <span
+                  id="agent-gateway-dot"
+                  class="agent-status-dot {% if gateway_health.ok %}agent-status-dot--ok{% else %}agent-status-dot--off{% endif %}"
+                ></span>
+                <strong id="agent-gateway-label">{{ gateway_health.label }}</strong>
                 <span class="agent-status-range">{{ status_window_start|date:"M j" }}–{{ status_window_end|date:"j" }}</span>
               </div>
               <h2>Talk to your agent through the Clawedin channel gateway.</h2>
-              <p class="muted mb-0">
+              <p class="muted mb-0" id="agent-gateway-detail">
                 The prompt composer below proxies to the agent container on port <code>31890</code>.
                 {{ gateway_health.detail }}
               </p>
@@ -167,7 +170,7 @@
               </div>
             </div>
             {% if channel_rows %}
-              <div class="dashboard-channel-list">
+              <div id="agent-channel-list" class="dashboard-channel-list">
                 {% for channel in channel_rows %}
                   <article class="dashboard-channel-item">
                     <div class="dashboard-channel-head">
@@ -185,7 +188,8 @@
                 {% endfor %}
               </div>
             {% else %}
-              <p class="muted mb-0">No channel inventory returned yet. Create one here or in the embedded OpenClaw GUI.</p>
+              <p class="muted mb-0" id="agent-channel-empty-state">No channel inventory returned yet. Create one here or in the embedded OpenClaw GUI.</p>
+              <div id="agent-channel-list" class="dashboard-channel-list" hidden></div>
             {% endif %}
           </div>
         </section>
@@ -205,15 +209,15 @@
           </div>
           <div class="card">
             <h4>`channels capabilities --json`</h4>
-            <pre class="dashboard-json mb-0"><code>{{ capabilities_raw|default:"No output." }}</code></pre>
+            <pre class="dashboard-json mb-0"><code id="agent-capabilities-raw">{{ capabilities_raw|default:"Loading..." }}</code></pre>
           </div>
           <div class="card">
             <h4>`channels list --json`</h4>
-            <pre class="dashboard-json mb-0"><code>{{ channels_raw|default:"No output." }}</code></pre>
+            <pre class="dashboard-json mb-0"><code id="agent-channels-raw">{{ channels_raw|default:"Loading..." }}</code></pre>
           </div>
           <div class="card">
             <h4>`channels status --json`</h4>
-            <pre class="dashboard-json mb-0"><code>{{ status_raw|default:"No output." }}</code></pre>
+            <pre class="dashboard-json mb-0"><code id="agent-status-raw">{{ status_raw|default:"Loading..." }}</code></pre>
           </div>
         </section>
       </div>
@@ -230,6 +234,16 @@
       const statusEl = document.getElementById("agent-chat-status");
       const attachButton = document.getElementById("agent-attach-button");
       const topRoutesEl = document.getElementById("agent-top-routes");
+      const runtimeEndpoint = "{{ runtime_endpoint|escapejs }}";
+      const gatewayDotEl = document.getElementById("agent-gateway-dot");
+      const gatewayLabelEl = document.getElementById("agent-gateway-label");
+      const gatewayDetailEl = document.getElementById("agent-gateway-detail");
+      const channelListEl = document.getElementById("agent-channel-list");
+      const channelEmptyStateEl = document.getElementById("agent-channel-empty-state");
+      const capabilitiesRawEl = document.getElementById("agent-capabilities-raw");
+      const channelsRawEl = document.getElementById("agent-channels-raw");
+      const statusRawEl = document.getElementById("agent-status-raw");
+      const channelTypeSelect = document.getElementById("id_channel_type");
       const csrfInput = form.querySelector("input[name=csrfmiddlewaretoken]");
       const seed = JSON.parse(document.getElementById("agent-chat-seed").textContent);
       const turnSeed = JSON.parse(document.getElementById("agent-dashboard-turns").textContent);
@@ -238,8 +252,10 @@
       const conversationId = "{{ deployment_record.deployment_name|default:pod.metadata.name|escapejs }}-{{ user.id }}";
       const turnNodes = new Map();
       let pollTimer = null;
+      let runtimeTimer = null;
       let activeTurnCount = 0;
       const POLL_INTERVAL_MS = 2000;
+      const RUNTIME_INTERVAL_MS = 12000;
       const SCROLL_LOCK_THRESHOLD_PX = 48;
       let shouldStickToBottom = true;
 
@@ -418,6 +434,114 @@
         });
       }
 
+      function escapeHtml(value) {
+        return String(value || "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
+      }
+
+      function updateGatewayHealth(health) {
+        if (!health) {
+          return;
+        }
+        gatewayLabelEl.textContent = health.label || "Gateway offline";
+        gatewayDetailEl.innerHTML = `The prompt composer below proxies to the agent container on port <code>31890</code>. ${escapeHtml(health.detail || "Waiting for channel startup.")}`;
+        gatewayDotEl.classList.toggle("agent-status-dot--ok", Boolean(health.ok));
+        gatewayDotEl.classList.toggle("agent-status-dot--off", !health.ok);
+      }
+
+      function updateJsonBlock(el, value) {
+        if (!el) {
+          return;
+        }
+        el.textContent = value || "No output.";
+      }
+
+      function updateChannelChoices(choices) {
+        if (!channelTypeSelect || !choices || choices.length === 0) {
+          return;
+        }
+        channelTypeSelect.replaceChildren();
+        choices.forEach((choice) => {
+          const option = document.createElement("option");
+          option.value = choice[0];
+          option.textContent = choice[1];
+          channelTypeSelect.appendChild(option);
+        });
+      }
+
+      function updateChannelRows(rows) {
+        if (!channelListEl || !channelEmptyStateEl) {
+          return;
+        }
+        channelListEl.replaceChildren();
+        if (!rows || rows.length === 0) {
+          channelListEl.hidden = true;
+          channelEmptyStateEl.hidden = false;
+          return;
+        }
+        channelEmptyStateEl.hidden = true;
+        channelListEl.hidden = false;
+        rows.forEach((channel) => {
+          const article = document.createElement("article");
+          article.className = "dashboard-channel-item";
+
+          const head = document.createElement("div");
+          head.className = "dashboard-channel-head";
+          head.innerHTML = `<strong>${escapeHtml(channel.display_name || "Unnamed channel")}</strong><span class="pill">${escapeHtml(channel.type || "unknown")}</span>`;
+
+          const status = document.createElement("p");
+          status.textContent = `Status: ${channel.status || "unknown"}`;
+
+          article.appendChild(head);
+          article.appendChild(status);
+
+          if (channel.account_id) {
+            const account = document.createElement("p");
+            account.textContent = `Account: ${channel.account_id}`;
+            article.appendChild(account);
+          }
+
+          if (channel.metadata) {
+            const pre = document.createElement("pre");
+            pre.className = "dashboard-json mb-0";
+            const code = document.createElement("code");
+            code.textContent = JSON.stringify(channel.metadata, null, 2);
+            pre.appendChild(code);
+            article.appendChild(pre);
+          }
+
+          channelListEl.appendChild(article);
+        });
+      }
+
+      async function fetchRuntime() {
+        try {
+          const response = await fetch(runtimeEndpoint, {
+            headers: {
+              "Accept": "application/json",
+            },
+          });
+          if (!response.ok) {
+            return;
+          }
+          const payload = await response.json();
+          if (!payload.ok) {
+            return;
+          }
+          updateGatewayHealth(payload.gatewayHealth || {});
+          updateChannelRows(payload.channelRows || []);
+          updateJsonBlock(capabilitiesRawEl, payload.capabilitiesRaw);
+          updateJsonBlock(channelsRawEl, payload.channelsRaw);
+          updateJsonBlock(statusRawEl, payload.statusRaw);
+          updateChannelChoices(payload.channelChoices || []);
+          updateMetrics(payload.metrics || []);
+        } catch (error) {
+          // Leave the last rendered runtime state in place.
+        }
+      }
+
       function syncPolling(turns) {
         activeTurnCount = (turns || []).filter((turn) => turn.status === "queued" || turn.status === "running").length;
         if (activeTurnCount === 0) {
@@ -452,7 +576,9 @@
       turnSeed.forEach(renderTurn);
       syncPolling(turnSeed);
       fetchUpdates();
+      fetchRuntime();
       pollTimer = window.setInterval(fetchUpdates, POLL_INTERVAL_MS);
+      runtimeTimer = window.setInterval(fetchRuntime, RUNTIME_INTERVAL_MS);
 
       stream.addEventListener("scroll", () => {
         shouldStickToBottom = isNearBottom();

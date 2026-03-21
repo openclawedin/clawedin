@@ -1237,6 +1237,64 @@ def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_win
     return metrics, top_skill_routes, dashboard_cards, AGENT_DASHBOARD_ITEM_OPTIONS, selected_item_keys
 
 
+def _agent_dashboard_runtime_snapshot(request, pod_name: str, namespace: str, deployment_record):
+    channel_rows = []
+    channels_raw = ""
+    status_raw = ""
+    capabilities_raw = ""
+    channel_choices = None
+    gateway_health = {
+        "ok": False,
+        "label": "Gateway offline",
+        "detail": "Waiting for channel startup.",
+    }
+    runtime_error = ""
+
+    try:
+        from kubernetes import client
+
+        load_kube_config()
+        v1 = client.CoreV1Api()
+        allow_cross_namespace = request.user.is_staff or request.user.is_superuser
+        pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+
+        capabilities_result = _run_openclaw_cli(v1, namespace, pod_name, ["channels", "capabilities", "--json"])
+        capabilities_raw = capabilities_result["output"]
+        capabilities_payload = _coerce_openclaw_json(capabilities_result["output"]) if capabilities_result["ok"] else None
+        channel_choices = _normalize_channel_choices(capabilities_payload)
+
+        channels_result = _run_openclaw_cli(v1, namespace, pod_name, ["channels", "list", "--json"])
+        status_result = _run_openclaw_cli(v1, namespace, pod_name, ["channels", "status", "--json"])
+        channels_raw = channels_result["output"]
+        status_raw = status_result["output"]
+        channels_payload = _coerce_openclaw_json(channels_result["output"]) if channels_result["ok"] else None
+        status_payload = _coerce_openclaw_json(status_result["output"]) if status_result["ok"] else None
+        channel_rows = _normalize_channels(channels_payload, status_payload)
+
+        if not channels_result["ok"]:
+            runtime_error = channels_result["output"] or "Could not fetch channels from the agent."
+        elif not status_result["ok"]:
+            runtime_error = status_result["output"] or "Could not fetch channel status from the agent."
+
+        gateway_health = _agent_clawedin_health(
+            pod,
+            token=getattr(deployment_record, "web_auth_token", "") or "",
+        )
+    except Exception as exc:  # pragma: no cover - depends on kube setup
+        logger.exception("Failed to load OpenClaw runtime snapshot for pod %s", pod_name)
+        runtime_error = str(exc)
+
+    return {
+        "channel_rows": channel_rows,
+        "channels_raw": channels_raw,
+        "status_raw": status_raw,
+        "capabilities_raw": capabilities_raw,
+        "channel_choices": channel_choices or [],
+        "gateway_health": gateway_health,
+        "runtime_error": runtime_error,
+    }
+
+
 def _serialize_dashboard_turn(turn: AgentDashboardTurn) -> dict:
     return {
         "id": str(turn.id),
@@ -3080,7 +3138,7 @@ def agent_dashboard(request, pod_name: str):
     status_window_end = timezone.localdate()
     status_window_start = status_window_end - timedelta(days=6)
 
-    if pod and not error_message:
+    if pod and not error_message and request.method == "POST":
         try:
             from kubernetes import client
 
@@ -3147,11 +3205,6 @@ def agent_dashboard(request, pod_name: str):
         deployment_name=deployment_name,
         namespace=namespace,
     ).first()
-    if pod:
-        gateway_health = _agent_clawedin_health(
-            pod,
-            token=getattr(deployment_record, "web_auth_token", "") or "",
-        )
 
     can_embed_gui = bool(gui_path) and not bool(getattr(settings, "AGENT_GUI_HOST_SUFFIX", "").strip())
     chat_seed_messages = [
@@ -3192,6 +3245,7 @@ def agent_dashboard(request, pod_name: str):
             "dashboard_turns": _recent_dashboard_turns(request.user, resolved_pod_name),
             "chat_endpoint": reverse("identity:agent_dashboard_chat", args=[resolved_pod_name]),
             "chat_updates_endpoint": reverse("identity:agent_dashboard_chat_updates", args=[resolved_pod_name]),
+            "runtime_endpoint": reverse("identity:agent_dashboard_runtime", args=[resolved_pod_name]),
             "gateway_health": gateway_health,
             "metrics": metrics,
             "top_skill_routes": top_skill_routes,
@@ -3316,6 +3370,62 @@ def agent_dashboard_chat_updates(request, pod_name: str):
             "availableDashboardItems": available_dashboard_items,
             "selectedDashboardItemKeys": selected_dashboard_item_keys,
             "topSkillRoutes": top_skill_routes,
+        }
+    )
+
+
+@login_required
+@require_GET
+def agent_dashboard_runtime(request, pod_name: str):
+    if request.user.account_type != User.HUMAN:
+        return JsonResponse({"ok": False, "error": "Human accounts only."}, status=403)
+
+    gui_context = _prepare_agent_gui_context(request, pod_name)
+    resolved_pod_name = gui_context.get("resolved_pod_name") or pod_name
+    namespace = gui_context.get("namespace")
+    pod = gui_context.get("pod")
+    error_message = gui_context.get("error_message")
+
+    deployment_name = ""
+    if pod and pod.metadata and pod.metadata.labels:
+        deployment_name = pod.metadata.labels.get("deployment") or ""
+    deployment_record = AgentDeployment.objects.filter(
+        user=request.user,
+        deployment_name=deployment_name,
+        namespace=namespace,
+    ).first()
+
+    if not pod or error_message:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": error_message or "Agent pod not available.",
+                "resolvedPodName": resolved_pod_name,
+            },
+            status=502,
+        )
+
+    snapshot = _agent_dashboard_runtime_snapshot(request, resolved_pod_name, namespace, deployment_record)
+    status_window_end = timezone.localdate()
+    status_window_start = status_window_end - timedelta(days=6)
+    metrics, _, _, _, _ = _agent_dashboard_metrics(
+        request.user,
+        snapshot["channel_rows"],
+        status_window_start,
+        status_window_end,
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "resolvedPodName": resolved_pod_name,
+            "gatewayHealth": snapshot["gateway_health"],
+            "channelRows": snapshot["channel_rows"],
+            "channelsRaw": snapshot["channels_raw"],
+            "statusRaw": snapshot["status_raw"],
+            "capabilitiesRaw": snapshot["capabilities_raw"],
+            "channelChoices": snapshot["channel_choices"],
+            "runtimeError": snapshot["runtime_error"],
+            "metrics": metrics,
         }
     )
 
