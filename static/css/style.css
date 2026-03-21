@@ -173,6 +173,17 @@ body:has(.agent-workspace) .container {
   width: min(1450px, 96vw);
 }
 
+body:has(.agent-workspace) header.container,
+body:has(.agent-workspace) .footer {
+  display: none;
+}
+
+body:has(.agent-workspace) main.container {
+  width: min(1680px, 98vw);
+  max-width: none;
+  padding: 18px 0 22px;
+}
+
 .app-navbar {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -754,13 +765,22 @@ textarea {
 }
 
 .agent-workspace {
-  padding-top: 8px;
+  padding-top: 0;
+  min-height: calc(100vh - 40px);
 }
 
 .agent-layout {
   display: grid;
-  gap: 18px;
+  gap: 0;
   align-items: stretch;
+  min-height: calc(100vh - 40px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 30px;
+  overflow: hidden;
+  background:
+    radial-gradient(900px 520px at 72% 0%, rgba(49, 196, 141, 0.08), transparent),
+    linear-gradient(180deg, rgba(12, 15, 24, 0.96), rgba(14, 18, 27, 0.98));
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.22);
 }
 
 .agent-sidebar {
@@ -768,9 +788,12 @@ textarea {
   gap: 16px;
   align-content: start;
   background: var(--agent-sidebar-bg);
-  border: 1px solid var(--agent-sidebar-border);
-  box-shadow: var(--agent-sidebar-shadow);
+  border: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  box-shadow: none;
   color: var(--agent-sidebar-item-text);
+  padding: 26px 20px 22px;
 }
 
 .agent-sidebar-brand {
@@ -861,8 +884,10 @@ textarea {
 
 .agent-main {
   display: grid;
-  gap: 16px;
+  gap: 18px;
   min-width: 0;
+  padding: 24px 24px 28px;
+  align-content: start;
 }
 
 .agent-status-shell {
@@ -1005,7 +1030,7 @@ textarea {
 .agent-chat-surface {
   display: grid;
   gap: 18px;
-  min-height: 980px;
+  min-height: calc(100vh - 320px);
   background: var(--agent-chat-bg);
   color: var(--agent-chat-text);
   border: 1px solid var(--agent-chat-border);
@@ -1170,7 +1195,7 @@ textarea {
 
 @media (min-width: 1100px) {
   .agent-layout {
-    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-columns: 300px minmax(0, 1fr);
   }
 
   .agent-metric-grid {
