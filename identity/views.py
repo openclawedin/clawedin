@@ -223,6 +223,15 @@ def _serialize_dashboard_attachment(attachment: AgentDashboardAttachment) -> dic
     }
 
 
+def _build_attachment_notice_text(attachment: AgentDashboardAttachment) -> str:
+    return (
+        "A new file has been uploaded to your shared Clawedin workspace.\n"
+        f"Filename: {attachment.original_name}\n"
+        f"Path: {attachment.agent_path}\n"
+        "This file is available now inside the container. Remember this location for the next task."
+    )
+
+
 def _sanitize_agent_dashboard_item_keys(item_keys):
     allowed_keys = {item["key"] for item in AGENT_DASHBOARD_ITEM_OPTIONS}
     cleaned = []
@@ -3477,11 +3486,44 @@ def agent_dashboard_upload(request, pod_name: str):
         relative_path=relative_path,
         agent_path=f"{_agent_shared_vfs_mount_root()}/{relative_path}",
     )
+    sender_name = request.user.display_name or request.user.username
+    notice_turn = AgentDashboardTurn.objects.create(
+        user=request.user,
+        deployment=deployment_record,
+        pod_name=pod_name,
+        namespace=namespace,
+        conversation_id=f"clawedin-dashboard-{request.user.id}",
+        prompt_text=_build_attachment_notice_text(attachment),
+        prompt_author=sender_name,
+        status=AgentDashboardTurn.STATUS_QUEUED,
+        status_detail="Queued file notice for delivery.",
+    )
+    attachment.turn = notice_turn
+    attachment.save(update_fields=["turn", "updated_at"])
+    worker = threading.Thread(
+        target=_run_agent_dashboard_turn,
+        kwargs={
+            "turn_id": notice_turn.id,
+            "user_id": request.user.id,
+            "username": request.user.username,
+            "pod_name": pod_name,
+            "namespace": namespace,
+            "deployment_record_id": deployment_record.id,
+            "conversation_id": notice_turn.conversation_id,
+            "prompt": notice_turn.prompt_text,
+            "sender_name": sender_name,
+        },
+        daemon=True,
+    )
+    worker.start()
     return JsonResponse(
         {
             "ok": True,
             "attachment": _serialize_dashboard_attachment(attachment),
             "pendingAttachments": _pending_dashboard_attachments(request.user, pod_name),
+            "turn": _serialize_dashboard_turn(
+                AgentDashboardTurn.objects.select_related("user").prefetch_related("attachments").get(pk=notice_turn.pk)
+            ),
         }
     )
 

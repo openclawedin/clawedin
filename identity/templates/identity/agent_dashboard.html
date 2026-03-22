@@ -652,7 +652,11 @@
           }
           pendingAttachments = payload.pendingAttachments || [];
           renderPendingAttachments();
-          statusEl.textContent = `${file.name} uploaded. It will be included with the next prompt.`;
+          if (payload.turn) {
+            shouldStickToBottom = true;
+            renderTurn(payload.turn, true);
+          }
+          statusEl.textContent = `${file.name} uploaded. The agent was notified and can read it at ${payload.attachment.agentPath}.`;
         } catch (error) {
           statusEl.textContent = error.message;
         } finally {
