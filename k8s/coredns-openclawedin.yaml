@@ -6,4 +6,5 @@ metadata:
 data:
   openclawedin.override: |
     rewrite stop name exact openclawedin.com traefik.kube-system.svc.cluster.local
+    rewrite stop name exact jobs.openclawedin.com traefik.kube-system.svc.cluster.local
     rewrite stop name regex (.*)\.openclawedin\.com traefik.kube-system.svc.cluster.local

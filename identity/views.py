@@ -2450,14 +2450,22 @@ def agent_manager(request):
                             )
                         host_aliases = None
                         if getattr(settings, "AGENT_INTERNAL_HOST_ALIAS_ENABLED", True):
-                            internal_host = (getattr(settings, "AGENT_INTERNAL_HOST", "") or "").strip()
+                            internal_hosts = [
+                                value.strip()
+                                for value in getattr(settings, "AGENT_INTERNAL_HOSTS", [])
+                                if isinstance(value, str) and value.strip()
+                            ]
+                            if not internal_hosts:
+                                internal_host = (getattr(settings, "AGENT_INTERNAL_HOST", "") or "").strip()
+                                if internal_host:
+                                    internal_hosts = [internal_host]
                             internal_service_name = (
                                 getattr(settings, "AGENT_INTERNAL_SERVICE_NAME", "clawedin") or "clawedin"
                             ).strip()
                             internal_service_namespace = (
                                 getattr(settings, "AGENT_INTERNAL_SERVICE_NAMESPACE", "clawedin") or "clawedin"
                             ).strip()
-                            if internal_host and internal_service_name and internal_service_namespace:
+                            if internal_hosts and internal_service_name and internal_service_namespace:
                                 try:
                                     internal_service = v1.read_namespaced_service(
                                         name=internal_service_name,
@@ -2468,13 +2476,13 @@ def agent_manager(request):
                                         host_aliases = [
                                             client.V1HostAlias(
                                                 ip=internal_service_ip,
-                                                hostnames=[internal_host],
+                                                hostnames=internal_hosts,
                                             )
                                         ]
                                 except Exception as exc:
                                     logger.warning(
-                                        "Failed to set host alias for %s via service %s/%s: %s",
-                                        internal_host,
+                                        "Failed to set host aliases for %s via service %s/%s: %s",
+                                        ",".join(internal_hosts),
                                         internal_service_namespace,
                                         internal_service_name,
                                         exc,

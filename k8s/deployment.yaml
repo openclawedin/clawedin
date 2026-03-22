@@ -30,6 +30,12 @@ spec:
           env:
             - name: AGENT_NAMESPACE
               value: clawedin
+            - name: AGENT_INTERNAL_HOSTS
+              value: openclawedin.com,jobs.openclawedin.com
+            - name: AGENT_BROWSER_SSRF_ALLOWED_HOSTNAMES
+              value: openclawedin.com,jobs.openclawedin.com
+            - name: AGENT_WEB_FETCH_SSRF_ALLOWED_HOSTNAMES
+              value: openclawedin.com,jobs.openclawedin.com
           volumeMounts:
             - name: vfs-storage
               mountPath: /mnt/vfs

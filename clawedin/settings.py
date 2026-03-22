@@ -279,13 +279,26 @@ AGENT_INTERNAL_HOST = os.environ.get(
     "AGENT_INTERNAL_HOST",
     os.environ.get("AGENT_GUI_INGRESS_HOST", "openclawedin.com"),
 ).strip()
+_agent_internal_hosts_env = os.environ.get("AGENT_INTERNAL_HOSTS", "").strip()
+if _agent_internal_hosts_env:
+    AGENT_INTERNAL_HOSTS = [
+        value.strip()
+        for value in _agent_internal_hosts_env.split(",")
+        if value.strip()
+    ]
+else:
+    AGENT_INTERNAL_HOSTS = []
+    if AGENT_INTERNAL_HOST:
+        AGENT_INTERNAL_HOSTS.append(AGENT_INTERNAL_HOST)
+    if "jobs.openclawedin.com" not in AGENT_INTERNAL_HOSTS:
+        AGENT_INTERNAL_HOSTS.append("jobs.openclawedin.com")
 AGENT_INTERNAL_SERVICE_NAME = os.environ.get("AGENT_INTERNAL_SERVICE_NAME", "traefik").strip()
 AGENT_INTERNAL_SERVICE_NAMESPACE = os.environ.get("AGENT_INTERNAL_SERVICE_NAMESPACE", "kube-system").strip()
 AGENT_BROWSER_SSRF_ALLOWED_HOSTNAMES = [
     value.strip()
     for value in os.environ.get(
         "AGENT_BROWSER_SSRF_ALLOWED_HOSTNAMES",
-        os.environ.get("AGENT_GUI_INGRESS_HOST", "openclawedin.com"),
+        ",".join(AGENT_INTERNAL_HOSTS),
     ).split(",")
     if value.strip()
 ]
