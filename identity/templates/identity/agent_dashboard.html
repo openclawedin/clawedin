@@ -591,6 +591,8 @@
 
       async function fetchUpdates() {
         try {
+          const preserveAutoScroll = shouldStickToBottom;
+          const preserveScrollTop = stream.scrollTop;
           const response = await fetch(updatesEndpoint, {
             headers: {
               "Accept": "application/json",
@@ -609,6 +611,10 @@
           pendingAttachments = payload.pendingAttachments || [];
           renderPendingAttachments();
           syncPolling(payload.turns || []);
+          if (!preserveAutoScroll) {
+            shouldStickToBottom = false;
+            stream.scrollTop = preserveScrollTop;
+          }
         } catch (error) {
           statusEl.textContent = "Live updates paused. Retrying...";
         }
@@ -625,14 +631,6 @@
 
       stream.addEventListener("scroll", () => {
         shouldStickToBottom = isNearBottom();
-      });
-
-      ["wheel", "touchmove", "pointerdown"].forEach((eventName) => {
-        stream.addEventListener(eventName, () => {
-          window.requestAnimationFrame(() => {
-            shouldStickToBottom = isNearBottom();
-          });
-        }, { passive: true });
       });
 
       attachButton.addEventListener("click", () => {
