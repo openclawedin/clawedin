@@ -174,6 +174,45 @@ class AgentDashboardTurn(models.Model):
         return f"{self.user.username}:{self.pod_name}:{self.status}"
 
 
+class AgentDashboardAttachment(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="agent_dashboard_attachments",
+    )
+    deployment = models.ForeignKey(
+        AgentDeployment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="dashboard_attachments",
+    )
+    turn = models.ForeignKey(
+        AgentDashboardTurn,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attachments",
+    )
+    pod_name = models.CharField(max_length=120)
+    namespace = models.CharField(max_length=120)
+    original_name = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=120, blank=True)
+    size_bytes = models.BigIntegerField(default=0)
+    storage_path = models.CharField(max_length=500)
+    relative_path = models.CharField(max_length=500)
+    agent_path = models.CharField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.user.username}:{self.original_name}"
+
+
 class Resume(models.Model):
     user = models.ForeignKey(
         User,

@@ -103,6 +103,7 @@
 
             <form id="agent-chat-form" class="agent-composer">
               {% csrf_token %}
+              <input id="agent-attachment-input" type="file" hidden />
               <label class="visually-hidden" for="agent-chat-input">Type your response</label>
               <textarea
                 id="agent-chat-input"
@@ -110,15 +111,16 @@
                 rows="3"
                 placeholder="Type your response..."
               ></textarea>
+              <div id="agent-attachment-list" class="agent-attachment-list" {% if not pending_attachments %}hidden{% endif %}></div>
               <div class="agent-composer-bar">
-                <button class="agent-icon-button" type="button" id="agent-attach-button" aria-label="Attachments coming soon">+</button>
+                <button class="agent-icon-button" type="button" id="agent-attach-button" aria-label="Attach file">+</button>
                 <div class="agent-composer-meta">
                   <span class="agent-model-pill">Clawedin gateway</span>
-                  <span class="agent-model-pill">Attachments soon</span>
+                  <span class="agent-model-pill">Shared files</span>
                 </div>
                 <button class="btn btn-primary" type="submit">Send</button>
               </div>
-              <p class="agent-composer-note mb-0" id="agent-chat-status">Prompts are sent server-side with the agent web auth token.</p>
+              <p class="agent-composer-note mb-0" id="agent-chat-status">Prompts are sent server-side with the agent web auth token. Uploaded files are mounted in <code>{{ shared_attachment_mount }}</code>.</p>
             </form>
           </div>
         </section>
@@ -219,6 +221,7 @@
 
   {{ chat_seed_messages|json_script:"agent-chat-seed" }}
   {{ dashboard_turns|json_script:"agent-dashboard-turns" }}
+  {{ pending_attachments|json_script:"agent-dashboard-pending-attachments" }}
   <script>
     (() => {
       const form = document.getElementById("agent-chat-form");
@@ -226,6 +229,8 @@
       const input = document.getElementById("agent-chat-input");
       const statusEl = document.getElementById("agent-chat-status");
       const attachButton = document.getElementById("agent-attach-button");
+      const attachmentInput = document.getElementById("agent-attachment-input");
+      const attachmentListEl = document.getElementById("agent-attachment-list");
       const topRoutesEl = document.getElementById("agent-top-routes");
       const runtimeEndpoint = "{{ runtime_endpoint|escapejs }}";
       const gatewayDotEl = document.getElementById("agent-gateway-dot");
@@ -240,13 +245,16 @@
       const csrfInput = form.querySelector("input[name=csrfmiddlewaretoken]");
       const seed = JSON.parse(document.getElementById("agent-chat-seed").textContent);
       const turnSeed = JSON.parse(document.getElementById("agent-dashboard-turns").textContent);
+      const pendingAttachmentSeed = JSON.parse(document.getElementById("agent-dashboard-pending-attachments").textContent);
       const endpoint = "{{ chat_endpoint|escapejs }}";
+      const uploadEndpoint = "{{ chat_upload_endpoint|escapejs }}";
       const updatesEndpoint = "{{ chat_updates_endpoint|escapejs }}";
       const conversationId = "{{ deployment_record.deployment_name|default:pod.metadata.name|escapejs }}-{{ user.id }}";
       const turnNodes = new Map();
       let pollTimer = null;
       let runtimeTimer = null;
       let activeTurnCount = 0;
+      let pendingAttachments = Array.isArray(pendingAttachmentSeed) ? pendingAttachmentSeed : [];
       const POLL_INTERVAL_MS = 2000;
       const RUNTIME_INTERVAL_MS = 12000;
       const SCROLL_LOCK_THRESHOLD_PX = 48;
@@ -278,6 +286,21 @@
         article.appendChild(bubble);
         stream.appendChild(article);
         scrollStream(forceScroll);
+      }
+
+      function renderAttachmentSummary(attachments) {
+        if (!attachments || attachments.length === 0) {
+          return null;
+        }
+        const wrapper = document.createElement("div");
+        wrapper.className = "agent-attachment-list agent-attachment-list--inline";
+        attachments.forEach((attachment) => {
+          const item = document.createElement("div");
+          item.className = "agent-attachment-placeholder";
+          item.innerHTML = `<span class="agent-attachment-label">Attachment</span><strong>${escapeHtml(attachment.name)}</strong><span class="agent-attachment-meta">${escapeHtml(attachment.agentPath)}</span>`;
+          wrapper.appendChild(item);
+        });
+        return wrapper;
       }
 
       function ensureTurnNode(turn) {
@@ -316,7 +339,7 @@
         replyArticle.appendChild(replyBubble);
         stream.appendChild(replyArticle);
 
-        nodes = { promptMeta, promptBubble, replyMeta, replyBubble };
+        nodes = { promptMeta, promptBubble, replyMeta, replyBubble, promptArticle };
         turnNodes.set(turn.id, nodes);
         return nodes;
       }
@@ -341,10 +364,33 @@
 
         nodes.replyMeta.textContent = replyMeta;
         nodes.replyBubble.textContent = replyText;
+        nodes.promptArticle.querySelectorAll(".agent-attachment-list--inline").forEach((node) => node.remove());
+        const attachmentSummary = renderAttachmentSummary(turn.attachments || []);
+        if (attachmentSummary) {
+          nodes.promptArticle.appendChild(attachmentSummary);
+        }
         if (wasNearBottom) {
           shouldStickToBottom = true;
         }
         scrollStream(forceScroll);
+      }
+
+      function renderPendingAttachments() {
+        if (!attachmentListEl) {
+          return;
+        }
+        attachmentListEl.replaceChildren();
+        if (!pendingAttachments || pendingAttachments.length === 0) {
+          attachmentListEl.hidden = true;
+          return;
+        }
+        attachmentListEl.hidden = false;
+        pendingAttachments.forEach((attachment) => {
+          const item = document.createElement("div");
+          item.className = "agent-attachment-placeholder";
+          item.innerHTML = `<span class="agent-attachment-label">Ready to send</span><strong>${escapeHtml(attachment.name)}</strong><span class="agent-attachment-meta">${escapeHtml(attachment.agentPath)}</span>`;
+          attachmentListEl.appendChild(item);
+        });
       }
 
       function updateMetrics(metrics) {
@@ -559,6 +605,8 @@
           (payload.turns || []).forEach(renderTurn);
           updateMetrics(payload.metrics || []);
           updateDashboardCards(payload.dashboardCards || []);
+          pendingAttachments = payload.pendingAttachments || [];
+          renderPendingAttachments();
           syncPolling(payload.turns || []);
         } catch (error) {
           statusEl.textContent = "Live updates paused. Retrying...";
@@ -567,6 +615,7 @@
 
       seed.forEach(renderMessage);
       turnSeed.forEach(renderTurn);
+      renderPendingAttachments();
       syncPolling(turnSeed);
       fetchUpdates();
       fetchRuntime();
@@ -578,7 +627,37 @@
       });
 
       attachButton.addEventListener("click", () => {
-        statusEl.textContent = "Attachment upload is queued for the next pass. The placeholder card above marks the future drop zone.";
+        attachmentInput.click();
+      });
+
+      attachmentInput.addEventListener("change", async () => {
+        const file = attachmentInput.files && attachmentInput.files[0];
+        if (!file) {
+          return;
+        }
+        statusEl.textContent = `Uploading ${file.name}...`;
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          const response = await fetch(uploadEndpoint, {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": csrfInput.value,
+            },
+            body: formData,
+          });
+          const payload = await response.json();
+          if (!response.ok || !payload.ok || !payload.attachment) {
+            throw new Error(payload.error || "Upload failed.");
+          }
+          pendingAttachments = payload.pendingAttachments || [];
+          renderPendingAttachments();
+          statusEl.textContent = `${file.name} uploaded. It will be included with the next prompt.`;
+        } catch (error) {
+          statusEl.textContent = error.message;
+        } finally {
+          attachmentInput.value = "";
+        }
       });
 
       form.addEventListener("submit", async (event) => {
@@ -603,6 +682,7 @@
             body: JSON.stringify({
               text,
               conversationId,
+              attachmentIds: pendingAttachments.map((attachment) => attachment.id),
             }),
           });
           const rawBody = await response.text();
@@ -624,6 +704,8 @@
           }
           shouldStickToBottom = true;
           renderTurn(payload.turn, true);
+          pendingAttachments = payload.pendingAttachments || [];
+          renderPendingAttachments();
           activeTurnCount += 1;
           statusEl.textContent = "Prompt sent. Live updates are running.";
         } catch (error) {

@@ -2,6 +2,9 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
 from .models import (
+    AgentDashboardAttachment,
+    AgentDashboardTurn,
+    AgentDeployment,
     Resume,
     ResumeCertification,
     ResumeEducation,
@@ -98,3 +101,22 @@ class ResumeCertificationAdmin(admin.ModelAdmin):
 class UserSkillAdmin(admin.ModelAdmin):
     list_display = ("name", "proficiency", "user", "years_of_experience")
     search_fields = ("name", "user__username", "user__email")
+
+
+@admin.register(AgentDeployment)
+class AgentDeploymentAdmin(admin.ModelAdmin):
+    list_display = ("deployment_name", "user", "namespace", "pod_name", "updated_at")
+    search_fields = ("deployment_name", "pod_name", "user__username")
+
+
+@admin.register(AgentDashboardTurn)
+class AgentDashboardTurnAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "pod_name", "status", "created_at")
+    search_fields = ("pod_name", "user__username", "prompt_text")
+    list_filter = ("status",)
+
+
+@admin.register(AgentDashboardAttachment)
+class AgentDashboardAttachmentAdmin(admin.ModelAdmin):
+    list_display = ("original_name", "user", "pod_name", "size_bytes", "created_at")
+    search_fields = ("original_name", "pod_name", "user__username", "agent_path")

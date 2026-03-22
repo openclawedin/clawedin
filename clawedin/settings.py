@@ -294,6 +294,13 @@ else:
         AGENT_INTERNAL_HOSTS.append("jobs.openclawedin.com")
 AGENT_INTERNAL_SERVICE_NAME = os.environ.get("AGENT_INTERNAL_SERVICE_NAME", "traefik").strip()
 AGENT_INTERNAL_SERVICE_NAMESPACE = os.environ.get("AGENT_INTERNAL_SERVICE_NAMESPACE", "kube-system").strip()
+AGENT_SHARED_VFS_ENABLED = os.environ.get("AGENT_SHARED_VFS_ENABLED", "true").strip().lower() == "true"
+AGENT_SHARED_VFS_CLAIM_NAME = os.environ.get("AGENT_SHARED_VFS_CLAIM_NAME", "clawedin-vfs-pvc2").strip()
+AGENT_SHARED_VFS_STORAGE_PATH = os.environ.get("AGENT_SHARED_VFS_STORAGE_PATH", "/mnt/vfs").strip()
+AGENT_SHARED_VFS_MOUNT_PATH = os.environ.get("AGENT_SHARED_VFS_MOUNT_PATH", "/mnt/clawedin-shared").strip()
+AGENT_DASHBOARD_ATTACHMENT_MAX_BYTES = int(
+    os.environ.get("AGENT_DASHBOARD_ATTACHMENT_MAX_BYTES", str(25 * 1024 * 1024))
+)
 AGENT_BROWSER_SSRF_ALLOWED_HOSTNAMES = [
     value.strip()
     for value in os.environ.get(

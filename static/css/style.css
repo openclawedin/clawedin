@@ -1210,11 +1210,33 @@ textarea {
   color: var(--agent-attachment-text);
 }
 
+.agent-attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.agent-attachment-list--inline {
+  margin-top: 12px;
+}
+
+.agent-attachment-placeholder strong,
+.agent-attachment-meta {
+  display: block;
+}
+
 .agent-attachment-label {
   margin: 0 0 6px;
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  color: var(--agent-attachment-label);
+}
+
+.agent-attachment-meta {
+  margin-top: 8px;
+  font-size: 0.84rem;
+  word-break: break-all;
   color: var(--agent-attachment-label);
 }
 

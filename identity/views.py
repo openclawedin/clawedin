@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+import mimetypes
 import os
 import secrets
 import shlex
@@ -8,6 +9,8 @@ import socket
 import ssl
 import threading
 import time
+import uuid
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
@@ -26,6 +29,7 @@ from django.urls import reverse
 from django.db import close_old_connections
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
+from django.utils.text import get_valid_filename
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
@@ -77,6 +81,7 @@ from .models import (
     ResumeProject,
     ResumeSkill,
     AgentDeployment,
+    AgentDashboardAttachment,
     AgentDashboardTurn,
     User,
     UserSkill,
@@ -181,6 +186,41 @@ AGENT_DASHBOARD_ITEM_OPTIONS = [
         "description": "Current configured OpenClaw channels discovered from the runtime.",
     },
 ]
+
+
+def _agent_shared_vfs_storage_root() -> Path:
+    return Path(getattr(settings, "AGENT_SHARED_VFS_STORAGE_PATH", "/mnt/vfs") or "/mnt/vfs")
+
+
+def _agent_shared_vfs_mount_root() -> str:
+    return (getattr(settings, "AGENT_SHARED_VFS_MOUNT_PATH", "/mnt/clawedin-shared") or "/mnt/clawedin-shared").rstrip("/")
+
+
+def _safe_agent_attachment_name(filename: str) -> str:
+    cleaned = get_valid_filename(Path(filename or "attachment").name)
+    return cleaned or "attachment"
+
+
+def _agent_attachment_relative_path(user, deployment_name: str, filename: str) -> str:
+    safe_name = _safe_agent_attachment_name(filename)
+    return os.path.join(
+        "agent-dashboard-uploads",
+        str(user.id),
+        normalize_k8s_name(deployment_name or user.username or "agent")[:63] or "agent",
+        timezone.now().strftime("%Y/%m/%d"),
+        f"{uuid.uuid4().hex}-{safe_name}",
+    )
+
+
+def _serialize_dashboard_attachment(attachment: AgentDashboardAttachment) -> dict:
+    return {
+        "id": str(attachment.id),
+        "name": attachment.original_name,
+        "contentType": attachment.content_type or "",
+        "sizeBytes": attachment.size_bytes,
+        "agentPath": attachment.agent_path,
+        "createdAt": timezone.localtime(attachment.created_at).strftime("%b %d, %I:%M %p"),
+    }
 
 
 def _sanitize_agent_dashboard_item_keys(item_keys):
@@ -1348,6 +1388,7 @@ def _serialize_dashboard_turn(turn: AgentDashboardTurn) -> dict:
         "agentId": turn.agent_id or "",
         "createdAt": timezone.localtime(turn.created_at).strftime("%b %d, %I:%M %p"),
         "updatedAt": turn.updated_at.isoformat(),
+        "attachments": [_serialize_dashboard_attachment(item) for item in turn.attachments.all()],
     }
 
 
@@ -1355,10 +1396,20 @@ def _recent_dashboard_turns(user, pod_name: str, limit: int = 25):
     turns = list(
         AgentDashboardTurn.objects.filter(user=user, pod_name=pod_name)
         .select_related("user")
+        .prefetch_related("attachments")
         .order_by("-created_at")[:limit]
     )
     turns.reverse()
     return [_serialize_dashboard_turn(turn) for turn in turns]
+
+
+def _pending_dashboard_attachments(user, pod_name: str):
+    attachments = AgentDashboardAttachment.objects.filter(
+        user=user,
+        pod_name=pod_name,
+        turn__isnull=True,
+    ).order_by("created_at")
+    return [_serialize_dashboard_attachment(item) for item in attachments]
 
 
 def _run_agent_dashboard_turn(
@@ -1375,7 +1426,11 @@ def _run_agent_dashboard_turn(
 ):
     close_old_connections()
     try:
-        turn = AgentDashboardTurn.objects.select_related("user").get(pk=turn_id, user_id=user_id)
+        turn = (
+            AgentDashboardTurn.objects.select_related("user")
+            .prefetch_related("attachments")
+            .get(pk=turn_id, user_id=user_id)
+        )
     except AgentDashboardTurn.DoesNotExist:
         close_old_connections()
         return
@@ -1413,13 +1468,24 @@ def _run_agent_dashboard_turn(
         turn.status_detail = "Waiting for the agent reply..."
         turn.save(update_fields=["namespace", "status_detail", "updated_at"])
 
+        prompt_payload = prompt
+        attachments = list(turn.attachments.all())
+        if attachments:
+            attachment_lines = [
+                "Attached files are already uploaded into the shared Clawedin workspace mount.",
+                "Use these exact file paths when you need to inspect, reference, or process them:",
+            ]
+            for attachment in attachments:
+                attachment_lines.append(f"- {attachment.original_name} -> {attachment.agent_path}")
+            prompt_payload = f"{prompt}\n\n" + "\n".join(attachment_lines)
+
         status_code, response_payload = _agent_clawedin_request(
             pod,
             path=getattr(settings, "AGENT_CLAWEDIN_CHANNEL_REQUEST_PATH", CLAWEDIN_CHANNEL_DEFAULT_PATH),
             method="POST",
             token=deployment_record.web_auth_token,
             payload={
-                "text": prompt,
+                "text": prompt_payload,
                 "conversationId": conversation_id,
                 "chatType": "direct",
                 "senderId": str(user_id),
@@ -2499,6 +2565,15 @@ def agent_manager(request):
                                 read_only=True,
                             )
                         ]
+                        shared_vfs_claim_name = (
+                            getattr(settings, "AGENT_SHARED_VFS_CLAIM_NAME", "clawedin-vfs-pvc2") or ""
+                        ).strip()
+                        shared_vfs_mount_path = _agent_shared_vfs_mount_root()
+                        shared_vfs_enabled = bool(
+                            getattr(settings, "AGENT_SHARED_VFS_ENABLED", True)
+                            and shared_vfs_claim_name
+                            and shared_vfs_mount_path
+                        )
                         if agent_openclaw_pvc_name:
                             agent_volume_mounts.append(
                                 client.V1VolumeMount(
@@ -2511,6 +2586,13 @@ def agent_manager(request):
                                     name="openclaw-home",
                                     mount_path="/app/skills",
                                     sub_path="skills",
+                                )
+                            )
+                        if shared_vfs_enabled:
+                            agent_volume_mounts.append(
+                                client.V1VolumeMount(
+                                    name="shared-vfs",
+                                    mount_path=shared_vfs_mount_path,
                                 )
                             )
 
@@ -2546,6 +2628,15 @@ def agent_manager(request):
                                     name="openclaw-home",
                                     persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
                                         claim_name=agent_openclaw_pvc_name,
+                                    ),
+                                )
+                            )
+                        if shared_vfs_enabled:
+                            pod_volumes.append(
+                                client.V1Volume(
+                                    name="shared-vfs",
+                                    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
+                                        claim_name=shared_vfs_claim_name,
                                     ),
                                 )
                             )
@@ -3292,7 +3383,9 @@ def agent_dashboard(request, pod_name: str):
             "create_form": create_form,
             "chat_seed_messages": chat_seed_messages,
             "dashboard_turns": _recent_dashboard_turns(request.user, resolved_pod_name),
+            "pending_attachments": _pending_dashboard_attachments(request.user, resolved_pod_name),
             "chat_endpoint": reverse("identity:agent_dashboard_chat", args=[resolved_pod_name]),
+            "chat_upload_endpoint": reverse("identity:agent_dashboard_upload", args=[resolved_pod_name]),
             "chat_updates_endpoint": reverse("identity:agent_dashboard_chat_updates", args=[resolved_pod_name]),
             "runtime_endpoint": reverse("identity:agent_dashboard_runtime", args=[resolved_pod_name]),
             "agent_nav": _build_agent_navigation("dashboard", resolved_pod_name),
@@ -3303,7 +3396,93 @@ def agent_dashboard(request, pod_name: str):
             "status_window_start": status_window_start,
             "status_window_end": status_window_end,
             "dashboard_config_page_url": reverse("identity:agent_dashboard_config_page", args=[resolved_pod_name]),
+            "shared_attachment_mount": _agent_shared_vfs_mount_root(),
         },
+    )
+
+
+@login_required
+@require_POST
+def agent_dashboard_upload(request, pod_name: str):
+    if request.user.account_type != User.HUMAN:
+        return JsonResponse({"ok": False, "error": "Human accounts only."}, status=403)
+    if not getattr(settings, "AGENT_SHARED_VFS_ENABLED", True):
+        return JsonResponse({"ok": False, "error": "Shared agent attachments are disabled."}, status=503)
+
+    upload = request.FILES.get("file")
+    if not upload:
+        return JsonResponse({"ok": False, "error": "Select a file to upload."}, status=400)
+
+    max_bytes = int(getattr(settings, "AGENT_DASHBOARD_ATTACHMENT_MAX_BYTES", 25 * 1024 * 1024))
+    if upload.size and upload.size > max_bytes:
+        return JsonResponse(
+            {"ok": False, "error": f"Files must be {max_bytes // (1024 * 1024)} MB or smaller."},
+            status=400,
+        )
+
+    namespace, _ = resolve_agent_namespace(request.user.username, request.user.id)
+    try:
+        from kubernetes import client
+
+        load_kube_config()
+        v1 = client.CoreV1Api()
+        allow_cross_namespace = request.user.is_staff or request.user.is_superuser
+        pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
+    except Exception as exc:  # pragma: no cover
+        return JsonResponse({"ok": False, "error": f"Could not resolve agent pod: {exc}"}, status=502)
+
+    if (
+        pod
+        and pod.metadata
+        and pod.metadata.labels
+        and (
+            pod.metadata.labels.get("app") != "openclaw-agent"
+            or (
+                not _is_admin_user(request.user)
+                and pod.metadata.labels.get("owner") != request.user.username
+            )
+        )
+    ):
+        return JsonResponse({"ok": False, "error": "You do not have permission to use this agent."}, status=403)
+
+    deployment_name = ""
+    if pod and pod.metadata and pod.metadata.labels:
+        deployment_name = pod.metadata.labels.get("deployment") or ""
+    deployment_record = AgentDeployment.objects.filter(
+        user=request.user,
+        deployment_name=deployment_name,
+        namespace=namespace,
+    ).first()
+    if not deployment_record or not deployment_record.web_auth_token:
+        return JsonResponse({"ok": False, "error": "Agent web auth token is not configured."}, status=400)
+
+    relative_path = _agent_attachment_relative_path(request.user, deployment_name or pod_name, upload.name)
+    storage_root = _agent_shared_vfs_storage_root()
+    storage_path = storage_root / relative_path
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    with storage_path.open("wb") as destination:
+        for chunk in upload.chunks():
+            destination.write(chunk)
+
+    content_type = (upload.content_type or mimetypes.guess_type(upload.name)[0] or "").strip()
+    attachment = AgentDashboardAttachment.objects.create(
+        user=request.user,
+        deployment=deployment_record,
+        pod_name=pod_name,
+        namespace=namespace,
+        original_name=_safe_agent_attachment_name(upload.name),
+        content_type=content_type,
+        size_bytes=upload.size or 0,
+        storage_path=str(storage_path),
+        relative_path=relative_path,
+        agent_path=f"{_agent_shared_vfs_mount_root()}/{relative_path}",
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "attachment": _serialize_dashboard_attachment(attachment),
+            "pendingAttachments": _pending_dashboard_attachments(request.user, pod_name),
+        }
     )
 
 
@@ -3359,6 +3538,22 @@ def agent_dashboard_chat(request, pod_name: str):
 
     sender_name = request.user.display_name or request.user.username
     conversation_id = (data.get("conversationId") or f"clawedin-dashboard-{request.user.id}").strip()
+    attachment_ids = data.get("attachmentIds") or []
+    if not isinstance(attachment_ids, list):
+        return JsonResponse({"ok": False, "error": "attachmentIds must be a list."}, status=400)
+
+    pending_attachments = list(
+        AgentDashboardAttachment.objects.filter(
+            user=request.user,
+            deployment=deployment_record,
+            pod_name=pod_name,
+            turn__isnull=True,
+            id__in=attachment_ids,
+        )
+    )
+    if len(pending_attachments) != len(attachment_ids):
+        return JsonResponse({"ok": False, "error": "One or more attachments are invalid."}, status=400)
+
     turn = AgentDashboardTurn.objects.create(
         user=request.user,
         deployment=deployment_record,
@@ -3370,6 +3565,11 @@ def agent_dashboard_chat(request, pod_name: str):
         status=AgentDashboardTurn.STATUS_QUEUED,
         status_detail="Queued for delivery.",
     )
+    if pending_attachments:
+        AgentDashboardAttachment.objects.filter(id__in=[item.id for item in pending_attachments]).update(
+            turn=turn,
+            updated_at=timezone.now(),
+        )
     worker = threading.Thread(
         target=_run_agent_dashboard_turn,
         kwargs={
@@ -3390,8 +3590,11 @@ def agent_dashboard_chat(request, pod_name: str):
     return JsonResponse(
         {
             "ok": True,
-            "turn": _serialize_dashboard_turn(turn),
+            "turn": _serialize_dashboard_turn(
+                AgentDashboardTurn.objects.select_related("user").prefetch_related("attachments").get(pk=turn.pk)
+            ),
             "conversationId": conversation_id,
+            "pendingAttachments": _pending_dashboard_attachments(request.user, pod_name),
         }
     )
 
@@ -3417,6 +3620,7 @@ def agent_dashboard_chat_updates(request, pod_name: str):
             "turns": turns,
             "metrics": metrics,
             "dashboardCards": dashboard_cards,
+            "pendingAttachments": _pending_dashboard_attachments(request.user, pod_name),
             "availableDashboardItems": available_dashboard_items,
             "selectedDashboardItemKeys": selected_dashboard_item_keys,
             "topSkillRoutes": top_skill_routes,
