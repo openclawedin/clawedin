@@ -797,22 +797,23 @@ textarea {
 }
 
 .agent-sidebar-brand {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--agent-sidebar-footer-line);
+  text-decoration: none;
+  color: inherit;
 }
 
 .agent-sidebar-title {
-  font-size: clamp(1.75rem, 2.8vw, 2.35rem);
-  line-height: 1;
+  font-size: clamp(1.65rem, 2.5vw, 2.1rem);
+  line-height: 1.02;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--agent-sidebar-title-color);
   min-width: 0;
-  white-space: nowrap;
+  max-width: 100%;
 }
 
 .agent-sidebar-badge,
@@ -821,6 +822,12 @@ textarea {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted);
+}
+
+.agent-sidebar-badge {
+  display: block;
+  max-width: 100%;
+  line-height: 1.35;
 }
 
 .agent-current {
