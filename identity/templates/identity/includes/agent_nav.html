@@ -1,0 +1,9 @@
+<nav class="{{ nav_class|default:'agent-page-nav' }}">
+  {% for item in agent_nav %}
+    {% if item.disabled %}
+      <span class="agent-nav-item agent-nav-item--disabled{% if item.active %} agent-nav-item--active{% endif %}">{{ item.label }}</span>
+    {% else %}
+      <a class="agent-nav-item{% if item.active %} agent-nav-item--active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+    {% endif %}
+  {% endfor %}
+</nav>

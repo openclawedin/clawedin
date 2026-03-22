@@ -18,6 +18,7 @@
             <a class="btn" href="{{ dashboard_url }}#agent-chat">Back to dashboard</a>
           </div>
         </div>
+        {% include "identity/includes/agent_nav.html" %}
 
         {% if error_message %}
           <pre class="text-danger">{{ error_message }}</pre>

@@ -203,6 +203,45 @@ def _dashboard_card(label, value, delta, description, key):
         "description": description,
     }
 
+
+def _build_agent_navigation(active_key: str, pod_name: str = ""):
+    has_agent = bool(pod_name)
+    items = [
+        {
+            "key": "manager",
+            "label": "Agent Manager",
+            "url": reverse("identity:agent_manager"),
+            "disabled": False,
+        },
+        {
+            "key": "details",
+            "label": "Details",
+            "url": reverse("identity:agent_detail", args=[pod_name]) if has_agent else "",
+            "disabled": not has_agent,
+        },
+        {
+            "key": "dashboard",
+            "label": "Dashboard",
+            "url": reverse("identity:agent_dashboard", args=[pod_name]) if has_agent else "",
+            "disabled": not has_agent,
+        },
+        {
+            "key": "configure",
+            "label": "Configure",
+            "url": reverse("identity:agent_dashboard_config_page", args=[pod_name]) if has_agent else "",
+            "disabled": not has_agent,
+        },
+        {
+            "key": "terminal",
+            "label": "Terminal",
+            "url": reverse("identity:agent_terminal", args=[pod_name]) if has_agent else "",
+            "disabled": not has_agent,
+        },
+    ]
+    for item in items:
+        item["active"] = item["key"] == active_key
+    return items
+
 def _ensure_dockerhub_secret(client_module, v1, namespace: str, source_namespace: str = "default") -> None:
     secret_name = "dockerhub-secret"
     try:
@@ -2754,6 +2793,7 @@ def agent_manager(request):
         "identity/agent_manager.html",
         {
             "agents": agents,
+            "agent_nav": _build_agent_navigation("manager"),
             "form": form,
             "namespace": namespace,
             "openai_key_saved": bool(request.user.openai_api_key),
@@ -3101,6 +3141,7 @@ def agent_detail(request, pod_name: str):
         {
             "namespace": namespace,
             "pod": pod,
+            "agent_nav": _build_agent_navigation("details", pod.metadata.name if pod and pod.metadata else pod_name),
             "deployment_record": deployment_record,
             "logs": logs,
             "tail_lines": tail_lines_int,
@@ -3246,6 +3287,7 @@ def agent_dashboard(request, pod_name: str):
             "chat_endpoint": reverse("identity:agent_dashboard_chat", args=[resolved_pod_name]),
             "chat_updates_endpoint": reverse("identity:agent_dashboard_chat_updates", args=[resolved_pod_name]),
             "runtime_endpoint": reverse("identity:agent_dashboard_runtime", args=[resolved_pod_name]),
+            "agent_nav": _build_agent_navigation("dashboard", resolved_pod_name),
             "gateway_health": gateway_health,
             "metrics": metrics,
             "top_skill_routes": top_skill_routes,
@@ -3461,6 +3503,7 @@ def agent_dashboard_config_page(request, pod_name: str):
         {
             "pod": gui_context.get("pod"),
             "resolved_pod_name": resolved_pod_name,
+            "agent_nav": _build_agent_navigation("configure", resolved_pod_name),
             "error_message": gui_context.get("error_message"),
             "available_dashboard_items": available_dashboard_items,
             "selected_dashboard_item_keys": selected_dashboard_item_keys,
@@ -3560,6 +3603,7 @@ def agent_terminal(request, pod_name: str):
         {
             "namespace": namespace,
             "pod": pod,
+            "agent_nav": _build_agent_navigation("terminal", pod.metadata.name if pod and pod.metadata else pod_name),
             "error_message": error_message,
         },
     )

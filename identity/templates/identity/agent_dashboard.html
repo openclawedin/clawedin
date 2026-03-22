@@ -23,14 +23,7 @@
           <input type="search" placeholder="Search" disabled />
         </label>
 
-        <nav class="agent-sidebar-nav">
-          <a class="agent-nav-item" href="/">Home</a>
-          <a class="agent-nav-item" href="{% url 'identity:agent_manager' %}">Create Agent</a>
-          <a class="agent-nav-item agent-nav-item--active" href="{% url 'identity:agent_manager' %}">Agent Manager</a>
-          <a class="agent-nav-item" href="#agent-chat">Chats</a>
-          <a class="agent-nav-item" href="#agent-status">Dashboards</a>
-          <a class="agent-nav-item" href="#agent-ops">Tasks</a>
-        </nav>
+        {% include "identity/includes/agent_nav.html" with nav_class="agent-sidebar-nav" %}
 
         <div class="agent-sidebar-footer">
           <div>
