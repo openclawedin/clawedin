@@ -203,10 +203,14 @@ def _safe_agent_attachment_name(filename: str) -> str:
 
 def _agent_attachment_relative_path(user, deployment_name: str, filename: str) -> str:
     safe_name = _safe_agent_attachment_name(filename)
+    normalized_deployment = normalize_k8s_name(
+        deployment_name or user.username or "agent",
+        "agent",
+    )
     return os.path.join(
         "agent-dashboard-uploads",
         str(user.id),
-        normalize_k8s_name(deployment_name or user.username or "agent")[:63] or "agent",
+        normalized_deployment[:63] or "agent",
         timezone.now().strftime("%Y/%m/%d"),
         f"{uuid.uuid4().hex}-{safe_name}",
     )
