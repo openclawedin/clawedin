@@ -265,7 +265,12 @@
       }
 
       function scrollStream(force = false) {
-        if (force || shouldStickToBottom) {
+        if (force) {
+          shouldStickToBottom = true;
+          stream.scrollTop = stream.scrollHeight;
+          return;
+        }
+        if (shouldStickToBottom) {
           stream.scrollTop = stream.scrollHeight;
         }
       }
@@ -345,7 +350,6 @@
       }
 
       function renderTurn(turn, forceScroll = false) {
-        const wasNearBottom = isNearBottom();
         const nodes = ensureTurnNode(turn);
         const agentLabel = turn.agentId || "Agent";
         let replyText = turn.responseText || "";
@@ -368,9 +372,6 @@
         const attachmentSummary = renderAttachmentSummary(turn.attachments || []);
         if (attachmentSummary) {
           nodes.promptArticle.appendChild(attachmentSummary);
-        }
-        if (wasNearBottom) {
-          shouldStickToBottom = true;
         }
         scrollStream(forceScroll);
       }
@@ -624,6 +625,14 @@
 
       stream.addEventListener("scroll", () => {
         shouldStickToBottom = isNearBottom();
+      });
+
+      ["wheel", "touchmove", "pointerdown"].forEach((eventName) => {
+        stream.addEventListener(eventName, () => {
+          window.requestAnimationFrame(() => {
+            shouldStickToBottom = isNearBottom();
+          });
+        }, { passive: true });
       });
 
       attachButton.addEventListener("click", () => {
