@@ -297,7 +297,10 @@ AGENT_INTERNAL_SERVICE_NAMESPACE = os.environ.get("AGENT_INTERNAL_SERVICE_NAMESP
 AGENT_SHARED_VFS_ENABLED = os.environ.get("AGENT_SHARED_VFS_ENABLED", "true").strip().lower() == "true"
 AGENT_SHARED_VFS_CLAIM_NAME = os.environ.get("AGENT_SHARED_VFS_CLAIM_NAME", "clawedin-vfs-pvc2").strip()
 AGENT_SHARED_VFS_STORAGE_PATH = os.environ.get("AGENT_SHARED_VFS_STORAGE_PATH", "/mnt/vfs").strip()
-AGENT_SHARED_VFS_MOUNT_PATH = os.environ.get("AGENT_SHARED_VFS_MOUNT_PATH", "/mnt/clawedin-shared").strip()
+AGENT_SHARED_VFS_MOUNT_PATH = os.environ.get(
+    "AGENT_SHARED_VFS_MOUNT_PATH",
+    "/home/node/.openclaw/workspace/clawedin-uploads",
+).strip()
 AGENT_DASHBOARD_ATTACHMENT_MAX_BYTES = int(
     os.environ.get("AGENT_DASHBOARD_ATTACHMENT_MAX_BYTES", str(25 * 1024 * 1024))
 )
