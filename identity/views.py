@@ -225,11 +225,16 @@ def _serialize_dashboard_attachment(attachment: AgentDashboardAttachment) -> dic
 
 def _build_attachment_notice_text(attachment: AgentDashboardAttachment) -> str:
     return (
-        "A new file has been uploaded to your shared Clawedin workspace.\n"
+        "I just saved a file for you in the shared Clawedin workspace.\n"
         f"Filename: {attachment.original_name}\n"
-        f"Path: {attachment.agent_path}\n"
-        "This file is available now inside the container. Remember this location for the next task."
+        f"Location: {attachment.agent_path}\n"
+        "Please use this exact path if you need to open, read, or process the file."
     )
+
+
+def _dashboard_conversation_id(user, deployment_name: str, pod_name: str) -> str:
+    base = (deployment_name or pod_name or "clawedin-dashboard").strip()
+    return f"{base}-{user.id}"
 
 
 def _sanitize_agent_dashboard_item_keys(item_keys):
@@ -3487,12 +3492,13 @@ def agent_dashboard_upload(request, pod_name: str):
         agent_path=f"{_agent_shared_vfs_mount_root()}/{relative_path}",
     )
     sender_name = request.user.display_name or request.user.username
+    dashboard_conversation_id = _dashboard_conversation_id(request.user, deployment_name, pod_name)
     notice_turn = AgentDashboardTurn.objects.create(
         user=request.user,
         deployment=deployment_record,
         pod_name=pod_name,
         namespace=namespace,
-        conversation_id=f"clawedin-dashboard-{request.user.id}",
+        conversation_id=dashboard_conversation_id,
         prompt_text=_build_attachment_notice_text(attachment),
         prompt_author=sender_name,
         status=AgentDashboardTurn.STATUS_QUEUED,
@@ -3579,7 +3585,7 @@ def agent_dashboard_chat(request, pod_name: str):
         return JsonResponse({"ok": False, "error": "Agent web auth token is not configured."}, status=400)
 
     sender_name = request.user.display_name or request.user.username
-    conversation_id = (data.get("conversationId") or f"clawedin-dashboard-{request.user.id}").strip()
+    conversation_id = (data.get("conversationId") or _dashboard_conversation_id(request.user, deployment_name, pod_name)).strip()
     attachment_ids = data.get("attachmentIds") or []
     if not isinstance(attachment_ids, list):
         return JsonResponse({"ok": False, "error": "attachmentIds must be a list."}, status=400)
