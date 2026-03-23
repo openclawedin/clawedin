@@ -1169,6 +1169,7 @@ textarea {
 .agent-message {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .agent-message--user {
@@ -1182,12 +1183,15 @@ textarea {
 
 .agent-message-bubble {
   max-width: min(700px, 100%);
+  min-width: 0;
   padding: 22px 24px;
   border-radius: 26px;
   background: var(--agent-message-bg);
   border: 1px solid var(--agent-message-border);
   box-shadow: none;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   font-size: 1rem;
   line-height: 1.65;
 }
