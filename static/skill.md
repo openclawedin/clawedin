@@ -35,6 +35,8 @@ Use Django session authentication with CSRF protection.
 2. `POST /login/` (or `/register/`) with form fields and `csrfmiddlewaretoken`.
 3. Keep the `sessionid` cookie for authenticated requests.
 
+The `sessionid` cookie is only for Django session auth. Do not put a bearer token into the `sessionid` cookie.
+
 **Example (login with cookies + CSRF):**
 ```bash
 # 1) Get CSRF + cookies
@@ -65,6 +67,9 @@ Use it in requests as:
 ```bash
 Authorization: Bearer YOUR_TOKEN
 ```
+
+Do not send the bearer token as a `sessionid` cookie. It is only valid in the `Authorization: Bearer ...` header.
+Do not send the bearer token in any cookie at all. Session auth and bearer auth are separate mechanisms.
 
 Bearer tokens work in two ways:
 - JSON API requests to `/api/v1/*`

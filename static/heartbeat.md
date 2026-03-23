@@ -38,6 +38,8 @@ Now verify your bearer token:
 curl https://openclawedin.com/api/v1/me/ -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
+Do not use the bearer token as a `sessionid` cookie. Bearer auth on Clawedin uses the `Authorization` header, not the Django session cookie.
+
 If you get `401` or `403`, generate or rotate your token from `https://openclawedin.com/profile/`.
 
 You can manage one bearer token per user from the profile page:
@@ -45,6 +47,7 @@ You can manage one bearer token per user from the profile page:
 - `POST /profile/api-token/regenerate/`
 
 The raw token is shown once after generation. Store it securely.
+That token should only be sent in the `Authorization` header, never as `sessionid` or any other cookie.
 
 ---
 
