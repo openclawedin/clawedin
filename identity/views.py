@@ -56,7 +56,7 @@ from .forms import (
     SolanaTransferForm,
     UserSkillForm,
 )
-from .auth import generate_api_token, hash_token, token_prefix
+from .auth import generate_api_token, hash_token, mint_bearer_token, token_prefix
 from .kube import (
     agent_web_auth_secret_name_for_deployment,
     gui_ingress_name,
@@ -2097,7 +2097,7 @@ def _get_api_token_for_user(user):
 
 
 def _upsert_api_token(user, *, replace_existing: bool) -> tuple[ApiToken, str]:
-    raw_token = generate_api_token()
+    raw_token = mint_bearer_token(user)
     defaults = {
         "name": "Profile bearer token",
         "token_hash": hash_token(raw_token),

@@ -22,6 +22,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 
+def _split_env_list(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -126,17 +130,42 @@ db_user = os.environ.get("DB_USER", "")
 db_password = os.environ.get("DB_PASSWORD", "")
 db_host = os.environ.get("DB_HOST", "")
 db_port = os.environ.get("DB_PORT", "")
+user_domain_db_alias = os.environ.get("USER_DOMAIN_DB_ALIAS", "users").strip() or "users"
+
+default_db_config = {
+    "ENGINE": db_engine,
+    "NAME": db_name,
+    "USER": db_user,
+    "PASSWORD": db_password,
+    "HOST": db_host,
+    "PORT": db_port,
+}
+
+users_db_config = {
+    "ENGINE": os.environ.get("USERS_DB_ENGINE", "django.db.backends.postgresql"),
+    "NAME": os.environ.get("USERS_DB_NAME", ""),
+    "USER": os.environ.get("USERS_DB_USER", ""),
+    "PASSWORD": os.environ.get("USERS_DB_PASSWORD", ""),
+    "HOST": os.environ.get("USERS_DB_HOST", ""),
+    "PORT": os.environ.get("USERS_DB_PORT", ""),
+}
+if not users_db_config["NAME"]:
+    users_db_config = default_db_config.copy()
 
 DATABASES = {
-    "default": {
-        "ENGINE": db_engine,
-        "NAME": db_name,
-        "USER": db_user,
-        "PASSWORD": db_password,
-        "HOST": db_host,
-        "PORT": db_port,
-    },
+    "default": default_db_config,
+    user_domain_db_alias: users_db_config,
 }
+
+USER_DOMAIN_DB_ALIAS = user_domain_db_alias
+USER_DOMAIN_DB_APPS = _split_env_list(
+    os.environ.get(
+        "USER_DOMAIN_DB_APPS",
+        "identity,network,content,messaging,analytics,companies,"
+        "auth,contenttypes,admin,account,socialaccount,sites",
+    )
+)
+DATABASE_ROUTERS = ["clawedin.db_router.UserDomainRouter"]
 
 
 # Password validation
@@ -246,6 +275,12 @@ BIRDEYE_API_KEY = os.environ.get("BIRDEYE_API_KEY") or os.environ.get("BIRDEY_AP
 # Email verification
 EMAIL_VERIFICATION_TTL_SECONDS = int(
     os.environ.get("EMAIL_VERIFICATION_TTL_SECONDS", str(60 * 60 * 24)),
+)
+
+BEARER_TOKEN_SHARED_SECRET = os.environ.get("BEARER_TOKEN_SHARED_SECRET", "")
+BEARER_TOKEN_ISSUER = os.environ.get("BEARER_TOKEN_ISSUER", "").strip()
+BEARER_TOKEN_ACCEPTED_ISSUERS = _split_env_list(
+    os.environ.get("BEARER_TOKEN_ACCEPTED_ISSUERS", BEARER_TOKEN_ISSUER)
 )
 
 # Agent GUI ingress/proxy configuration

@@ -11,7 +11,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 
 from companies.models import Company
 from content.models import Post
-from identity.auth import generate_api_token, hash_token, token_prefix
+from identity.auth import hash_token, mint_bearer_token, token_prefix
 from identity.models import ApiToken, Resume, UserSkill
 
 ATHENA_JOBS_BASE_URL = os.environ.get(
@@ -271,7 +271,7 @@ def tokens(request):
         data = _parse_json(request)
         if data is None:
             return _json_error("Invalid JSON.")
-        raw_token = generate_api_token()
+        raw_token = mint_bearer_token(request.user)
         defaults = {
             "name": data.get("name", "") or "API bearer token",
             "token_hash": hash_token(raw_token),

@@ -7,6 +7,8 @@ from network.models import Connection
 
 
 class PostFeedTests(TestCase):
+    databases = "__all__"
+
     def setUp(self):
         self.viewer = User.objects.create_user(
             username="viewer",

@@ -6,7 +6,7 @@ from django.urls import reverse
 
 from companies.models import Company
 from content.models import Post
-from .auth import check_token
+from .auth import authenticate_bearer_token, check_token, mint_bearer_token
 from .kube import agent_web_auth_secret_name_for_deployment
 from .models import ApiToken, User
 from .views import _delete_namespaced_secret_if_present, _upsert_namespaced_secret
@@ -21,6 +21,8 @@ from .views import _delete_namespaced_secret_if_present, _upsert_namespaced_secr
     STRIPE_PRICE_ID_BUSINESS="price_business",
 )
 class BillingTests(TestCase):
+    databases = "__all__"
+
     def setUp(self):
         self.user = User.objects.create_user(
             username="armen",
@@ -129,6 +131,8 @@ class BillingTests(TestCase):
 
 
 class PublicProfileJsonTests(TestCase):
+    databases = "__all__"
+
     def setUp(self):
         self.user = User.objects.create_user(
             username="publicuser",
@@ -169,7 +173,14 @@ class PublicProfileJsonTests(TestCase):
         self.assertIsNone(payload["contact"]["email"])
 
 
+@override_settings(
+    BEARER_TOKEN_SHARED_SECRET="shared-secret",
+    BEARER_TOKEN_ISSUER="clawedin-app",
+    BEARER_TOKEN_ACCEPTED_ISSUERS=["clawedin-app"],
+)
 class ApiTokenProfileTests(TestCase):
+    databases = "__all__"
+
     def setUp(self):
         self.user = User.objects.create_user(
             username="tokenuser",
@@ -294,6 +305,8 @@ class ApiTokenProfileTests(TestCase):
 
 
 class AgentWebAuthSecretTests(TestCase):
+    databases = "__all__"
+
     def test_secret_name_is_normalized_for_deployments(self):
         name = agent_web_auth_secret_name_for_deployment("OpenClaw Agent Demo", 42)
 
@@ -324,6 +337,8 @@ class AgentWebAuthSecretTests(TestCase):
 
 
 class AgentDashboardConfigTests(TestCase):
+    databases = "__all__"
+
     def setUp(self):
         self.user = User.objects.create_user(
             username="dashboard-config-user",
@@ -371,6 +386,8 @@ class AgentDashboardConfigTests(TestCase):
 
 @override_settings(DEBUG=False, ROOT_URLCONF="clawedin.test_error_urls")
 class ProductionErrorPageTests(TestCase):
+    databases = "__all__"
+
     def test_404_uses_safe_template_without_route_leakage(self):
         response = self.client.get("/missing-page/")
 
@@ -391,3 +408,59 @@ class ProductionErrorPageTests(TestCase):
         self.assertNotIn("Traceback", body)
         self.assertNotIn("RuntimeError", body)
         self.assertNotIn("sensitive internal failure", body)
+
+
+@override_settings(
+    BEARER_TOKEN_SHARED_SECRET="shared-secret",
+    BEARER_TOKEN_ISSUER="clawedin-app",
+    BEARER_TOKEN_ACCEPTED_ISSUERS=["clawedin-app"],
+    USER_DOMAIN_DB_ALIAS="users",
+)
+class SharedBearerTokenTests(TestCase):
+    databases = "__all__"
+
+    def test_signed_token_with_shared_secret_is_accepted(self):
+        user = User.objects.create_user(
+            username="sharedtokenuser",
+            email="shared@example.com",
+            password="safe-pass-123",
+        )
+
+        token = mint_bearer_token(user)
+        auth_result = authenticate_bearer_token(token)
+
+        self.assertIsNotNone(auth_result)
+        self.assertEqual(auth_result.user.pk, user.pk)
+        self.assertIsNone(auth_result.api_token)
+
+    def test_issuer_validation_rejects_unaccepted_issuer(self):
+        user = User.objects.create_user(
+            username="badissueruser",
+            email="bad-issuer@example.com",
+            password="safe-pass-123",
+        )
+
+        token = mint_bearer_token(user, issuer="other-app")
+        auth_result = authenticate_bearer_token(token)
+
+        self.assertIsNone(auth_result)
+
+    @patch("identity.auth.get_user_model")
+    def test_shared_user_lookup_reads_from_users_alias(self, mock_get_user_model):
+        user = Mock(is_active=True, password="hashed-password")
+        manager = Mock()
+        manager.db_manager.return_value.filter.return_value.first.return_value = user
+        mock_get_user_model.return_value = Mock(_default_manager=manager)
+
+        with patch("identity.auth._find_stored_api_token", return_value=None):
+            with patch("identity.auth._password_hash_marker", return_value="marker"):
+                with patch("identity.auth.signing.loads", return_value={
+                    "user_id": "123",
+                    "iss": "clawedin-app",
+                    "purpose": "job_apply_cli",
+                    "pwd": "marker",
+                }):
+                    auth_result = authenticate_bearer_token("signed-token")
+
+        self.assertIsNotNone(auth_result)
+        manager.db_manager.assert_called_once_with("users")

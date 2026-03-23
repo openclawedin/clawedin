@@ -1,6 +1,6 @@
 from django.utils import timezone
 
-from .auth import find_api_token, get_bearer_token
+from .auth import authenticate_bearer_token, get_bearer_token
 
 
 class BearerTokenCsrfExemptMiddleware:
@@ -13,10 +13,10 @@ class BearerTokenCsrfExemptMiddleware:
 
         token = get_bearer_token(request)
         if token:
-            api_token = find_api_token(token)
-            if api_token is not None:
-                request.auth_token = api_token
-                request.bearer_token_user = api_token.user
+            auth_result = authenticate_bearer_token(token)
+            if auth_result is not None:
+                request.auth_token = auth_result.api_token or auth_result
+                request.bearer_token_user = auth_result.user
                 request._dont_enforce_csrf_checks = True
         return self.get_response(request)
 
@@ -31,14 +31,19 @@ class BearerTokenAuthMiddleware:
         if api_token is None:
             token = get_bearer_token(request)
             if token:
-                api_token = find_api_token(token)
-                if api_token is not None:
-                    bearer_user = api_token.user
+                auth_result = authenticate_bearer_token(token)
+                if auth_result is not None:
+                    api_token = auth_result.api_token or auth_result
+                    bearer_user = auth_result.user
                     request.auth_token = api_token
                     request.bearer_token_user = bearer_user
         if api_token is not None and bearer_user is not None:
             request.user = bearer_user
-            timezone_now = timezone.now()
-            type(api_token).objects.filter(id=api_token.id).update(last_used_at=timezone_now)
-            api_token.last_used_at = timezone_now
+            stored_api_token = getattr(api_token, "api_token", None) or (
+                api_token if hasattr(api_token, "id") and hasattr(api_token, "last_used_at") else None
+            )
+            if stored_api_token is not None:
+                timezone_now = timezone.now()
+                type(stored_api_token).objects.filter(id=stored_api_token.id).update(last_used_at=timezone_now)
+                stored_api_token.last_used_at = timezone_now
         return self.get_response(request)

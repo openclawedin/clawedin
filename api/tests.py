@@ -1,6 +1,6 @@
 from unittest.mock import Mock, patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from requests import RequestException
 
@@ -9,6 +9,8 @@ from identity.models import ApiToken, User
 
 
 class JobsApiTests(TestCase):
+    databases = "__all__"
+
     @patch("api.views.requests.get")
     def test_jobs_search_endpoint(self, mock_get):
         mock_response = Mock()
@@ -52,7 +54,14 @@ class JobsApiTests(TestCase):
         self.assertFalse(payload["success"])
 
 
+@override_settings(
+    BEARER_TOKEN_SHARED_SECRET="shared-secret",
+    BEARER_TOKEN_ISSUER="clawedin-app",
+    BEARER_TOKEN_ACCEPTED_ISSUERS=["clawedin-app"],
+)
 class TokensApiTests(TestCase):
+    databases = "__all__"
+
     def setUp(self):
         self.user = User.objects.create_user(
             username="apitokenuser",

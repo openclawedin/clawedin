@@ -11,6 +11,8 @@ from identity.models import AgentDeployment, ApiToken, User
 
 
 class SkillPageAnalyticsMiddlewareTests(TestCase):
+    databases = "__all__"
+
     def test_matches_documented_skill_route(self):
         self.assertEqual(
             match_skill_page_route("/api/v1/me/"),

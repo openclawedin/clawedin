@@ -7,6 +7,8 @@ from .models import Company
 
 
 class CompanyViewsTests(TestCase):
+    databases = "__all__"
+
     def setUp(self):
         self.user = User.objects.create_user(
             username="owner",
