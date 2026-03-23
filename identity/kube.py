@@ -82,3 +82,10 @@ def agent_web_auth_secret_name_for_deployment(deployment_name: str, user_id: int
         f"agent-web-auth-{deployment_name}",
         f"agent-web-auth-{user_id}",
     )
+
+
+def agent_user_bearer_secret_name_for_deployment(deployment_name: str, user_id: int) -> str:
+    return normalize_k8s_name(
+        f"agent-user-bearer-{deployment_name}",
+        f"agent-user-bearer-{user_id}",
+    )

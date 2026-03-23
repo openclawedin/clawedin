@@ -58,6 +58,7 @@ from .forms import (
 )
 from .auth import generate_api_token, hash_token, mint_bearer_token, token_prefix
 from .kube import (
+    agent_user_bearer_secret_name_for_deployment,
     agent_web_auth_secret_name_for_deployment,
     gui_ingress_name,
     gui_middleware_name,
@@ -89,6 +90,9 @@ from .models import (
 from analytics.models import SkillPageRequestMetric
 
 logger = logging.getLogger(__name__)
+
+AGENT_CLAWEDIN_SKILL_URL = "https://openclawedin.com/static/skill.md"
+AGENT_JOBS_SKILL_URL = "https://jobs.openclawedin.com/api/static/skill.md"
 
 try:
     from solana.rpc.api import Client
@@ -2441,6 +2445,25 @@ def agent_manager(request):
                             web_auth_secret_body,
                             client.exceptions.ApiException,
                         )
+                        user_bearer_secret = agent_user_bearer_secret_name_for_deployment(
+                            deployment_name,
+                            request.user.id,
+                        )
+                        user_bearer_token = mint_bearer_token(request.user)
+                        user_bearer_secret_body = client.V1Secret(
+                            metadata=client.V1ObjectMeta(name=user_bearer_secret),
+                            type="Opaque",
+                            string_data={
+                                "USER_BEARER_TOKEN": user_bearer_token,
+                            },
+                        )
+                        _upsert_namespaced_secret(
+                            v1,
+                            namespace,
+                            user_bearer_secret,
+                            user_bearer_secret_body,
+                            client.exceptions.ApiException,
+                        )
 
                         agent_port = int(getattr(settings, "AGENT_GUI_PORT", 18789))
                         proxy_port = int(getattr(settings, "AGENT_GUI_PROXY_PORT", 18790))
@@ -2581,7 +2604,12 @@ def agent_manager(request):
                                 name="agent-web-auth",
                                 mount_path="/var/run/secrets/clawedin-agent-auth",
                                 read_only=True,
-                            )
+                            ),
+                            client.V1VolumeMount(
+                                name="agent-user-bearer",
+                                mount_path="/var/run/secrets/clawedin-user-bearer",
+                                read_only=True,
+                            ),
                         ]
                         shared_vfs_claim_name = (
                             getattr(settings, "AGENT_SHARED_VFS_CLAIM_NAME", "clawedin-vfs-pvc2") or ""
@@ -2638,7 +2666,19 @@ def agent_manager(request):
                                         )
                                     ],
                                 ),
-                            )
+                            ),
+                            client.V1Volume(
+                                name="agent-user-bearer",
+                                secret=client.V1SecretVolumeSource(
+                                    secret_name=user_bearer_secret,
+                                    items=[
+                                        client.V1KeyToPath(
+                                            key="USER_BEARER_TOKEN",
+                                            path="token",
+                                        )
+                                    ],
+                                ),
+                            ),
                         ]
                         if agent_openclaw_pvc_name:
                             pod_volumes.append(
@@ -2673,8 +2713,17 @@ def agent_manager(request):
                                         (
                                             f"mkdir -p {agent_openclaw_home} "
                                             f"{agent_openclaw_home}/skills "
+                                            f"{agent_openclaw_home}/skills/clawedin "
+                                            f"{agent_openclaw_home}/skills/clawedin-jobs "
                                             f"{agent_openclaw_home}/extensions "
                                             f"{agent_openclaw_home}/workspace && "
+                                            "apk add --no-cache curl >/dev/null && "
+                                            f"curl --fail --silent --show-error --location "
+                                            f"{shlex.quote(AGENT_CLAWEDIN_SKILL_URL)} "
+                                            f"--output {shlex.quote(f'{agent_openclaw_home}/skills/clawedin/SKILL.md')} && "
+                                            f"curl --fail --silent --show-error --location "
+                                            f"{shlex.quote(AGENT_JOBS_SKILL_URL)} "
+                                            f"--output {shlex.quote(f'{agent_openclaw_home}/skills/clawedin-jobs/SKILL.md')} && "
                                             "cat <<'EOF' > "
                                             f"{agent_openclaw_home}/exec-approvals.json\n"
                                             "{\n"
@@ -2777,6 +2826,19 @@ def agent_manager(request):
                                         client.V1EnvVar(
                                             name="CLAWEDIN_AGENT_AUTH_TOKEN_FILE",
                                             value="/var/run/secrets/clawedin-agent-auth/token",
+                                        ),
+                                        client.V1EnvVar(
+                                            name="CLAWEDIN_USER_BEARER_TOKEN",
+                                            value_from=client.V1EnvVarSource(
+                                                secret_key_ref=client.V1SecretKeySelector(
+                                                    name=user_bearer_secret,
+                                                    key="USER_BEARER_TOKEN",
+                                                ),
+                                            ),
+                                        ),
+                                        client.V1EnvVar(
+                                            name="CLAWEDIN_USER_BEARER_TOKEN_FILE",
+                                            value="/var/run/secrets/clawedin-user-bearer/token",
                                         ),
                                         client.V1EnvVar(
                                             name="CLAWEDIN_AGENT_AUTH_USER_ID",
@@ -3061,6 +3123,14 @@ def agent_detail(request, pod_name: str):
                             resolved_namespace,
                             deployment_record.web_auth_secret_name,
                         )
+                        _delete_namespaced_secret_if_present(
+                            v1,
+                            resolved_namespace,
+                            agent_user_bearer_secret_name_for_deployment(
+                                deployment_record.deployment_name,
+                                request.user.id,
+                            ),
+                        )
                         deployment_record.delete()
                     v1.delete_namespaced_pod(name=pod_name, namespace=resolved_namespace)
                     messages.success(request, "Pod deleted.")
@@ -3185,6 +3255,14 @@ def agent_detail(request, pod_name: str):
                             v1,
                             resolved_namespace,
                             deployment_record.web_auth_secret_name,
+                        )
+                        _delete_namespaced_secret_if_present(
+                            v1,
+                            resolved_namespace,
+                            agent_user_bearer_secret_name_for_deployment(
+                                deployment_record.deployment_name,
+                                request.user.id,
+                            ),
                         )
                         deployment_record.delete()
                     messages.success(request, "Deployment deleted. The agent will not respawn.")
