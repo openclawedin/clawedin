@@ -116,6 +116,10 @@ except ImportError:  # pragma: no cover - optional in environments without solan
 BIRDEYE_PRICE_URL = "https://public-api.birdeye.so/defi/price"
 CLAWEDIN_CHANNEL_DEFAULT_PORT = 31890
 CLAWEDIN_CHANNEL_DEFAULT_PATH = "/v1/messages"
+AGENT_MODEL_PROVIDER_OPENAI = AgentLaunchForm.MODEL_PROVIDER_OPENAI
+AGENT_MODEL_PROVIDER_ANTHROPIC = AgentLaunchForm.MODEL_PROVIDER_ANTHROPIC
+AGENT_DEFAULT_OPENAI_MODEL = "openai/gpt-5.2"
+AGENT_DEFAULT_ANTHROPIC_MODEL = "anthropic/claude-opus-4-6"
 DEFAULT_AGENT_DASHBOARD_ITEM_KEYS = [
     "top_route_1",
     "top_route_2",
@@ -190,6 +194,72 @@ AGENT_DASHBOARD_ITEM_OPTIONS = [
         "description": "Current configured OpenClaw channels discovered from the runtime.",
     },
 ]
+
+
+def _default_agent_model_provider_for_user(user: User) -> str:
+    if user.anthropic_api_key and not user.openai_api_key:
+        return AGENT_MODEL_PROVIDER_ANTHROPIC
+    return AGENT_MODEL_PROVIDER_OPENAI
+
+
+def _agent_model_for_provider(provider: str) -> str:
+    if provider == AGENT_MODEL_PROVIDER_ANTHROPIC:
+        return AGENT_DEFAULT_ANTHROPIC_MODEL
+    return AGENT_DEFAULT_OPENAI_MODEL
+
+
+def _agent_models_config(provider: str) -> dict:
+    model_name = _agent_model_for_provider(provider)
+    return {
+        "defaults": {
+            "model": {"primary": model_name},
+            "models": {model_name: {}},
+        }
+    }
+
+
+def _agent_secret_string_data(openai_api_key: str, anthropic_api_key: str) -> dict:
+    payload = {}
+    if openai_api_key:
+        payload["OPENAI_API_KEY"] = openai_api_key
+    if anthropic_api_key:
+        payload["ANTHROPIC_API_KEY"] = anthropic_api_key
+    return payload
+
+
+def _resolve_agent_launch_credentials(user: User, cleaned_data: dict) -> dict:
+    provider = (cleaned_data.get("model_provider") or "").strip().lower()
+    if provider not in {AGENT_MODEL_PROVIDER_OPENAI, AGENT_MODEL_PROVIDER_ANTHROPIC}:
+        provider = AGENT_MODEL_PROVIDER_OPENAI
+
+    # Keep saved credentials reusable across launches so users only need to submit
+    # the provider key they want to update, while still enforcing the active provider.
+    openai_input = (cleaned_data.get("openai_api_key") or "").strip()
+    anthropic_input = (cleaned_data.get("anthropic_api_key") or "").strip()
+    openai_api_key = openai_input or (user.openai_api_key or "").strip()
+    anthropic_api_key = anthropic_input or (user.anthropic_api_key or "").strip()
+
+    errors = {}
+    if provider == AGENT_MODEL_PROVIDER_OPENAI and not openai_api_key:
+        errors["openai_api_key"] = "Enter an OpenAI API key or choose Claude as the provider."
+    if provider == AGENT_MODEL_PROVIDER_ANTHROPIC and not anthropic_api_key:
+        errors["anthropic_api_key"] = "Enter a Claude API key or choose OpenAI as the provider."
+
+    updates = {}
+    if openai_input:
+        updates["openai_api_key"] = openai_input
+    if anthropic_input:
+        updates["anthropic_api_key"] = anthropic_input
+
+    return {
+        "provider": provider,
+        "default_model": _agent_model_for_provider(provider),
+        "openai_api_key": openai_api_key,
+        "anthropic_api_key": anthropic_api_key,
+        "secret_string_data": _agent_secret_string_data(openai_api_key, anthropic_api_key),
+        "errors": errors,
+        "updates": updates,
+    }
 
 
 def _agent_shared_vfs_storage_root() -> Path:
@@ -2336,7 +2406,8 @@ def agent_manager(request):
         return redirect("identity:profile")
     namespace, namespace_forced = resolve_agent_namespace(request.user.username, request.user.id)
     agents = []
-    form = AgentLaunchForm()
+    default_model_provider = _default_agent_model_provider_for_user(request.user)
+    form = AgentLaunchForm(initial={"model_provider": default_model_provider})
     error_message = None
     agent_limit = _agent_limit_for_user(request.user)
     current_agent_count = AgentDeployment.objects.filter(user=request.user).count()
@@ -2355,14 +2426,17 @@ def agent_manager(request):
             return redirect("identity:billing")
         form = AgentLaunchForm(request.POST)
         if form.is_valid():
-            openai_key = form.cleaned_data["openai_api_key"].strip()
-            if not openai_key and request.user.openai_api_key:
-                openai_key = request.user.openai_api_key
-            if not openai_key:
-                form.add_error("openai_api_key", "Enter an OpenAI API key to launch an agent.")
-            else:
-                request.user.openai_api_key = openai_key
-                request.user.save(update_fields=["openai_api_key", "updated_at"])
+            resolved_credentials = _resolve_agent_launch_credentials(
+                request.user,
+                form.cleaned_data,
+            )
+            for field_name, field_error in resolved_credentials["errors"].items():
+                form.add_error(field_name, field_error)
+            if not form.errors:
+                if resolved_credentials["updates"]:
+                    for field_name, field_value in resolved_credentials["updates"].items():
+                        setattr(request.user, field_name, field_value)
+                    request.user.save(update_fields=[*resolved_credentials["updates"].keys(), "updated_at"])
                 try:
                     from kubernetes import client
                 except ImportError:
@@ -2392,7 +2466,7 @@ def agent_manager(request):
                         secret_body = client.V1Secret(
                             metadata=client.V1ObjectMeta(name=secret_name),
                             type="Opaque",
-                            string_data={"OPENAI_API_KEY": openai_key},
+                            string_data=resolved_credentials["secret_string_data"],
                         )
                         _upsert_namespaced_secret(
                             v1,
@@ -2431,10 +2505,7 @@ def agent_manager(request):
                                 ],
                             },
                             "agents": {
-                                "defaults": {
-                                    "model": {"primary": "openai/gpt-5.2"},
-                                    "models": {"openai/gpt-5.2": {}},
-                                }
+                                **_agent_models_config(resolved_credentials["provider"]),
                             },
                             "plugins": {
                                 "entries": {
@@ -2868,7 +2939,10 @@ def agent_manager(request):
                                         )
                                     ],
                                     env=[
-                                        client.V1EnvVar(name="DEFAULT_MODEL", value="openai/gpt-5.2"),
+                                        client.V1EnvVar(
+                                            name="DEFAULT_MODEL",
+                                            value=resolved_credentials["default_model"],
+                                        ),
                                         client.V1EnvVar(name="OPENCLAW_GATEWAY_BIND", value="lan"),
                                         client.V1EnvVar(
                                             name="OPENCLAW_GATEWAY_PORT",
@@ -2880,6 +2954,17 @@ def agent_manager(request):
                                                 secret_key_ref=client.V1SecretKeySelector(
                                                     name=secret_name,
                                                     key="OPENAI_API_KEY",
+                                                    optional=True,
+                                                ),
+                                            ),
+                                        ),
+                                        client.V1EnvVar(
+                                            name="ANTHROPIC_API_KEY",
+                                            value_from=client.V1EnvVarSource(
+                                                secret_key_ref=client.V1SecretKeySelector(
+                                                    name=secret_name,
+                                                    key="ANTHROPIC_API_KEY",
+                                                    optional=True,
                                                 ),
                                             ),
                                         ),
@@ -3078,6 +3163,8 @@ def agent_manager(request):
             "form": form,
             "namespace": namespace,
             "openai_key_saved": bool(request.user.openai_api_key),
+            "anthropic_key_saved": bool(request.user.anthropic_api_key),
+            "selected_model_provider": form["model_provider"].value() or default_model_provider,
             "error_message": error_message,
             "agent_limit": agent_limit,
             "current_agent_count": current_agent_count,

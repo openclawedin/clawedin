@@ -9,7 +9,16 @@ from content.models import Post
 from .auth import authenticate_bearer_token, check_token, mint_bearer_token
 from .kube import agent_user_bearer_secret_name_for_deployment, agent_web_auth_secret_name_for_deployment
 from .models import AgentDashboardTurn, AgentDeployment, ApiToken, User
-from .views import _delete_namespaced_secret_if_present, _maybe_queue_dashboard_bootstrap_turn, _upsert_namespaced_secret
+from .views import (
+    AGENT_DEFAULT_ANTHROPIC_MODEL,
+    AGENT_DEFAULT_OPENAI_MODEL,
+    _agent_models_config,
+    _agent_secret_string_data,
+    _delete_namespaced_secret_if_present,
+    _maybe_queue_dashboard_bootstrap_turn,
+    _resolve_agent_launch_credentials,
+    _upsert_namespaced_secret,
+)
 
 
 @override_settings(
@@ -171,6 +180,105 @@ class PublicProfileJsonTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertIsNone(payload["contact"]["email"])
+
+
+class AgentLaunchConfigTests(TestCase):
+    databases = "__all__"
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="agentuser",
+            email="agent@example.com",
+            password="safe-pass-123",
+        )
+
+    def test_resolve_openai_provider_uses_saved_key(self):
+        self.user.openai_api_key = "sk-openai-saved"
+        self.user.save(update_fields=["openai_api_key"])
+
+        resolved = _resolve_agent_launch_credentials(
+            self.user,
+            {
+                "model_provider": "openai",
+                "openai_api_key": "",
+                "anthropic_api_key": "",
+            },
+        )
+
+        self.assertEqual(resolved["provider"], "openai")
+        self.assertEqual(resolved["default_model"], AGENT_DEFAULT_OPENAI_MODEL)
+        self.assertEqual(resolved["openai_api_key"], "sk-openai-saved")
+        self.assertEqual(resolved["errors"], {})
+        self.assertEqual(
+            resolved["secret_string_data"],
+            {"OPENAI_API_KEY": "sk-openai-saved"},
+        )
+
+    def test_resolve_anthropic_provider_requires_claude_key(self):
+        resolved = _resolve_agent_launch_credentials(
+            self.user,
+            {
+                "model_provider": "anthropic",
+                "openai_api_key": "sk-openai-live",
+                "anthropic_api_key": "",
+            },
+        )
+
+        self.assertEqual(
+            resolved["errors"],
+            {"anthropic_api_key": "Enter a Claude API key or choose OpenAI as the provider."},
+        )
+
+    def test_resolve_anthropic_provider_uses_saved_or_submitted_key(self):
+        self.user.anthropic_api_key = "sk-ant-saved"
+        self.user.save(update_fields=["anthropic_api_key"])
+
+        resolved = _resolve_agent_launch_credentials(
+            self.user,
+            {
+                "model_provider": "anthropic",
+                "openai_api_key": "",
+                "anthropic_api_key": "",
+            },
+        )
+
+        self.assertEqual(resolved["provider"], "anthropic")
+        self.assertEqual(resolved["default_model"], AGENT_DEFAULT_ANTHROPIC_MODEL)
+        self.assertEqual(resolved["anthropic_api_key"], "sk-ant-saved")
+        self.assertEqual(
+            resolved["secret_string_data"],
+            {"ANTHROPIC_API_KEY": "sk-ant-saved"},
+        )
+
+    def test_secret_string_data_only_includes_present_keys(self):
+        self.assertEqual(_agent_secret_string_data("", ""), {})
+        self.assertEqual(
+            _agent_secret_string_data("sk-openai", "sk-ant"),
+            {
+                "OPENAI_API_KEY": "sk-openai",
+                "ANTHROPIC_API_KEY": "sk-ant",
+            },
+        )
+
+    def test_agent_models_config_tracks_selected_provider(self):
+        self.assertEqual(
+            _agent_models_config("openai"),
+            {
+                "defaults": {
+                    "model": {"primary": AGENT_DEFAULT_OPENAI_MODEL},
+                    "models": {AGENT_DEFAULT_OPENAI_MODEL: {}},
+                }
+            },
+        )
+        self.assertEqual(
+            _agent_models_config("anthropic"),
+            {
+                "defaults": {
+                    "model": {"primary": AGENT_DEFAULT_ANTHROPIC_MODEL},
+                    "models": {AGENT_DEFAULT_ANTHROPIC_MODEL: {}},
+                }
+            },
+        )
 
 
 @override_settings(

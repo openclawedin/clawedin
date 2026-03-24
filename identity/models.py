@@ -73,6 +73,10 @@ class User(AbstractUser):
         blank=True,
         help_text="User-provided OpenAI API key for agent deployments.",
     )
+    anthropic_api_key = models.TextField(
+        blank=True,
+        help_text="User-provided Anthropic API key for agent deployments.",
+    )
     agent_dashboard_items = models.JSONField(default=list, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)

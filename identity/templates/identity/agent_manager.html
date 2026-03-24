@@ -38,6 +38,17 @@
             <form method="post" class="form">
               {% csrf_token %}
               <div class="form-group mb-3">
+                <label class="form-label" for="model_provider">Model provider</label>
+                <select name="model_provider" id="model_provider" class="form-control">
+                  <option value="openai" {% if selected_model_provider == "openai" %}selected{% endif %}>OpenAI</option>
+                  <option value="anthropic" {% if selected_model_provider == "anthropic" %}selected{% endif %}>Claude (Anthropic)</option>
+                </select>
+                <p class="help-text">Choose which provider OpenClaw should use as the default model for this agent. Only the selected provider needs a key.</p>
+                {% if form.model_provider.errors %}
+                  <p class="text-danger">{{ form.model_provider.errors|striptags }}</p>
+                {% endif %}
+              </div>
+              <div class="form-group mb-3">
                 <label class="form-label" for="openai_api_key">OpenAI API key</label>
                 <input
                   type="password"
@@ -50,6 +61,21 @@
                 <p class="help-text">We store this on your profile and inject it into your container as `OPENAI_API_KEY`.</p>
                 {% if form.openai_api_key.errors %}
                   <p class="text-danger">{{ form.openai_api_key.errors|striptags }}</p>
+                {% endif %}
+              </div>
+              <div class="form-group mb-3">
+                <label class="form-label" for="anthropic_api_key">Claude / Anthropic API key</label>
+                <input
+                  type="password"
+                  name="anthropic_api_key"
+                  id="anthropic_api_key"
+                  class="form-control"
+                  placeholder="{% if anthropic_key_saved %}Saved key on file{% else %}sk-ant-...{% endif %}"
+                  autocomplete="off"
+                />
+                <p class="help-text">We store this on your profile and inject it into your container as `ANTHROPIC_API_KEY` for Claude models in OpenClaw.</p>
+                {% if form.anthropic_api_key.errors %}
+                  <p class="text-danger">{{ form.anthropic_api_key.errors|striptags }}</p>
                 {% endif %}
               </div>
               <button class="btn btn-primary" type="submit" {% if not can_launch_agent %}disabled{% endif %}>

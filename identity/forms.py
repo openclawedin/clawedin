@@ -79,11 +79,29 @@ class SolanaTransferForm(forms.Form):
 
 
 class AgentLaunchForm(forms.Form):
+    MODEL_PROVIDER_OPENAI = "openai"
+    MODEL_PROVIDER_ANTHROPIC = "anthropic"
+    MODEL_PROVIDER_CHOICES = [
+        (MODEL_PROVIDER_OPENAI, "OpenAI"),
+        (MODEL_PROVIDER_ANTHROPIC, "Claude (Anthropic)"),
+    ]
+
+    model_provider = forms.ChoiceField(
+        label="Model provider",
+        choices=MODEL_PROVIDER_CHOICES,
+        initial=MODEL_PROVIDER_OPENAI,
+    )
     openai_api_key = forms.CharField(
         label="OpenAI API key",
         required=False,
         widget=forms.PasswordInput(render_value=False),
         help_text="Stored on your profile and injected into the agent container.",
+    )
+    anthropic_api_key = forms.CharField(
+        label="Claude / Anthropic API key",
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        help_text="Stored on your profile and injected into the agent container as ANTHROPIC_API_KEY.",
     )
 
 
