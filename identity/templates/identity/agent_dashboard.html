@@ -259,6 +259,8 @@
       const RUNTIME_INTERVAL_MS = 12000;
       const SCROLL_LOCK_THRESHOLD_PX = 48;
       let shouldStickToBottom = true;
+      let pendingUpdatePayload = null;
+      let isPointerDownInStream = false;
 
       function isNearBottom() {
         return stream.scrollHeight - stream.scrollTop - stream.clientHeight <= SCROLL_LOCK_THRESHOLD_PX;
@@ -308,6 +310,29 @@
         return wrapper;
       }
 
+      function attachmentSignature(attachments) {
+        if (!attachments || attachments.length === 0) {
+          return "";
+        }
+        return attachments
+          .map((attachment) => `${attachment.id || ""}:${attachment.name || ""}:${attachment.agentPath || ""}`)
+          .join("|");
+      }
+
+      function hasActiveSelectionWithin(container) {
+        const selection = window.getSelection ? window.getSelection() : null;
+        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+          return false;
+        }
+
+        const range = selection.getRangeAt(0);
+        return container.contains(range.commonAncestorContainer);
+      }
+
+      function shouldDeferStreamUpdates() {
+        return isPointerDownInStream || hasActiveSelectionWithin(stream);
+      }
+
       function ensureTurnNode(turn) {
         let nodes = turnNodes.get(turn.id);
         if (nodes) {
@@ -344,7 +369,15 @@
         replyArticle.appendChild(replyBubble);
         stream.appendChild(replyArticle);
 
-        nodes = { promptMeta, promptBubble, replyMeta, replyBubble, promptArticle };
+        nodes = {
+          promptMeta,
+          promptBubble,
+          replyMeta,
+          replyBubble,
+          promptArticle,
+          attachmentSummary: null,
+          attachmentSignature: "",
+        };
         turnNodes.set(turn.id, nodes);
         return nodes;
       }
@@ -366,14 +399,51 @@
           replyText = replyText || "The gateway accepted the turn, but no text reply was returned.";
         }
 
-        nodes.replyMeta.textContent = replyMeta;
-        nodes.replyBubble.textContent = replyText;
-        nodes.promptArticle.querySelectorAll(".agent-attachment-list--inline").forEach((node) => node.remove());
-        const attachmentSummary = renderAttachmentSummary(turn.attachments || []);
-        if (attachmentSummary) {
-          nodes.promptArticle.appendChild(attachmentSummary);
+        const promptMeta = `You${turn.createdAt ? ` · ${turn.createdAt}` : ""}`;
+        if (nodes.promptMeta.textContent !== promptMeta) {
+          nodes.promptMeta.textContent = promptMeta;
+        }
+        if (nodes.promptBubble.textContent !== (turn.promptText || "")) {
+          nodes.promptBubble.textContent = turn.promptText || "";
+        }
+        if (nodes.replyMeta.textContent !== replyMeta) {
+          nodes.replyMeta.textContent = replyMeta;
+        }
+        if (nodes.replyBubble.textContent !== replyText) {
+          nodes.replyBubble.textContent = replyText;
+        }
+
+        const nextAttachmentSignature = attachmentSignature(turn.attachments || []);
+        if (nodes.attachmentSignature !== nextAttachmentSignature) {
+          if (nodes.attachmentSummary) {
+            nodes.attachmentSummary.remove();
+            nodes.attachmentSummary = null;
+          }
+          if (nextAttachmentSignature) {
+            nodes.attachmentSummary = renderAttachmentSummary(turn.attachments || []);
+            nodes.promptArticle.appendChild(nodes.attachmentSummary);
+          }
+          nodes.attachmentSignature = nextAttachmentSignature;
         }
         scrollStream(forceScroll);
+      }
+
+      function applyUpdatesPayload(payload) {
+        (payload.turns || []).forEach(renderTurn);
+        updateMetrics(payload.metrics || []);
+        updateDashboardCards(payload.dashboardCards || []);
+        pendingAttachments = payload.pendingAttachments || [];
+        renderPendingAttachments();
+        syncPolling(payload.turns || []);
+      }
+
+      function flushPendingUpdates() {
+        if (!pendingUpdatePayload || shouldDeferStreamUpdates()) {
+          return;
+        }
+        const payload = pendingUpdatePayload;
+        pendingUpdatePayload = null;
+        applyUpdatesPayload(payload);
       }
 
       function renderPendingAttachments() {
@@ -605,12 +675,11 @@
           if (!payload.ok) {
             return;
           }
-          (payload.turns || []).forEach(renderTurn);
-          updateMetrics(payload.metrics || []);
-          updateDashboardCards(payload.dashboardCards || []);
-          pendingAttachments = payload.pendingAttachments || [];
-          renderPendingAttachments();
-          syncPolling(payload.turns || []);
+          if (shouldDeferStreamUpdates()) {
+            pendingUpdatePayload = payload;
+            return;
+          }
+          applyUpdatesPayload(payload);
           if (!preserveAutoScroll) {
             shouldStickToBottom = false;
             stream.scrollTop = preserveScrollTop;
@@ -631,6 +700,21 @@
 
       stream.addEventListener("scroll", () => {
         shouldStickToBottom = isNearBottom();
+      });
+
+      stream.addEventListener("mousedown", () => {
+        isPointerDownInStream = true;
+      });
+
+      document.addEventListener("mouseup", () => {
+        isPointerDownInStream = false;
+        flushPendingUpdates();
+      });
+
+      document.addEventListener("selectionchange", () => {
+        if (!shouldDeferStreamUpdates()) {
+          flushPendingUpdates();
+        }
       });
 
       attachButton.addEventListener("click", () => {
