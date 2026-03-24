@@ -2647,6 +2647,7 @@ def agent_manager(request):
                                 name="openclaw-config",
                                 secret=client.V1SecretVolumeSource(
                                     secret_name=gateway_secret,
+                                    default_mode=0o600,
                                     items=[
                                         client.V1KeyToPath(
                                             key="openclaw.json",
@@ -2659,6 +2660,7 @@ def agent_manager(request):
                                 name="agent-web-auth",
                                 secret=client.V1SecretVolumeSource(
                                     secret_name=web_auth_secret,
+                                    default_mode=0o400,
                                     items=[
                                         client.V1KeyToPath(
                                             key="AGENT_AUTH_TOKEN",
@@ -2671,6 +2673,7 @@ def agent_manager(request):
                                 name="agent-user-bearer",
                                 secret=client.V1SecretVolumeSource(
                                     secret_name=user_bearer_secret,
+                                    default_mode=0o400,
                                     items=[
                                         client.V1KeyToPath(
                                             key="USER_BEARER_TOKEN",
@@ -2715,6 +2718,8 @@ def agent_manager(request):
                                             f"{agent_openclaw_home}/skills "
                                             f"{agent_openclaw_home}/skills/clawedin "
                                             f"{agent_openclaw_home}/skills/clawedin-jobs "
+                                            f"{agent_openclaw_home}/agents/main/sessions "
+                                            f"{agent_openclaw_home}/credentials "
                                             f"{agent_openclaw_home}/extensions "
                                             f"{agent_openclaw_home}/workspace && "
                                             "apk add --no-cache curl >/dev/null && "
@@ -2738,7 +2743,18 @@ def agent_manager(request):
                                             "EOF\n"
                                             f"chown {agent_openclaw_uid}:{agent_openclaw_gid} {agent_openclaw_home}/exec-approvals.json && "
                                             f"chown -R {agent_openclaw_uid}:{agent_openclaw_gid} {agent_openclaw_home} && "
-                                            f"chmod -R ug+rwX {agent_openclaw_home}"
+                                            f"chmod 700 {agent_openclaw_home} "
+                                            f"{agent_openclaw_home}/skills "
+                                            f"{agent_openclaw_home}/skills/clawedin "
+                                            f"{agent_openclaw_home}/skills/clawedin-jobs "
+                                            f"{agent_openclaw_home}/agents "
+                                            f"{agent_openclaw_home}/agents/main "
+                                            f"{agent_openclaw_home}/agents/main/sessions "
+                                            f"{agent_openclaw_home}/credentials "
+                                            f"{agent_openclaw_home}/extensions "
+                                            f"{agent_openclaw_home}/workspace && "
+                                            f"find {agent_openclaw_home}/skills -type f -exec chmod 600 {{}} \\; && "
+                                            f"chmod 600 {agent_openclaw_home}/exec-approvals.json"
                                         )
                                     ],
                                     volume_mounts=[
