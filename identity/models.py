@@ -117,6 +117,7 @@ class AgentDeployment(models.Model):
     secret_name = models.CharField(max_length=120)
     web_auth_token = models.TextField(blank=True)
     web_auth_secret_name = models.CharField(max_length=120, blank=True)
+    dashboard_bootstrap_sent_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

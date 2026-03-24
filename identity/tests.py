@@ -7,9 +7,9 @@ from django.urls import reverse
 from companies.models import Company
 from content.models import Post
 from .auth import authenticate_bearer_token, check_token, mint_bearer_token
-from .kube import agent_web_auth_secret_name_for_deployment
-from .models import ApiToken, User
-from .views import _delete_namespaced_secret_if_present, _upsert_namespaced_secret
+from .kube import agent_user_bearer_secret_name_for_deployment, agent_web_auth_secret_name_for_deployment
+from .models import AgentDashboardTurn, AgentDeployment, ApiToken, User
+from .views import _delete_namespaced_secret_if_present, _maybe_queue_dashboard_bootstrap_turn, _upsert_namespaced_secret
 
 
 @override_settings(
@@ -382,6 +382,84 @@ class AgentDashboardConfigTests(TestCase):
         _delete_namespaced_secret_if_present(v1, "agents", "web-auth")
 
         v1.delete_namespaced_secret.assert_called_once_with("web-auth", "agents")
+
+
+class AgentDashboardBootstrapTests(TestCase):
+    databases = "__all__"
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="dashboard-bootstrap-user",
+            email="bootstrap@example.com",
+            password="safe-pass-123",
+            account_type=User.HUMAN,
+            display_name="Bootstrap User",
+        )
+        self.deployment = AgentDeployment.objects.create(
+            user=self.user,
+            deployment_name="openclaw-agent-57-c91e2cc6",
+            namespace="clawedin",
+            pod_name="openclaw-agent-57-c91e2cc6-77fb9bdddc-68vmk",
+            gateway_token="gateway-token",
+            secret_name="agent-gateway-secret",
+            web_auth_token="web-auth-token",
+            web_auth_secret_name="agent-web-auth-openclaw-agent-57-c91e2cc6",
+        )
+
+    @patch("identity.views.threading.Thread")
+    def test_bootstrap_turn_is_queued_once_after_gateway_is_online(self, mock_thread):
+        mock_thread.return_value = Mock(start=Mock())
+
+        created = _maybe_queue_dashboard_bootstrap_turn(
+            self.user,
+            self.deployment,
+            self.deployment.pod_name,
+            self.deployment.namespace,
+            {"ok": True},
+        )
+
+        self.assertTrue(created)
+        self.assertEqual(AgentDashboardTurn.objects.count(), 1)
+        turn = AgentDashboardTurn.objects.get()
+        self.assertEqual(turn.status, AgentDashboardTurn.STATUS_QUEUED)
+        self.assertIn("CLAWEDIN_USER_BEARER_TOKEN", turn.prompt_text)
+        self.assertIn("CLAWEDIN_USER_BEARER_TOKEN_FILE", turn.prompt_text)
+        self.assertIn("/var/run/secrets/clawedin-user-bearer/token", turn.prompt_text)
+        self.assertIn(
+            agent_user_bearer_secret_name_for_deployment(self.deployment.deployment_name, self.user.id),
+            turn.prompt_text,
+        )
+        self.deployment.refresh_from_db()
+        self.assertIsNotNone(self.deployment.dashboard_bootstrap_sent_at)
+        mock_thread.assert_called_once()
+        mock_thread.return_value.start.assert_called_once()
+
+        created_again = _maybe_queue_dashboard_bootstrap_turn(
+            self.user,
+            self.deployment,
+            self.deployment.pod_name,
+            self.deployment.namespace,
+            {"ok": True},
+        )
+
+        self.assertFalse(created_again)
+        self.assertEqual(AgentDashboardTurn.objects.count(), 1)
+
+    @patch("identity.views.threading.Thread")
+    def test_bootstrap_waits_until_gateway_is_online(self, mock_thread):
+        created = _maybe_queue_dashboard_bootstrap_turn(
+            self.user,
+            self.deployment,
+            self.deployment.pod_name,
+            self.deployment.namespace,
+            {"ok": False},
+        )
+
+        self.assertFalse(created)
+        self.assertEqual(AgentDashboardTurn.objects.count(), 0)
+        self.deployment.refresh_from_db()
+        self.assertIsNone(self.deployment.dashboard_bootstrap_sent_at)
+        mock_thread.assert_not_called()
 
 
 @override_settings(DEBUG=False, ROOT_URLCONF="clawedin.test_error_urls")

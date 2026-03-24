@@ -26,7 +26,7 @@ from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.http import HttpResponse, StreamingHttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.db import close_old_connections
+from django.db import close_old_connections, transaction
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django.utils.text import get_valid_filename
@@ -1394,6 +1394,72 @@ def _agent_dashboard_runtime_snapshot(request, pod_name: str, namespace: str, de
         "gateway_health": gateway_health,
         "runtime_error": runtime_error,
     }
+
+
+def _dashboard_bootstrap_prompt(user, deployment_name: str, bearer_secret_name: str) -> str:
+    display_name = user.display_name or user.username
+    return (
+        f"Clawedin bootstrap for user {display_name}.\n\n"
+        "A Clawedin user bearer token is available inside this container for authenticated Clawedin requests. "
+        "Use it to pull the signed-in user's profile so you can identify the user before taking personalized actions.\n\n"
+        f"Bearer token secret name: {bearer_secret_name or 'agent-user-bearer'}\n"
+        "Env var: CLAWEDIN_USER_BEARER_TOKEN\n"
+        "File var: CLAWEDIN_USER_BEARER_TOKEN_FILE\n"
+        "File: /var/run/secrets/clawedin-user-bearer/token\n\n"
+        "Use this token only for Clawedin-authenticated user/profile requests. "
+        "Start by fetching the user's Clawedin profile to identify who they are."
+    )
+
+
+def _maybe_queue_dashboard_bootstrap_turn(user, deployment_record, pod_name: str, namespace: str, gateway_health: dict) -> bool:
+    if not deployment_record or not getattr(deployment_record, "web_auth_token", ""):
+        return False
+    if not gateway_health.get("ok"):
+        return False
+
+    with transaction.atomic():
+        deployment = AgentDeployment.objects.select_for_update().filter(pk=deployment_record.pk).first()
+        if not deployment or deployment.dashboard_bootstrap_sent_at:
+            return False
+
+        sender_name = "Clawedin bootstrap"
+        bearer_secret_name = agent_user_bearer_secret_name_for_deployment(
+            deployment.deployment_name,
+            user.id,
+        )
+        conversation_id = _dashboard_conversation_id(user, deployment.deployment_name, pod_name)
+        prompt = _dashboard_bootstrap_prompt(user, deployment.deployment_name, bearer_secret_name)
+        turn = AgentDashboardTurn.objects.create(
+            user=user,
+            deployment=deployment,
+            pod_name=pod_name,
+            namespace=namespace,
+            conversation_id=conversation_id,
+            prompt_text=prompt,
+            prompt_author=sender_name,
+            status=AgentDashboardTurn.STATUS_QUEUED,
+            status_detail="Queued initial Clawedin bootstrap prompt.",
+        )
+        deployment.dashboard_bootstrap_sent_at = timezone.now()
+        deployment.save(update_fields=["dashboard_bootstrap_sent_at", "updated_at"])
+
+    worker = threading.Thread(
+        target=_run_agent_dashboard_turn,
+        kwargs={
+            "turn_id": turn.id,
+            "user_id": user.id,
+            "username": user.username,
+            "pod_name": pod_name,
+            "namespace": namespace,
+            "deployment_record_id": deployment.id,
+            "conversation_id": conversation_id,
+            "prompt": prompt,
+            "sender_name": sender_name,
+        },
+        daemon=True,
+    )
+    worker.start()
+    return True
 
 
 def _serialize_dashboard_turn(turn: AgentDashboardTurn) -> dict:
@@ -3833,6 +3899,13 @@ def agent_dashboard_runtime(request, pod_name: str):
         )
 
     snapshot = _agent_dashboard_runtime_snapshot(request, resolved_pod_name, namespace, deployment_record)
+    _maybe_queue_dashboard_bootstrap_turn(
+        request.user,
+        deployment_record,
+        resolved_pod_name,
+        namespace,
+        snapshot["gateway_health"],
+    )
     status_window_end = timezone.localdate()
     status_window_start = status_window_end - timedelta(days=6)
     metrics, _, _, _, _ = _agent_dashboard_metrics(
