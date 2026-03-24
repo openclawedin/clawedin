@@ -97,10 +97,17 @@
         </div>
         <div class="profile-details">
           <div class="card">
-            <h4>Mounted secret</h4>
+            <h4>Agent auth token</h4>
             <p>Name: <code>{{ deployment_record.web_auth_secret_name|default:"Unknown" }}</code></p>
             <p>Env var: <code>CLAWEDIN_AGENT_AUTH_TOKEN</code></p>
             <p>File: <code>/var/run/secrets/clawedin-agent-auth/token</code></p>
+          </div>
+          <div class="card">
+            <h4>User bearer token</h4>
+            <p>Name: <code>{{ user_bearer_secret_name|default:"Unknown" }}</code></p>
+            <p>Env var: <code>CLAWEDIN_USER_BEARER_TOKEN</code></p>
+            <p>File var: <code>CLAWEDIN_USER_BEARER_TOKEN_FILE</code></p>
+            <p>File: <code>/var/run/secrets/clawedin-user-bearer/token</code></p>
           </div>
         </div>
       </div>

@@ -3365,6 +3365,12 @@ def agent_detail(request, pod_name: str):
         deployment_name=deployment_name,
         namespace=namespace,
     ).first()
+    user_bearer_secret_name = ""
+    if deployment_name:
+        user_bearer_secret_name = agent_user_bearer_secret_name_for_deployment(
+            deployment_name,
+            request.user.id,
+        )
 
     return render(
         request,
@@ -3377,6 +3383,7 @@ def agent_detail(request, pod_name: str):
             "logs": logs,
             "tail_lines": tail_lines_int,
             "error_message": error_message,
+            "user_bearer_secret_name": user_bearer_secret_name,
         },
     )
 
