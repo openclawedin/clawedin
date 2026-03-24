@@ -309,6 +309,14 @@ AGENT_OPENCLAW_PVC_MODE = os.environ.get("AGENT_OPENCLAW_PVC_MODE", "per_agent")
 AGENT_OPENCLAW_PVC_STORAGE_CLASS = os.environ.get("AGENT_OPENCLAW_PVC_STORAGE_CLASS", "local-path").strip()
 AGENT_OPENCLAW_PVC_SIZE = os.environ.get("AGENT_OPENCLAW_PVC_SIZE", "5Gi").strip()
 AGENT_OPENCLAW_PVC_ACCESS_MODE = os.environ.get("AGENT_OPENCLAW_PVC_ACCESS_MODE", "ReadWriteOnce").strip()
+AGENT_CPU_REQUEST = os.environ.get("AGENT_CPU_REQUEST", "250m").strip()
+AGENT_MEMORY_REQUEST = os.environ.get("AGENT_MEMORY_REQUEST", "512Mi").strip()
+AGENT_CPU_LIMIT = os.environ.get("AGENT_CPU_LIMIT", "1").strip()
+AGENT_MEMORY_LIMIT = os.environ.get("AGENT_MEMORY_LIMIT", "1Gi").strip()
+AGENT_GUI_PROXY_CPU_REQUEST = os.environ.get("AGENT_GUI_PROXY_CPU_REQUEST", "25m").strip()
+AGENT_GUI_PROXY_MEMORY_REQUEST = os.environ.get("AGENT_GUI_PROXY_MEMORY_REQUEST", "64Mi").strip()
+AGENT_GUI_PROXY_CPU_LIMIT = os.environ.get("AGENT_GUI_PROXY_CPU_LIMIT", "100m").strip()
+AGENT_GUI_PROXY_MEMORY_LIMIT = os.environ.get("AGENT_GUI_PROXY_MEMORY_LIMIT", "128Mi").strip()
 AGENT_INTERNAL_HOST_ALIAS_ENABLED = os.environ.get("AGENT_INTERNAL_HOST_ALIAS_ENABLED", "true").strip().lower() == "true"
 AGENT_INTERNAL_HOST = os.environ.get(
     "AGENT_INTERNAL_HOST",

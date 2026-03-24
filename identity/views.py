@@ -2865,6 +2865,16 @@ def agent_manager(request):
                                             value=request.user.username,
                                         ),
                                     ],
+                                    resources=client.V1ResourceRequirements(
+                                        requests={
+                                            "cpu": getattr(settings, "AGENT_CPU_REQUEST", "250m"),
+                                            "memory": getattr(settings, "AGENT_MEMORY_REQUEST", "512Mi"),
+                                        },
+                                        limits={
+                                            "cpu": getattr(settings, "AGENT_CPU_LIMIT", "1"),
+                                            "memory": getattr(settings, "AGENT_MEMORY_LIMIT", "1Gi"),
+                                        },
+                                    ),
                                     volume_mounts=agent_volume_mounts,
                                 ),
                                 client.V1Container(
@@ -2881,6 +2891,16 @@ def agent_manager(request):
                                             name="gui-proxy",
                                         )
                                     ],
+                                    resources=client.V1ResourceRequirements(
+                                        requests={
+                                            "cpu": getattr(settings, "AGENT_GUI_PROXY_CPU_REQUEST", "25m"),
+                                            "memory": getattr(settings, "AGENT_GUI_PROXY_MEMORY_REQUEST", "64Mi"),
+                                        },
+                                        limits={
+                                            "cpu": getattr(settings, "AGENT_GUI_PROXY_CPU_LIMIT", "100m"),
+                                            "memory": getattr(settings, "AGENT_GUI_PROXY_MEMORY_LIMIT", "128Mi"),
+                                        },
+                                    ),
                                 ),
                             ],
                             image_pull_secrets=[
