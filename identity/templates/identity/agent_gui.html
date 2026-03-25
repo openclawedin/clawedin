@@ -27,14 +27,11 @@
         </div>
         <div class="card">
           {% if gui_path %}
-            <p class="muted" id="agent-gui-status" data-status-url="{{ status_url }}" data-open-url="{{ open_url }}">Preparing secure Web GUI access...</p>
+            <p class="muted" id="agent-gui-status" data-status-url="{{ status_url }}" data-gui-path="{{ gui_path }}">Preparing secure Web GUI access...</p>
             <p class="help-text">Destination: <code>{{ gui_path }}</code></p>
             <div class="nav-actions mt-3">
-              <form action="{% url 'identity:agent_gui' pod.metadata.name %}" method="get">
-                <input type="hidden" name="open" value="1">
-                <button class="btn btn-primary" id="agent-gui-retry" type="submit" disabled>Waiting for secure access...</button>
-              </form>
-              <a class="btn" id="agent-gui-manual" href="{{ open_url }}" aria-disabled="true" tabindex="-1">Open web GUI</a>
+              <a class="btn btn-primary" id="agent-gui-retry" href="{{ gui_path }}" aria-disabled="true" tabindex="-1">Waiting for secure access...</a>
+              <a class="btn" id="agent-gui-manual" href="{{ gui_path }}" aria-disabled="true" tabindex="-1">Open web GUI</a>
             </div>
           {% else %}
             <p class="muted">GUI is not available yet. Please try again in a few seconds.</p>
@@ -52,7 +49,7 @@
         if (!statusEl || !retryButton || !manualLink) return;
 
         const statusUrl = statusEl.dataset.statusUrl;
-        const openUrl = statusEl.dataset.openUrl;
+        const initialGuiPath = statusEl.dataset.guiPath;
         let pollTimer = null;
         let requestInFlight = false;
         let hasRedirected = false;
@@ -79,14 +76,16 @@
         };
 
         const redirectToGui = (guiPath) => {
-          if (!guiPath || !openUrl || hasRedirected) return;
+          if (!guiPath || hasRedirected) return;
           hasRedirected = true;
           guiReady = true;
-          manualLink.href = openUrl;
+          retryButton.href = guiPath;
+          manualLink.href = guiPath;
           manualLink.removeAttribute("aria-disabled");
           manualLink.removeAttribute("tabindex");
+          retryButton.removeAttribute("aria-disabled");
+          retryButton.removeAttribute("tabindex");
           retryButton.textContent = "Open web GUI";
-          retryButton.disabled = false;
           statusEl.textContent = "Web GUI is ready. Redirecting...";
 
           window.setTimeout(() => {
@@ -96,10 +95,10 @@
           }, 1500);
 
           try {
-            window.location.assign(openUrl);
+            window.location.assign(guiPath);
           } catch (error) {
             try {
-              window.location.href = openUrl;
+              window.location.href = guiPath;
             } catch (innerError) {
               manualLink.focus();
             }
@@ -127,28 +126,31 @@
               statusEl.textContent = "Container is ready. Waiting for browser-trusted HTTPS access...";
               guiReady = false;
               retryButton.textContent = "Waiting for secure access...";
-              retryButton.disabled = true;
+              retryButton.href = initialGuiPath || "#";
+              retryButton.setAttribute("aria-disabled", "true");
+              retryButton.setAttribute("tabindex", "-1");
               manualLink.setAttribute("aria-disabled", "true");
               manualLink.setAttribute("tabindex", "-1");
               return;
             }
             guiReady = false;
             retryButton.textContent = "Waiting for secure access...";
-            retryButton.disabled = true;
+            retryButton.href = initialGuiPath || "#";
+            retryButton.setAttribute("aria-disabled", "true");
+            retryButton.setAttribute("tabindex", "-1");
             manualLink.setAttribute("aria-disabled", "true");
             manualLink.setAttribute("tabindex", "-1");
           } catch (error) {
             statusEl.textContent = "Preparing secure Web GUI access...";
             guiReady = false;
             retryButton.textContent = "Waiting for secure access...";
-            retryButton.disabled = true;
+            retryButton.href = initialGuiPath || "#";
+            retryButton.setAttribute("aria-disabled", "true");
+            retryButton.setAttribute("tabindex", "-1");
             manualLink.setAttribute("aria-disabled", "true");
             manualLink.setAttribute("tabindex", "-1");
           } finally {
             requestInFlight = false;
-            if (guiReady) {
-              retryButton.disabled = false;
-            }
           }
           schedulePoll(2000);
         };
