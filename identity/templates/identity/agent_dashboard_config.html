@@ -1,6 +1,55 @@
 {% extends "identity/base.html" %}
 {% block title %}Dashboard Widgets · Clawedin{% endblock %}
 {% block content %}
+  <style>
+    .agent-metric-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .agent-metric-help {
+      position: relative;
+      flex: 0 0 auto;
+    }
+    .agent-metric-help summary {
+      list-style: none;
+      width: 1.4rem;
+      height: 1.4rem;
+      border-radius: 999px;
+      border: 1px solid rgba(132, 146, 166, 0.35);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #9fb3ff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      user-select: none;
+    }
+    .agent-metric-help summary::-webkit-details-marker {
+      display: none;
+    }
+    .agent-metric-help[open] summary {
+      background: rgba(80, 122, 255, 0.12);
+      border-color: rgba(80, 122, 255, 0.45);
+    }
+    .agent-metric-help-popup {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 0.5rem);
+      width: min(18rem, 55vw);
+      padding: 0.7rem 0.85rem;
+      border-radius: 0.85rem;
+      border: 1px solid rgba(132, 146, 166, 0.25);
+      background: rgba(10, 14, 28, 0.96);
+      color: rgba(235, 240, 255, 0.92);
+      font-size: 0.84rem;
+      line-height: 1.45;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+      z-index: 5;
+    }
+  </style>
   <section class="section agent-workspace">
     <div class="agent-config-page">
       <div class="card agent-config-page-card">
@@ -60,7 +109,15 @@
         <div class="agent-metric-grid agent-metric-grid--traffic">
           {% for card in dashboard_cards %}
             <article class="agent-metric-card">
-              <p class="agent-metric-label">{{ card.label }}</p>
+              <div class="agent-metric-head">
+                <p class="agent-metric-label">{{ card.label }}</p>
+                {% if card.description %}
+                  <details class="agent-metric-help">
+                    <summary aria-label="More info about {{ card.label }}">i</summary>
+                    <div class="agent-metric-help-popup">{{ card.description }}</div>
+                  </details>
+                {% endif %}
+              </div>
               <strong class="agent-metric-value">{{ card.value }}</strong>
               <p class="agent-metric-delta">{{ card.delta }}</p>
             </article>

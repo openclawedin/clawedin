@@ -131,68 +131,68 @@ MAX_AGENT_DASHBOARD_ITEMS = 6
 AGENT_DASHBOARD_ITEM_OPTIONS = [
     {
         "key": "top_route_1",
-        "label": "Top route #1",
-        "description": "Highest-traffic API route in the current window.",
+        "label": "Busiest API route",
+        "description": "The documented API route with the highest call volume in the current reporting window.",
     },
     {
         "key": "top_route_2",
-        "label": "Top route #2",
-        "description": "Second highest-traffic API route in the current window.",
+        "label": "2nd busiest API route",
+        "description": "The documented API route with the second-highest call volume in the current reporting window.",
     },
     {
         "key": "top_route_3",
-        "label": "Top route #3",
-        "description": "Third highest-traffic API route in the current window.",
+        "label": "3rd busiest API route",
+        "description": "The documented API route with the third-highest call volume in the current reporting window.",
     },
     {
         "key": "top_route_4",
-        "label": "Top route #4",
-        "description": "Fourth highest-traffic API route in the current window.",
+        "label": "4th busiest API route",
+        "description": "The documented API route with the fourth-highest call volume in the current reporting window.",
     },
     {
         "key": "tracked_api_calls",
-        "label": "Tracked API calls",
-        "description": "All SKILL.md route calls in the current window.",
+        "label": "Total API requests",
+        "description": "Every request recorded against documented agent-facing API routes in the current reporting window.",
     },
     {
         "key": "successful_api_calls",
-        "label": "Successful API calls",
-        "description": "2xx and 3xx responses across tracked API routes.",
+        "label": "Successful API requests",
+        "description": "Tracked API requests that finished with a successful HTTP status code.",
     },
     {
         "key": "failed_api_calls",
-        "label": "Failed API calls",
-        "description": "4xx and 5xx responses across tracked API routes.",
+        "label": "Failed API requests",
+        "description": "Tracked API requests that returned an HTTP error status code.",
     },
     {
         "key": "get_calls",
-        "label": "GET calls",
-        "description": "Tracked GET traffic in the current window.",
+        "label": "GET requests",
+        "description": "Read-only API requests recorded in the current reporting window.",
     },
     {
         "key": "post_calls",
-        "label": "POST calls",
-        "description": "Tracked POST traffic in the current window.",
+        "label": "POST requests",
+        "description": "Write or action API requests recorded in the current reporting window.",
     },
     {
         "key": "tracked_endpoints",
-        "label": "Tracked endpoints",
-        "description": "Distinct path and method combinations seen in the current window.",
+        "label": "Active API routes",
+        "description": "The number of unique method-and-path combinations that received traffic in the current reporting window.",
     },
     {
         "key": "prompt_turns",
-        "label": "Prompt turns",
-        "description": "Dashboard prompt requests sent to the agent gateway.",
+        "label": "Prompts sent",
+        "description": "Messages submitted from this dashboard to the live agent gateway.",
     },
     {
         "key": "agent_replies",
-        "label": "Agent replies",
-        "description": "Successful replies returned by the dashboard gateway.",
+        "label": "Replies received",
+        "description": "Successful responses returned from the live agent gateway to this dashboard.",
     },
     {
         "key": "linked_channels",
-        "label": "Linked channels",
-        "description": "Current configured OpenClaw channels discovered from the runtime.",
+        "label": "Connected channels",
+        "description": "The number of OpenClaw channels currently configured in the running agent.",
     },
 ]
 
@@ -335,6 +335,21 @@ def _dashboard_card(label, value, delta, description, key):
         "delta": delta,
         "description": description,
     }
+
+
+def _dashboard_top_route_copy(rank: int, route: dict | None = None) -> tuple[str, str]:
+    labels = {
+        1: "Busiest API route",
+        2: "2nd busiest API route",
+        3: "3rd busiest API route",
+        4: "4th busiest API route",
+    }
+    label = labels.get(rank, f"Top API route #{rank}")
+    if not route:
+        return label, "No tracked API traffic has been recorded for this slot yet."
+    method = (route.get("method") or "HTTP").upper()
+    path = route.get("normalized_path") or "/"
+    return label, f"Currently {method} {path}. This route is ranked #{rank} by request volume."
 
 
 def _build_agent_navigation(active_key: str, pod_name: str = ""):
@@ -1270,38 +1285,38 @@ def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_win
     metrics = [
         {
             "key": "prompt_turns",
-            "label": "Prompt turns",
+            "label": "Prompts sent",
             "value": str(prompt_turns_total),
             "delta": "Past 7 days",
-            "description": "Prompt requests sent from this dashboard into the agent gateway.",
+            "description": "Messages sent from this dashboard into the live agent gateway during the last 7 days.",
         },
         {
             "key": "agent_replies",
-            "label": "Agent replies",
+            "label": "Replies received",
             "value": str(prompt_replies_total),
-            "delta": f"{prompt_success_rate}% success rate",
-            "description": "Successful responses returned by the Clawedin channel gateway.",
+            "delta": f"{prompt_success_rate}% reply rate",
+            "description": "Successful replies returned by the live agent gateway during the last 7 days.",
         },
         {
             "key": "linked_channels",
-            "label": "Linked channels",
+            "label": "Connected channels",
             "value": str(len(channel_rows)),
             "delta": "Live runtime count",
-            "description": "Configured OpenClaw channels discovered from `channels list`.",
+            "description": "OpenClaw channels currently configured in the running agent.",
         },
         {
             "key": "tracked_api_calls",
-            "label": "Tracked API calls",
+            "label": "Total API requests",
             "value": str(skill_totals["skill_calls"] or 0),
             "delta": "Past 7 days",
-            "description": "Requests made to routes documented for agents in `static/skill.md`.",
+            "description": "Requests made to documented agent-facing API routes during the last 7 days.",
         },
         {
             "key": "skill_failures",
-            "label": "SKILL.md failures",
+            "label": "API errors",
             "value": str(skill_totals["skill_failures"] or 0),
             "delta": "HTTP 4xx/5xx",
-            "description": "Recorded failed requests against the documented agent-facing routes.",
+            "description": "Tracked API requests that returned an HTTP error during the last 7 days.",
         },
     ]
     top_skill_routes = list(
@@ -1312,66 +1327,66 @@ def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_win
     )
     metric_lookup = {
         "tracked_api_calls": _dashboard_card(
-            "Tracked API calls",
+            "Total API requests",
             skill_totals["skill_calls"] or 0,
             "Current window",
-            "All SKILL.md route calls in the current window.",
+            "All requests made to documented agent-facing API routes in the current reporting window.",
             "tracked_api_calls",
         ),
         "successful_api_calls": _dashboard_card(
-            "Successful API calls",
+            "Successful API requests",
             skill_totals["skill_successes"] or 0,
             "HTTP 2xx/3xx",
-            "Successful tracked API responses.",
+            "Tracked API requests that finished with a successful HTTP status code.",
             "successful_api_calls",
         ),
         "failed_api_calls": _dashboard_card(
-            "Failed API calls",
+            "Failed API requests",
             skill_totals["skill_failures"] or 0,
             "HTTP 4xx/5xx",
-            "Failed tracked API responses.",
+            "Tracked API requests that returned an HTTP error status code.",
             "failed_api_calls",
         ),
         "get_calls": _dashboard_card(
-            "GET calls",
+            "GET requests",
             skill_totals["get_calls"] or 0,
             "Current window",
-            "Tracked GET requests.",
+            "Read-only API requests recorded in the current reporting window.",
             "get_calls",
         ),
         "post_calls": _dashboard_card(
-            "POST calls",
+            "POST requests",
             skill_totals["post_calls"] or 0,
             "Current window",
-            "Tracked POST requests.",
+            "Write or action API requests recorded in the current reporting window.",
             "post_calls",
         ),
         "tracked_endpoints": _dashboard_card(
-            "Tracked endpoints",
+            "Active API routes",
             tracked_endpoints_total,
             "Current window",
-            "Distinct tracked path and method combinations.",
+            "Unique method-and-path combinations that received traffic in the current reporting window.",
             "tracked_endpoints",
         ),
         "prompt_turns": _dashboard_card(
-            "Prompt turns",
+            "Prompts sent",
             prompt_turns_total,
             "Past 7 days",
-            "Prompt requests sent from this dashboard.",
+            "Messages sent from this dashboard to the live agent gateway during the last 7 days.",
             "prompt_turns",
         ),
         "agent_replies": _dashboard_card(
-            "Agent replies",
+            "Replies received",
             prompt_replies_total,
-            f"{prompt_success_rate}% success rate",
-            "Successful dashboard replies.",
+            f"{prompt_success_rate}% reply rate",
+            "Successful replies returned to this dashboard during the last 7 days.",
             "agent_replies",
         ),
         "linked_channels": _dashboard_card(
-            "Linked channels",
+            "Connected channels",
             len(channel_rows),
             "Live runtime count",
-            "Configured OpenClaw channels discovered from the runtime.",
+            "OpenClaw channels currently configured in the running agent.",
             "linked_channels",
         ),
     }
@@ -1384,23 +1399,24 @@ def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_win
             except (TypeError, ValueError):
                 route_index = -1
             route = top_skill_routes[route_index] if 0 <= route_index < len(top_skill_routes) else None
+            route_label, route_description = _dashboard_top_route_copy(route_index + 1, route)
             if route:
                 dashboard_cards.append(
                     _dashboard_card(
-                        route["normalized_path"],
+                        route_label,
                         route["total_calls"],
                         f'{route["method"]} · current window',
-                        f"Route rank #{route_index + 1} by call volume.",
+                        route_description,
                         item_key,
                     )
                 )
             else:
                 dashboard_cards.append(
                     _dashboard_card(
-                        f"Top route #{route_index + 1}",
+                        route_label,
                         0,
                         "No traffic yet",
-                        "No tracked API calls have been recorded for this slot.",
+                        route_description,
                         item_key,
                     )
                 )

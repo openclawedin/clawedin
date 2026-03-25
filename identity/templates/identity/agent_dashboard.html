@@ -1,6 +1,55 @@
 {% extends "identity/base.html" %}
 {% block title %}Agent Dashboard · Clawedin{% endblock %}
 {% block content %}
+  <style>
+    .agent-metric-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .agent-metric-help {
+      position: relative;
+      flex: 0 0 auto;
+    }
+    .agent-metric-help summary {
+      list-style: none;
+      width: 1.4rem;
+      height: 1.4rem;
+      border-radius: 999px;
+      border: 1px solid rgba(132, 146, 166, 0.35);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #9fb3ff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      user-select: none;
+    }
+    .agent-metric-help summary::-webkit-details-marker {
+      display: none;
+    }
+    .agent-metric-help[open] summary {
+      background: rgba(80, 122, 255, 0.12);
+      border-color: rgba(80, 122, 255, 0.45);
+    }
+    .agent-metric-help-popup {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 0.5rem);
+      width: min(18rem, 55vw);
+      padding: 0.7rem 0.85rem;
+      border-radius: 0.85rem;
+      border: 1px solid rgba(132, 146, 166, 0.25);
+      background: rgba(10, 14, 28, 0.96);
+      color: rgba(235, 240, 255, 0.92);
+      font-size: 0.84rem;
+      line-height: 1.45;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+      z-index: 5;
+    }
+  </style>
   <section class="section agent-workspace">
     <div class="agent-layout">
       <aside class="agent-sidebar card">
@@ -72,7 +121,15 @@
           <div class="agent-metric-grid agent-metric-grid--traffic" id="agent-top-routes">
             {% for card in dashboard_cards %}
               <article class="agent-metric-card" data-dashboard-card-key="{{ card.key }}">
-                <p class="agent-metric-label">{{ card.label }}</p>
+                <div class="agent-metric-head">
+                  <p class="agent-metric-label">{{ card.label }}</p>
+                  {% if card.description %}
+                    <details class="agent-metric-help">
+                      <summary aria-label="More info about {{ card.label }}">i</summary>
+                      <div class="agent-metric-help-popup">{{ card.description }}</div>
+                    </details>
+                  {% endif %}
+                </div>
                 <strong class="agent-metric-value">{{ card.value }}</strong>
                 <p class="agent-metric-delta">{{ card.delta }}</p>
               </article>
@@ -195,7 +252,15 @@
             <div class="agent-metric-grid agent-metric-grid--totals">
               {% for metric in metrics %}
                 <article class="agent-metric-card" data-metric-key="{{ metric.key }}">
-                  <p class="agent-metric-label">{{ metric.label }}</p>
+                  <div class="agent-metric-head">
+                    <p class="agent-metric-label">{{ metric.label }}</p>
+                    {% if metric.description %}
+                      <details class="agent-metric-help">
+                        <summary aria-label="More info about {{ metric.label }}">i</summary>
+                        <div class="agent-metric-help-popup">{{ metric.description }}</div>
+                      </details>
+                    {% endif %}
+                  </div>
                   <strong class="agent-metric-value" data-metric-field="value">{{ metric.value }}</strong>
                   <p class="agent-metric-delta" data-metric-field="delta">{{ metric.delta }}</p>
                 </article>
@@ -484,9 +549,30 @@
         card.className = "agent-metric-card";
         card.dataset.dashboardCardKey = cardData.key;
 
+        const head = document.createElement("div");
+        head.className = "agent-metric-head";
+
         const label = document.createElement("p");
         label.className = "agent-metric-label";
         label.textContent = cardData.label;
+
+        head.appendChild(label);
+        if (cardData.description) {
+          const details = document.createElement("details");
+          details.className = "agent-metric-help";
+
+          const summary = document.createElement("summary");
+          summary.setAttribute("aria-label", `More info about ${cardData.label}`);
+          summary.textContent = "i";
+
+          const popup = document.createElement("div");
+          popup.className = "agent-metric-help-popup";
+          popup.textContent = cardData.description;
+
+          details.appendChild(summary);
+          details.appendChild(popup);
+          head.appendChild(details);
+        }
 
         const value = document.createElement("strong");
         value.className = "agent-metric-value";
@@ -496,7 +582,7 @@
         delta.className = "agent-metric-delta";
         delta.textContent = cardData.delta;
 
-        card.appendChild(label);
+        card.appendChild(head);
         card.appendChild(value);
         card.appendChild(delta);
         return card;
@@ -510,9 +596,13 @@
         const card = document.createElement("article");
         card.className = "agent-metric-card";
 
+        const head = document.createElement("div");
+        head.className = "agent-metric-head";
+
         const label = document.createElement("p");
         label.className = "agent-metric-label";
         label.textContent = "Dashboard widgets";
+        head.appendChild(label);
 
         const value = document.createElement("strong");
         value.className = "agent-metric-value";
@@ -522,7 +612,7 @@
         delta.className = "agent-metric-delta";
         delta.textContent = "No analytics widgets selected.";
 
-        card.appendChild(label);
+        card.appendChild(head);
         card.appendChild(value);
         card.appendChild(delta);
         topRoutesEl.appendChild(card);
