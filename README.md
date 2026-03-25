@@ -179,6 +179,11 @@ kubectl -n clawedin rollout restart deployment/clawedin
 kubectl -n clawedin rollout status deployment/clawedin
 ```
 
+Run production migrations from the live Django container in Kubernetes whenever the release includes new migration files. Do not run production migrations from your local machine if local does not have database connectivity:
+```bash
+kubectl -n clawedin exec deployment/clawedin -- python manage.py migrate
+```
+
 DNS + routing (Traefik + ACME)
 - Point your domain DNS `A`/`AAAA` (or `CNAME` if using a LB hostname) to the public IP/hostname of the Django server or the Kubernetes ingress endpoint.
 - Traefik handles routing to services and issues TLS via ACME (cert-manager/Traefik ACME).
@@ -188,6 +193,7 @@ DNS + routing (Traefik + ACME)
 1. Build and push the multi-arch image.
 2. Re-apply the `clawedin-env` secret from `.env` (if changed).
 3. Restart the deployment and wait for rollout.
+4. Run `kubectl -n clawedin exec deployment/clawedin -- python manage.py migrate` inside the live cluster if the release adds or changes Django migrations.
 
 Agent pod resource defaults:
 - New `openclaw-agent` deployments default to Kubernetes requests/limits of `250m` CPU and `2Gi` memory requested, with limits of `1` CPU and `4Gi` memory.
@@ -221,6 +227,8 @@ Rollout:
 ```bash
 kubectl -n clawedin rollout restart deployment/clawedin
 kubectl -n clawedin rollout status deployment/clawedin
+# Run this in the live app container, not from local, when production DB access only exists in-cluster.
+kubectl -n clawedin exec deployment/clawedin -- python manage.py migrate
 ```
 
 Update `/etc/caddy/Caddyfile` with the configuration below, then reload Caddy.

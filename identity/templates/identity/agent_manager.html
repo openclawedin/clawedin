@@ -48,7 +48,11 @@
                   <p class="text-danger">{{ form.model_provider.errors|striptags }}</p>
                 {% endif %}
               </div>
-              <div class="form-group mb-3">
+              <div
+                class="form-group mb-3"
+                data-provider-field="openai"
+                {% if selected_model_provider != "openai" and not form.openai_api_key.errors %}hidden{% endif %}
+              >
                 <label class="form-label" for="openai_api_key">OpenAI API key</label>
                 <input
                   type="password"
@@ -63,7 +67,11 @@
                   <p class="text-danger">{{ form.openai_api_key.errors|striptags }}</p>
                 {% endif %}
               </div>
-              <div class="form-group mb-3">
+              <div
+                class="form-group mb-3"
+                data-provider-field="anthropic"
+                {% if selected_model_provider != "anthropic" and not form.anthropic_api_key.errors %}hidden{% endif %}
+              >
                 <label class="form-label" for="anthropic_api_key">Claude / Anthropic API key</label>
                 <input
                   type="password"
@@ -161,4 +169,24 @@
       </div>
     </div>
   </section>
+  <script>
+    (() => {
+      const providerSelect = document.getElementById("model_provider");
+      if (!providerSelect) {
+        return;
+      }
+
+      const providerFields = document.querySelectorAll("[data-provider-field]");
+
+      const syncProviderFields = () => {
+        const selectedProvider = providerSelect.value;
+        providerFields.forEach((field) => {
+          field.hidden = field.dataset.providerField !== selectedProvider;
+        });
+      };
+
+      providerSelect.addEventListener("change", syncProviderFields);
+      syncProviderFields();
+    })();
+  </script>
 {% endblock %}

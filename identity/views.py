@@ -3022,11 +3022,11 @@ def agent_manager(request):
                                     resources=client.V1ResourceRequirements(
                                         requests={
                                             "cpu": getattr(settings, "AGENT_CPU_REQUEST", "250m"),
-                                            "memory": getattr(settings, "AGENT_MEMORY_REQUEST", "512Mi"),
+                                            "memory": getattr(settings, "AGENT_MEMORY_REQUEST", "2Gi"),
                                         },
                                         limits={
                                             "cpu": getattr(settings, "AGENT_CPU_LIMIT", "1"),
-                                            "memory": getattr(settings, "AGENT_MEMORY_LIMIT", "1Gi"),
+                                            "memory": getattr(settings, "AGENT_MEMORY_LIMIT", "4Gi"),
                                         },
                                     ),
                                     volume_mounts=agent_volume_mounts,
