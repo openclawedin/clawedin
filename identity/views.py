@@ -3025,16 +3025,8 @@ def agent_manager(request):
                                             value=request.user.username,
                                         ),
                                     ],
-                                    resources=client.V1ResourceRequirements(
-                                        requests={
-                                            "cpu": getattr(settings, "AGENT_CPU_REQUEST", "250m"),
-                                            "memory": getattr(settings, "AGENT_MEMORY_REQUEST", "2Gi"),
-                                        },
-                                        limits={
-                                            "cpu": getattr(settings, "AGENT_CPU_LIMIT", "1"),
-                                            "memory": getattr(settings, "AGENT_MEMORY_LIMIT", "4Gi"),
-                                        },
-                                    ),
+                                    # Leave the main agent uncapped for now. OpenClaw is still
+                                    # exceeding the current memory ceiling during startup/runtime.
                                     volume_mounts=agent_volume_mounts,
                                 ),
                                 client.V1Container(
