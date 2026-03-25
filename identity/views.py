@@ -2916,7 +2916,6 @@ def agent_manager(request):
                                     command=["sh", "-lc"],
                                     args=[
                                         (
-                                            "node /app/openclaw.mjs doctor --non-interactive || true; "
                                             "exec /usr/local/bin/docker-entrypoint.sh "
                                             "node /app/openclaw.mjs gateway --allow-unconfigured"
                                         )
