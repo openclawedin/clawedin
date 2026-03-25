@@ -1217,6 +1217,11 @@ def _agent_clawedin_health(pod, token: str = "") -> dict:
     }
 
 
+def _should_query_agent_channels(gateway_health: dict) -> bool:
+    """Avoid expensive OpenClaw channel CLI calls while the gateway is still booting."""
+    return bool(gateway_health.get("ok"))
+
+
 def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_window_end):
     skill_metrics = SkillPageRequestMetric.objects.filter(
         user=user,
@@ -1430,28 +1435,30 @@ def _agent_dashboard_runtime_snapshot(request, pod_name: str, namespace: str, de
         allow_cross_namespace = request.user.is_staff or request.user.is_superuser
         pod, namespace = _resolve_pod(v1, pod_name, namespace, allow_cross_namespace)
 
-        capabilities_result = _run_openclaw_cli(v1, namespace, pod_name, ["channels", "capabilities", "--json"])
-        capabilities_raw = capabilities_result["output"]
-        capabilities_payload = _coerce_openclaw_json(capabilities_result["output"]) if capabilities_result["ok"] else None
-        channel_choices = _normalize_channel_choices(capabilities_payload)
-
-        channels_result = _run_openclaw_cli(v1, namespace, pod_name, ["channels", "list", "--json"])
-        status_result = _run_openclaw_cli(v1, namespace, pod_name, ["channels", "status", "--json"])
-        channels_raw = channels_result["output"]
-        status_raw = status_result["output"]
-        channels_payload = _coerce_openclaw_json(channels_result["output"]) if channels_result["ok"] else None
-        status_payload = _coerce_openclaw_json(status_result["output"]) if status_result["ok"] else None
-        channel_rows = _normalize_channels(channels_payload, status_payload)
-
-        if not channels_result["ok"]:
-            runtime_error = channels_result["output"] or "Could not fetch channels from the agent."
-        elif not status_result["ok"]:
-            runtime_error = status_result["output"] or "Could not fetch channel status from the agent."
-
         gateway_health = _agent_clawedin_health(
             pod,
             token=getattr(deployment_record, "web_auth_token", "") or "",
         )
+        if _should_query_agent_channels(gateway_health):
+            capabilities_result = _run_openclaw_cli(v1, namespace, pod_name, ["channels", "capabilities", "--json"])
+            capabilities_raw = capabilities_result["output"]
+            capabilities_payload = (
+                _coerce_openclaw_json(capabilities_result["output"]) if capabilities_result["ok"] else None
+            )
+            channel_choices = _normalize_channel_choices(capabilities_payload)
+
+            channels_result = _run_openclaw_cli(v1, namespace, pod_name, ["channels", "list", "--json"])
+            status_result = _run_openclaw_cli(v1, namespace, pod_name, ["channels", "status", "--json"])
+            channels_raw = channels_result["output"]
+            status_raw = status_result["output"]
+            channels_payload = _coerce_openclaw_json(channels_result["output"]) if channels_result["ok"] else None
+            status_payload = _coerce_openclaw_json(status_result["output"]) if status_result["ok"] else None
+            channel_rows = _normalize_channels(channels_payload, status_payload)
+
+            if not channels_result["ok"]:
+                runtime_error = channels_result["output"] or "Could not fetch channels from the agent."
+            elif not status_result["ok"]:
+                runtime_error = status_result["output"] or "Could not fetch channel status from the agent."
     except Exception as exc:  # pragma: no cover - depends on kube setup
         logger.exception("Failed to load OpenClaw runtime snapshot for pod %s", pod_name)
         runtime_error = str(exc)
@@ -3571,6 +3578,14 @@ def agent_dashboard(request, pod_name: str):
     }
     status_window_end = timezone.localdate()
     status_window_start = status_window_end - timedelta(days=6)
+    deployment_name = ""
+    if pod and pod.metadata and pod.metadata.labels:
+        deployment_name = pod.metadata.labels.get("deployment") or ""
+    deployment_record = AgentDeployment.objects.filter(
+        user=request.user,
+        deployment_name=deployment_name,
+        namespace=namespace,
+    ).first()
 
     if pod and not error_message and request.method == "POST":
         try:
@@ -3578,13 +3593,20 @@ def agent_dashboard(request, pod_name: str):
 
             load_kube_config()
             v1 = client.CoreV1Api()
+            gateway_health = _agent_clawedin_health(
+                pod,
+                token=getattr(deployment_record, "web_auth_token", "") or "",
+            )
 
-            capabilities_result = _run_openclaw_cli(v1, namespace, resolved_pod_name, ["channels", "capabilities", "--json"])
-            capabilities_raw = capabilities_result["output"]
-            capabilities_payload = _coerce_openclaw_json(capabilities_result["output"]) if capabilities_result["ok"] else None
-            channel_choices = _normalize_channel_choices(capabilities_payload)
-
-            if request.method == "POST" and request.POST.get("action") == "create_channel":
+            if not _should_query_agent_channels(gateway_health):
+                error_message = gateway_health["detail"]
+            elif request.method == "POST" and request.POST.get("action") == "create_channel":
+                capabilities_result = _run_openclaw_cli(v1, namespace, resolved_pod_name, ["channels", "capabilities", "--json"])
+                capabilities_raw = capabilities_result["output"]
+                capabilities_payload = (
+                    _coerce_openclaw_json(capabilities_result["output"]) if capabilities_result["ok"] else None
+                )
+                channel_choices = _normalize_channel_choices(capabilities_payload)
                 create_form = AgentChannelCreateForm(
                     request.POST,
                     channel_choices=channel_choices,
@@ -3615,30 +3637,31 @@ def agent_dashboard(request, pod_name: str):
             else:
                 create_form = AgentChannelCreateForm(channel_choices=channel_choices)
 
-            channels_result = _run_openclaw_cli(v1, namespace, resolved_pod_name, ["channels", "list", "--json"])
-            status_result = _run_openclaw_cli(v1, namespace, resolved_pod_name, ["channels", "status", "--json"])
-            channels_raw = channels_result["output"]
-            status_raw = status_result["output"]
-            channels_payload = _coerce_openclaw_json(channels_result["output"]) if channels_result["ok"] else None
-            status_payload = _coerce_openclaw_json(status_result["output"]) if status_result["ok"] else None
-            channel_rows = _normalize_channels(channels_payload, status_payload)
+            if _should_query_agent_channels(gateway_health):
+                if channel_choices is None:
+                    capabilities_result = _run_openclaw_cli(v1, namespace, resolved_pod_name, ["channels", "capabilities", "--json"])
+                    capabilities_raw = capabilities_result["output"]
+                    capabilities_payload = (
+                        _coerce_openclaw_json(capabilities_result["output"]) if capabilities_result["ok"] else None
+                    )
+                    channel_choices = _normalize_channel_choices(capabilities_payload)
+                    create_form = AgentChannelCreateForm(channel_choices=channel_choices)
 
-            if not channels_result["ok"] and not error_message:
-                error_message = channels_result["output"] or "Could not fetch channels from the agent."
-            elif not status_result["ok"] and not error_message:
-                error_message = status_result["output"] or "Could not fetch channel status from the agent."
+                channels_result = _run_openclaw_cli(v1, namespace, resolved_pod_name, ["channels", "list", "--json"])
+                status_result = _run_openclaw_cli(v1, namespace, resolved_pod_name, ["channels", "status", "--json"])
+                channels_raw = channels_result["output"]
+                status_raw = status_result["output"]
+                channels_payload = _coerce_openclaw_json(channels_result["output"]) if channels_result["ok"] else None
+                status_payload = _coerce_openclaw_json(status_result["output"]) if status_result["ok"] else None
+                channel_rows = _normalize_channels(channels_payload, status_payload)
+
+                if not channels_result["ok"] and not error_message:
+                    error_message = channels_result["output"] or "Could not fetch channels from the agent."
+                elif not status_result["ok"] and not error_message:
+                    error_message = status_result["output"] or "Could not fetch channel status from the agent."
         except Exception as exc:  # pragma: no cover - depends on kube setup
             logger.exception("Failed to load OpenClaw dashboard data for pod %s", resolved_pod_name)
             error_message = str(exc)
-
-    deployment_name = ""
-    if pod and pod.metadata and pod.metadata.labels:
-        deployment_name = pod.metadata.labels.get("deployment") or ""
-    deployment_record = AgentDeployment.objects.filter(
-        user=request.user,
-        deployment_name=deployment_name,
-        namespace=namespace,
-    ).first()
 
     can_embed_gui = bool(gui_path) and not bool(getattr(settings, "AGENT_GUI_HOST_SUFFIX", "").strip())
     chat_seed_messages = [
