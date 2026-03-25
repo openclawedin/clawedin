@@ -1494,8 +1494,11 @@ def _maybe_queue_dashboard_bootstrap_turn(user, deployment_record, pod_name: str
     if not agent_deployment_has_dashboard_bootstrap_field():
         return False
 
-    with transaction.atomic():
-        deployment = AgentDeployment.objects.select_for_update().filter(pk=deployment_record.pk).first()
+    db_alias = getattr(getattr(deployment_record, "_state", None), "db", None) or "default"
+    with transaction.atomic(using=db_alias):
+        deployment = (
+            AgentDeployment.objects.using(db_alias).select_for_update().filter(pk=deployment_record.pk).first()
+        )
         if not deployment or deployment.dashboard_bootstrap_sent_at:
             return False
 
