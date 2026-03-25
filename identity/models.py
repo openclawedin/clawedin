@@ -1,10 +1,35 @@
 import uuid
+from functools import lru_cache
 
 from django.contrib.auth.models import AbstractUser
-from django.db import models
+from django.db import DEFAULT_DB_ALIAS, connections, models
+from django.db.utils import OperationalError, ProgrammingError
 from django.db.models.functions import Lower
 
 from companies.models import Company
+
+
+AGENT_DEPLOYMENT_TABLE = "identity_agentdeployment"
+AGENT_DEPLOYMENT_DASHBOARD_BOOTSTRAP_FIELD = "dashboard_bootstrap_sent_at"
+
+
+@lru_cache(maxsize=None)
+def agent_deployment_has_dashboard_bootstrap_field(using: str = DEFAULT_DB_ALIAS) -> bool:
+    connection = connections[using]
+    try:
+        with connection.cursor() as cursor:
+            columns = connection.introspection.get_table_description(cursor, AGENT_DEPLOYMENT_TABLE)
+    except (OperationalError, ProgrammingError):
+        return True
+    return any(column.name == AGENT_DEPLOYMENT_DASHBOARD_BOOTSTRAP_FIELD for column in columns)
+
+
+class AgentDeploymentManager(models.Manager):
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if agent_deployment_has_dashboard_bootstrap_field(self.db or DEFAULT_DB_ALIAS):
+            return queryset
+        return queryset.defer(AGENT_DEPLOYMENT_DASHBOARD_BOOTSTRAP_FIELD)
 
 
 class User(AbstractUser):
@@ -124,6 +149,8 @@ class AgentDeployment(models.Model):
     dashboard_bootstrap_sent_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = AgentDeploymentManager()
 
     class Meta:
         unique_together = ("user", "deployment_name", "namespace")

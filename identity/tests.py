@@ -569,6 +569,34 @@ class AgentDashboardBootstrapTests(TestCase):
         self.assertIsNone(self.deployment.dashboard_bootstrap_sent_at)
         mock_thread.assert_not_called()
 
+    @patch("identity.views.agent_deployment_has_dashboard_bootstrap_field", return_value=False)
+    @patch("identity.views.threading.Thread")
+    def test_bootstrap_is_skipped_when_database_column_is_missing(self, mock_thread, _mock_column_check):
+        created = _maybe_queue_dashboard_bootstrap_turn(
+            self.user,
+            self.deployment,
+            self.deployment.pod_name,
+            self.deployment.namespace,
+            {"ok": True},
+        )
+
+        self.assertFalse(created)
+        self.assertEqual(AgentDashboardTurn.objects.count(), 0)
+        mock_thread.assert_not_called()
+
+
+class AgentDeploymentCompatibilityTests(TestCase):
+    databases = "__all__"
+
+    @patch("identity.models.agent_deployment_has_dashboard_bootstrap_field", return_value=False)
+    def test_queryset_defers_bootstrap_field_when_column_is_missing(self, _mock_column_check):
+        queryset = AgentDeployment.objects.all()
+
+        deferred_fields, is_deferred = queryset.query.deferred_loading
+
+        self.assertTrue(is_deferred)
+        self.assertIn("dashboard_bootstrap_sent_at", deferred_fields)
+
 
 @override_settings(DEBUG=False, ROOT_URLCONF="clawedin.test_error_urls")
 class ProductionErrorPageTests(TestCase):

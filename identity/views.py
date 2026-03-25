@@ -86,6 +86,7 @@ from .models import (
     AgentDashboardTurn,
     User,
     UserSkill,
+    agent_deployment_has_dashboard_bootstrap_field,
 )
 from analytics.models import SkillPageRequestMetric
 
@@ -1485,6 +1486,8 @@ def _maybe_queue_dashboard_bootstrap_turn(user, deployment_record, pod_name: str
     if not deployment_record or not getattr(deployment_record, "web_auth_token", ""):
         return False
     if not gateway_health.get("ok"):
+        return False
+    if not agent_deployment_has_dashboard_bootstrap_field():
         return False
 
     with transaction.atomic():

@@ -190,7 +190,7 @@ DNS + routing (Traefik + ACME)
 3. Restart the deployment and wait for rollout.
 
 Agent pod resource defaults:
-- New `openclaw-agent` deployments default to Kubernetes requests/limits of `250m` CPU and `512Mi` memory requested, with limits of `1` CPU and `1Gi` memory.
+- New `openclaw-agent` deployments default to Kubernetes requests/limits of `250m` CPU and `2Gi` memory requested, with limits of `1` CPU and `4Gi` memory.
 - The `openclaw-gui-proxy` sidecar defaults to requests of `25m` CPU and `64Mi` memory, with limits of `100m` CPU and `128Mi` memory.
 - These defaults move agent pods from `BestEffort` QoS to `Burstable`, which is safer for light API-call workloads.
 - Existing agent deployments do not inherit these defaults until their deployment template is patched or they are relaunched.
