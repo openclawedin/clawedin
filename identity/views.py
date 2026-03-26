@@ -339,6 +339,7 @@ def _dashboard_card(label, value, delta, description, key):
 
 def _humanize_dashboard_route_subject(path: str) -> str:
     ignored = {"api", "v1", "v2", "identity", "dashboard", "agent", "agents", "manager"}
+    action_markers = {"new", "create", "edit", "update", "search", "delete"}
     irregulars = {
         "news": "news",
         "status": "status",
@@ -363,6 +364,8 @@ def _humanize_dashboard_route_subject(path: str) -> str:
     if not cleaned:
         return "requests"
     subject = cleaned[-1]
+    if subject in action_markers and len(cleaned) > 1:
+        subject = cleaned[-2]
     if subject in irregulars:
         subject = irregulars[subject]
     elif subject.endswith("ies") and len(subject) > 3:
