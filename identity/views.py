@@ -339,6 +339,16 @@ def _dashboard_card(label, value, delta, description, key):
 
 def _humanize_dashboard_route_subject(path: str) -> str:
     ignored = {"api", "v1", "v2", "identity", "dashboard", "agent", "agents", "manager"}
+    irregulars = {
+        "news": "news",
+        "status": "status",
+        "analysis": "analysis",
+        "skills": "skill",
+        "jobs": "job",
+        "messages": "message",
+        "channels": "channel",
+        "profiles": "profile",
+    }
     segments = [segment for segment in (path or "/").strip("/").split("/") if segment]
     cleaned = []
     for segment in segments:
@@ -353,7 +363,9 @@ def _humanize_dashboard_route_subject(path: str) -> str:
     if not cleaned:
         return "requests"
     subject = cleaned[-1]
-    if subject.endswith("ies") and len(subject) > 3:
+    if subject in irregulars:
+        subject = irregulars[subject]
+    elif subject.endswith("ies") and len(subject) > 3:
         subject = f"{subject[:-3]}y"
     elif subject.endswith("s") and not subject.endswith("ss") and len(subject) > 3:
         subject = subject[:-1]
