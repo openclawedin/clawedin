@@ -352,6 +352,14 @@ def _dashboard_top_route_copy(rank: int, route: dict | None = None) -> tuple[str
     return label, f"Currently {method} {path}. This route is ranked #{rank} by request volume."
 
 
+def _dashboard_top_route_delta(route: dict | None = None) -> str:
+    if not route:
+        return "No traffic yet"
+    method = (route.get("method") or "HTTP").upper()
+    path = route.get("normalized_path") or "/"
+    return f"{method} {path}"
+
+
 def _build_agent_navigation(active_key: str, pod_name: str = ""):
     has_agent = bool(pod_name)
     items = [
@@ -1287,7 +1295,7 @@ def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_win
             "key": "prompt_turns",
             "label": "Prompts sent",
             "value": str(prompt_turns_total),
-            "delta": "Past 7 days",
+            "delta": "Last 7 days",
             "description": "Messages sent from this dashboard into the live agent gateway during the last 7 days.",
         },
         {
@@ -1301,14 +1309,14 @@ def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_win
             "key": "linked_channels",
             "label": "Connected channels",
             "value": str(len(channel_rows)),
-            "delta": "Live runtime count",
+            "delta": "Live count right now",
             "description": "OpenClaw channels currently configured in the running agent.",
         },
         {
             "key": "tracked_api_calls",
             "label": "Total API requests",
             "value": str(skill_totals["skill_calls"] or 0),
-            "delta": "Past 7 days",
+            "delta": "Last 7 days",
             "description": "Requests made to documented agent-facing API routes during the last 7 days.",
         },
         {
@@ -1329,49 +1337,49 @@ def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_win
         "tracked_api_calls": _dashboard_card(
             "Total API requests",
             skill_totals["skill_calls"] or 0,
-            "Current window",
+            "Requests in this window",
             "All requests made to documented agent-facing API routes in the current reporting window.",
             "tracked_api_calls",
         ),
         "successful_api_calls": _dashboard_card(
             "Successful API requests",
             skill_totals["skill_successes"] or 0,
-            "HTTP 2xx/3xx",
+            "Responses with success status",
             "Tracked API requests that finished with a successful HTTP status code.",
             "successful_api_calls",
         ),
         "failed_api_calls": _dashboard_card(
             "Failed API requests",
             skill_totals["skill_failures"] or 0,
-            "HTTP 4xx/5xx",
+            "Responses with error status",
             "Tracked API requests that returned an HTTP error status code.",
             "failed_api_calls",
         ),
         "get_calls": _dashboard_card(
             "GET requests",
             skill_totals["get_calls"] or 0,
-            "Current window",
+            "Read requests in this window",
             "Read-only API requests recorded in the current reporting window.",
             "get_calls",
         ),
         "post_calls": _dashboard_card(
             "POST requests",
             skill_totals["post_calls"] or 0,
-            "Current window",
+            "Write requests in this window",
             "Write or action API requests recorded in the current reporting window.",
             "post_calls",
         ),
         "tracked_endpoints": _dashboard_card(
             "Active API routes",
             tracked_endpoints_total,
-            "Current window",
+            "Routes active in this window",
             "Unique method-and-path combinations that received traffic in the current reporting window.",
             "tracked_endpoints",
         ),
         "prompt_turns": _dashboard_card(
             "Prompts sent",
             prompt_turns_total,
-            "Past 7 days",
+            "Last 7 days",
             "Messages sent from this dashboard to the live agent gateway during the last 7 days.",
             "prompt_turns",
         ),
@@ -1385,7 +1393,7 @@ def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_win
         "linked_channels": _dashboard_card(
             "Connected channels",
             len(channel_rows),
-            "Live runtime count",
+            "Live count right now",
             "OpenClaw channels currently configured in the running agent.",
             "linked_channels",
         ),
@@ -1405,7 +1413,7 @@ def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_win
                     _dashboard_card(
                         route_label,
                         route["total_calls"],
-                        f'{route["method"]} · current window',
+                        _dashboard_top_route_delta(route),
                         route_description,
                         item_key,
                     )
@@ -1415,7 +1423,7 @@ def _agent_dashboard_metrics(user, channel_rows, status_window_start, status_win
                     _dashboard_card(
                         route_label,
                         0,
-                        "No traffic yet",
+                        _dashboard_top_route_delta(route),
                         route_description,
                         item_key,
                     )
