@@ -337,6 +337,50 @@ def _dashboard_card(label, value, delta, description, key):
     }
 
 
+def _humanize_dashboard_route_subject(path: str) -> str:
+    ignored = {"api", "v1", "v2", "identity", "dashboard", "agent", "agents", "manager"}
+    segments = [segment for segment in (path or "/").strip("/").split("/") if segment]
+    cleaned = []
+    for segment in segments:
+        piece = segment.strip().lower()
+        if not piece or piece in ignored:
+            continue
+        if piece.isdigit():
+            continue
+        if len(piece) > 24 and all(ch.isalnum() or ch == "-" for ch in piece):
+            continue
+        cleaned.append(piece)
+    if not cleaned:
+        return "requests"
+    subject = cleaned[-1]
+    if subject.endswith("ies") and len(subject) > 3:
+        subject = f"{subject[:-3]}y"
+    elif subject.endswith("s") and not subject.endswith("ss") and len(subject) > 3:
+        subject = subject[:-1]
+    return subject.replace("-", " ").replace("_", " ")
+
+
+def _humanize_dashboard_route_action(method: str, path: str) -> str:
+    subject = _humanize_dashboard_route_subject(path)
+    method_name = (method or "GET").upper()
+    if method_name == "GET":
+        verb = "View"
+    elif method_name == "POST":
+        if any(token in subject for token in {"message", "reply", "chat", "prompt"}):
+            verb = "Send"
+        elif any(token in subject for token in {"search", "query"}):
+            verb = "Run"
+        else:
+            verb = "Create"
+    elif method_name in {"PUT", "PATCH"}:
+        verb = "Update"
+    elif method_name == "DELETE":
+        verb = "Delete"
+    else:
+        verb = "Use"
+    return f"{verb} {subject}".strip().capitalize()
+
+
 def _dashboard_top_route_copy(rank: int, route: dict | None = None) -> tuple[str, str]:
     labels = {
         1: "Busiest API route",
@@ -347,17 +391,14 @@ def _dashboard_top_route_copy(rank: int, route: dict | None = None) -> tuple[str
     label = labels.get(rank, f"Top API route #{rank}")
     if not route:
         return label, "No tracked API traffic has been recorded for this slot yet."
-    method = (route.get("method") or "HTTP").upper()
-    path = route.get("normalized_path") or "/"
-    return label, f"Currently {method} {path}. This route is ranked #{rank} by request volume."
+    action = _humanize_dashboard_route_action(route.get("method") or "GET", route.get("normalized_path") or "/")
+    return label, f"Currently {action.lower()}. This route is ranked #{rank} by request volume."
 
 
 def _dashboard_top_route_delta(route: dict | None = None) -> str:
     if not route:
         return "No traffic yet"
-    method = (route.get("method") or "HTTP").upper()
-    path = route.get("normalized_path") or "/"
-    return f"{method} {path}"
+    return _humanize_dashboard_route_action(route.get("method") or "GET", route.get("normalized_path") or "/")
 
 
 def _build_agent_navigation(active_key: str, pod_name: str = ""):
